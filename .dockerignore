@@ -24,5 +24,6 @@ npm-debug.log*
 docs
 README.md
 Makefile
+install.sh
 docker-compose*.yml
 docker/init

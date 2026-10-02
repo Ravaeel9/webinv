@@ -17,18 +17,25 @@ obrazach.
 
 ## Pierwsze uruchomienie
 
+Najprościej — instalator (opis krok po kroku: [INSTALACJA.md](INSTALACJA.md)):
+
 ```bash
 git clone <adres-repo> /opt/webinv
 cd /opt/webinv
+./install.sh
+```
 
+Ręcznie, bez instalatora:
+
+```bash
 cp .env.example .env
 # sekrety:
 openssl rand -hex 32    # → SESSION_SECRET
 openssl rand -base64 24 # → SEED_ADMIN_PASSWORD (musi spełniać politykę haseł)
 ```
 
-Albo `make init`, które wypełnia `SESSION_SECRET` i `POSTGRES_PASSWORD`
-losowymi wartościami; `SEED_ADMIN_PASSWORD` trzeba ustawić ręcznie, bo kontener
+`make init` wypełnia `SESSION_SECRET` i `POSTGRES_PASSWORD` losowymi
+wartościami; `SEED_ADMIN_PASSWORD` trzeba ustawić ręcznie, bo kontener
 celowo nie wstanie ze słabym hasłem administracyjnym.
 
 ```bash
@@ -139,6 +146,17 @@ powiedzie, kontener nie wstaje i logi jasno mówią dlaczego — to celowe,
 
 Przed migracją zdarzeń destrukcyjnych (usunięcie kolumny, zmiana typu na
 węższy) zrób `make backup`.
+
+## Aktualizacja instalatora
+
+`install.sh` jest zwykłym plikiem w repozytorium — aktualizuje się razem
+z resztą projektu przy `git pull`. Skrypt jest idempotentny, więc uruchomienie
+go po aktualizacji nie kasuje danych ani nie zmienia sekretów w `.env`:
+
+```bash
+git pull
+./install.sh
+```
 
 ## Rozwiązywanie problemów
 

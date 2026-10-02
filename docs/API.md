@@ -238,7 +238,7 @@ przycinana do `{ "_truncated": true }`, gdy jej serializacja przekracza
 > parametr (`useAuditForEntity` w `apps/web/src/lib/queries.ts`), ale kontroler
 > go ignoruje — sekcja „historia zmian” na stronie aplikacji pokazuje więc
 > ostatnie zdarzenia **typu** `Application`, nie jednego rekordu. Opis w
-> [ROZWOJ.md](ROZWOJ.md#znane-niedociagniecia).
+> [ROZWOJ.md](ROZWOJ.md#znane-niedociągnięcia).
 
 Rekord:
 

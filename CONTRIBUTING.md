@@ -26,10 +26,14 @@ Do pracy nad kodem: `make db-up && make migrate`, potem `make dev-api` i
    make typecheck
    ```
 
+   Zmiana w `install.sh` wymaga dodatkowo `bash -n install.sh`
+   (albo `shellcheck install.sh`, jeśli masz go zainstalowane).
+
 4. Commit i pull request z krótkim opisem **co się zmienia i dlaczego**.
 
-CI (`.github/workflows/ci.yml`) uruchamia `npm test` i `make typecheck` na
-każdym pushu i w każdym PR-ze — oba muszą być zielone.
+CI (`.github/workflows/ci.yml`) uruchamia `bash -n install.sh`, `npm test`
+i `make typecheck` na każdym pushu i w każdym PR-ze — wszystko musi być
+zielone.
 
 ## Konwencje
 

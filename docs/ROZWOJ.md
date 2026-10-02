@@ -55,6 +55,7 @@ npm run dev:api
 |---|---|
 | `npm test` | przed każdym pushem |
 | `make typecheck` / `npm run typecheck` | przed każdym pushem |
+| `bash -n install.sh` | przy zmianach w instalatorze (CI sprawdza to samo) |
 | `make studio` | podgląd danych (port 5555) |
 | `make psql` / `make shell` | psql w kontenerze bazy / shell w kontenerze API |
 | `make backup` / `make restore f=…` | kopia lokalna |
@@ -122,7 +123,7 @@ komentarz** — nie zostawiaj go w pastie.
   `SORTABLE` i (jeśli ma być ukryta przed gościem) poza `GUEST_SORTABLE`;
 - nieznane pole w ładunku to błąd 400 — nie dodawaj pola „na wyrostek”;
 - każda operacja zapisu zapisuje zdarzenie w dzienniku z akcją z tabeli
-  w [API.md](API.md#dziennik-zdarzeń).
+  w [API.md](API.md#dziennik-zdarzeń-apiaudit).
 
 ### Frontend
 

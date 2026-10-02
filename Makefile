@@ -1,4 +1,4 @@
-.PHONY: help init up up-dev down restart logs ps build rebuild migrate generate dev dev-api dev-web psql shell db-shell backup restore reset clean
+.PHONY: help install init up up-dev down restart logs ps build rebuild migrate generate dev dev-api dev-web typecheck psql shell db-shell backup restore reset clean
 
 APP := webinv
 COMPOSE := docker compose
@@ -18,6 +18,9 @@ help: ## Pokaż tę pomoc
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 # ─── Uruchamianie ─────────────────────────────────────────────
+
+install: ## Instalacja na serwerze: kreator ./install.sh (konfiguracja + start)
+	@./install.sh
 
 init: ## Utwórz .env z losowymi sekretami (pierwsze uruchomienie)
 	@test -f .env && { echo ".env już istnieje — pominięto"; exit 0; }

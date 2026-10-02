@@ -127,7 +127,7 @@ wpis istnieje, ale jest usunięty).
 Indeksy: `(entity, entity_id)`, `actor_id`, `created_at` — pokrywają listę
 zdarzeń i filtrowanie po encji. Kolumna `entity_id` jest indeksowana, ale
 **API nie udostępnia filtra po niej** (patrz znane niedociągnięcie w
-[ROZWOJ.md](ROZWOJ.md#znane-niedociagniecia)).
+[ROZWOJ.md](ROZWOJ.md#znane-niedociągnięcia)).
 
 ## Enumy
 

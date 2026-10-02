@@ -51,7 +51,19 @@ Do pracy nad kodem (poza Dockerem):
 - Node.js ≥ 22
 - npm 10+
 
-## Szybki start
+## Instalacja
+
+Jedno polecenie — kreator sprawdza wymagania, generuje sekrety, uruchamia
+kontenery i weryfikuje, że aplikacja odpowiada:
+
+```bash
+./install.sh
+```
+
+Prowadzi krok po kroku: port, HTTPS, hasło administratora. Szczegółowa
+instrukcja dla administratora serwera: **[docs/INSTALACJA.md](docs/INSTALACJA.md)**.
+
+Bez kreatora (albo do prac lokalnych):
 
 ```bash
 make init     # tworzy .env z losowymi sekretami (SESSION_SECRET, POSTGRES_PASSWORD)
@@ -67,7 +79,8 @@ przy pierwszym uruchomieniu i **wymusza zmianę hasła** przy pierwszym
 logowaniu. Kolejne starty nie nadpisują hasła — zmiana w `.env` po utworzeniu
 konta nie robi nic (konto zostawiamy w spokoju; hasło resetuje się z panelu).
 
-`make init` jest idempotentny — istniejącego `.env` nie rusza.
+Zarówno `make init`, jak i `install.sh` są idempotentne — istniejącego
+`.env` nie ruszają.
 
 ## Polecenia
 
@@ -75,6 +88,7 @@ Wszystko kręci się wokół `Makefile`; pełna lista: `make help`.
 
 | Polecenie | Co robi |
 |---|---|
+| `make install` | kreator instalacji na serwerze (to samo co `./install.sh`) |
 | `make init` | `.env` z losowymi sekretami (raz, przy pierwszym uruchomieniu) |
 | `make up` | buduje obrazy i uruchamia stos na `APP_PORT` (domyślnie 8080) |
 | `make up-dev` | j.w., ale baza wystawiona na hoście na `DB_DEV_PORT` |
@@ -117,6 +131,7 @@ Skrypty npm dostępne też bezpośrednio: `npm run dev:api`, `npm run dev:web`,
 ├── nginx/                   # konfiguracja serwera (nginx.conf, default.conf, nagłówki)
 ├── docs/                    # dokumentacja (nie trafia do obrazów — patrz .dockerignore)
 ├── .env.example             # wzorzec konfiguracji
+├── install.sh               # kreator instalacji na serwerze (docs/INSTALACJA.md)
 ├── docker-compose.yml       # stos produkcyjny
 ├── docker-compose.dev.yml   # nakładka deweloperska (port bazy na hoście)
 └── Makefile                 # wszystkie polecenia operacyjne
@@ -197,13 +212,17 @@ CI uruchamia oba polecenia na każdym pushu: [.github/workflows/ci.yml](.github/
 
 ## Dokumentacja
 
+Administrator serwera zaczyna od **[docs/INSTALACJA.md](docs/INSTALACJA.md)**.
+Reszta dokumentacji:
+
 | Plik | Zawartość |
 |---|---|
+| [docs/INSTALACJA.md](docs/INSTALACJA.md) | instalacja krok po kroku, weryfikacja, codzienna obsługa, problemy |
 | [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) | komponenty, przepływ żądania, decyzje projektowe i ich uzasadnienie |
 | [docs/API.md](docs/API.md) | wszystkie endpointy, parametry, błędy, sesje |
 | [docs/BAZA-DANYCH.md](docs/BAZA-DANYCH.md) | modele, pola, indeksy, migracje |
 | [docs/ROZWOJ.md](docs/ROZWOJ.md) | praca lokalna, testy, konwencje, typowe problemy |
-| [docs/WDROZENIE.md](docs/WDROZENIE.md) | instalacja produkcyjna, kopie zapasowe, aktualizacje, limity |
+| [docs/WDROZENIE.md](docs/WDROZENIE.md) | instalacja produkcyjna, HTTPS, kopie zapasowe, limity skalowania |
 | [SECURITY.md](SECURITY.md) | model bezpieczeństwa, świadome ograniczenia, checklista przed wystawieniem |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | konwencje, przegląd zmian, migracje |
 

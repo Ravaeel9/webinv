@@ -15,6 +15,9 @@ build/
 .env.*.local
 !.env.example
 
+# Kopie konfiguracji z sekretami (tworzy je install.sh przy --new-env)
+.env.bak.*
+
 # Prisma
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal
