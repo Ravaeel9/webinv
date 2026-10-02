@@ -1,0 +1,162 @@
+/**
+ * Testy widoku publicznego (gościa) — filtry i sortowanie.
+ *
+ * `toPublicView` usuwa ukryte pola z odpowiedzi (patrz public-view.test.ts),
+ * ale samo usunięcie nie wystarczało: filtr i sortowanie działają w bazie,
+ * więc gość mógł odzyskać klasyfikację i krytyczność na dwa sposoby:
+ *
+ *   1. wyrocznia — `?securityClass=RESTRICTED` i odczyt `total`,
+ *   2. kolejność wierszy — `?sort=criticality` samo ustawia rekordy
+ *      według ukrytej wartości.
+ *
+ * Te testy pilnują, żeby obie drogi były zamknięte dla bezsesji.
+ */
+import { strict as assert } from 'node:assert';
+import { describe, it } from 'node:test';
+import {
+  ApplicationsService,
+  buildOrderBy,
+} from '../src/applications/applications.service';
+
+type Where = Record<string, unknown>;
+
+/** Wywołuje prywatne `buildWhere` na prototypie — metoda nie dotyka bazy. */
+function buildWhere(
+  query: Record<string, unknown>,
+  restrict: boolean,
+): Where {
+  const service = Object.create(ApplicationsService.prototype) as {
+    buildWhere: (q: Record<string, unknown>, restrict: boolean) => Where;
+  };
+  return service.buildWhere(query, restrict);
+}
+
+describe('buildWhere — gość nie dostaje filtrów po ukrytych polach', () => {
+  it('ignoruje securityClass', () => {
+    const where = buildWhere({ securityClass: 'RESTRICTED' }, true);
+    assert.equal('securityClass' in where, false);
+  });
+
+  it('ignoruje criticality', () => {
+    const where = buildWhere({ criticality: 4 }, true);
+    assert.equal('criticality' in where, false);
+  });
+
+  it('ignoruje ownerId', () => {
+    const where = buildWhere({ ownerId: 'u-1' }, true);
+    assert.equal('ownerId' in where, false);
+  });
+
+  it('zalogowany dostaje wszystkie trzy filtry', () => {
+    assert.equal(
+      'securityClass' in buildWhere({ securityClass: 'RESTRICTED' }, false),
+      true,
+    );
+    assert.equal('criticality' in buildWhere({ criticality: 4 }, false), true);
+    assert.equal('ownerId' in buildWhere({ ownerId: 'u-1' }, false), true);
+  });
+
+  it('filtry, których nie ukrywamy, działają również u gościa', () => {
+    const where = buildWhere(
+      { status: 'PROD', environmentId: 'e-1', category: 'Finanse' },
+      true,
+    );
+    assert.equal('status' in where, true);
+    assert.equal('environments' in where, true);
+    assert.equal('category' in where, true);
+  });
+
+  it('wyszukiwanie nie szuka po nazwisku właściciela', () => {
+    // Gość wpisując imię właściciela dostawałby trafienie w wynikach —
+    // samo to wystarcza, żeby wyciągnąć czyj to wpis.
+    const where = buildWhere({ q: 'Anna' }, true);
+    const serialised = JSON.stringify(where);
+    assert.equal(serialised.includes('owner'), false);
+    assert.equal(serialised.includes('admins'), false);
+  });
+
+  it('zalogowany nadal szuka po nazwisku właściciela', () => {
+    const where = buildWhere({ q: 'Anna' }, false);
+    const serialised = JSON.stringify(where);
+    assert.equal(serialised.includes('owner'), true);
+  });
+
+  it('wyszukiwanie po nazwie działa u gościa', () => {
+    const where = buildWhere({ q: 'CRM' }, true);
+    assert.equal(Array.isArray(where.OR), true);
+  });
+
+  it('gość nie widzi usuniętych, nawet jak poprosi', () => {
+    const where = buildWhere({ includeDeleted: true }, true);
+    assert.equal(where.deletedAt, null);
+  });
+
+  it('missingOwner działa i u gościa, i zalogowanego', () => {
+    // To filtr, którego karta na pulpicie używa dla każdego,
+    // więc nie może być ukryty tylko przed gościem.
+    assert.equal(buildWhere({ missingOwner: true }, true).ownerId, null);
+    assert.equal(buildWhere({ missingOwner: true }, false).ownerId, null);
+  });
+});
+
+describe('buildOrderBy — gość nie sortuje po ukrytych polach', () => {
+  it('po krytyczności wraca do nazwy', () => {
+    // Sama kolejność wierszy zdradzałaby wartość krytyczności.
+    assert.deepEqual(buildOrderBy('criticality', true), [{ name: 'asc' }]);
+  });
+
+  it('po klasyfikacji bezpieczeństwa wraca do nazwy', () => {
+    assert.deepEqual(buildOrderBy('securityClass', true), [{ name: 'asc' }]);
+  });
+
+  it('odwrócona wersja też jest odrzucona', () => {
+    assert.deepEqual(buildOrderBy('-criticality', true), [{ name: 'asc' }]);
+  });
+
+  it('zwykłe sortowania działają u gościa', () => {
+    assert.deepEqual(buildOrderBy('name', true), [{ name: 'asc' }]);
+    assert.deepEqual(buildOrderBy('-name', true), [{ name: 'desc' }]);
+    assert.deepEqual(buildOrderBy('updatedAt', true), [{ updatedAt: 'desc' }]);
+  });
+
+  it('kierunek zgadza się z etykietą w menu', () => {
+    // `SORTABLE` trzyma domyślną kolejność pola, a `-` ją odwraca.
+    // Dla dat domyślna jest malejąca, więc „najnowsze" = bez minusa.
+    // Ta macierz pilnuje, żeby etykiety w UI nie rozjechały się
+    // z kierunkiem — błąd jest cichy, bo lista po prostu jest
+    // odwrócona i nic nie mówi dlaczego.
+    assert.deepEqual(
+      buildOrderBy('introducedOn'),
+      [{ introducedOn: 'desc' }],
+      '„Najnowsze" musi dawać malejąco',
+    );
+    assert.deepEqual(
+      buildOrderBy('-introducedOn'),
+      [{ introducedOn: 'asc' }],
+      '„Najstarsze" musi dawać rosnąco',
+    );
+    assert.deepEqual(
+      buildOrderBy('updatedAt'),
+      [{ updatedAt: 'desc' }],
+      '„Ostatnio zmienione" musi dawać malejąco',
+    );
+    assert.deepEqual(
+      buildOrderBy('sunsetOn'),
+      [{ sunsetOn: 'asc' }],
+      '„Wycofanie ↑" musi dawać rosnąco',
+    );
+  });
+
+  it('zalogowany nadal sortuje po ukrytych polach', () => {
+    assert.deepEqual(buildOrderBy('criticality', false), [
+      { criticality: 'desc' },
+    ]);
+  });
+
+  it('nieznana kolumna i tak wypada na nazwę', () => {
+    assert.deepEqual(buildOrderBy('passwordHash', true), [{ name: 'asc' }]);
+    assert.deepEqual(buildOrderBy('; DROP TABLE "Application"; --', true), [
+      { name: 'asc' },
+    ]);
+  });
+});

@@ -1,0 +1,200 @@
+@import 'tailwindcss';
+
+/*
+ * Motyw aplikacji.
+ *
+ * Trzy warstwy, żeby dark mode nie rozsiał się po komponentach:
+ *  1. `@theme` — skale `brand` (niebieski) i `accent` (zielony),
+ *  2. zmienne semantyczne (`--c-surface`, `--c-fg`…) przepisywane w `.dark`,
+ *  3. klasy komponentów (`.card`, `.input`, `.badge`) korzystające z (2).
+ *
+ * Komponenty używają nazw znaczeniowych (`bg-surface`, `text-fg-muted`),
+ * a nie `bg-slate-50`. Dzięki temu tryb ciemny zmienia się w jednym
+ * miejscu, a nie dopisywaniem `dark:` do kilkuset klas.
+ */
+
+/* Tryb ciemny włączany klasą na <html>, nie media query — inaczej
+   użytkownik nie mógłby przełączyć motywu ręcznie. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
+  /* Akcent główny — granatowy */
+  --color-brand-50: oklch(0.97 0.014 254);
+  --color-brand-100: oklch(0.94 0.03 254);
+  --color-brand-200: oklch(0.88 0.06 254);
+  --color-brand-300: oklch(0.8 0.1 254);
+  --color-brand-400: oklch(0.7 0.15 254);
+  --color-brand-500: oklch(0.62 0.19 254);
+  --color-brand-600: oklch(0.55 0.21 254);
+  --color-brand-700: oklch(0.48 0.19 254);
+  --color-brand-800: oklch(0.42 0.16 254);
+  --color-brand-900: oklch(0.36 0.13 254);
+  --color-brand-950: oklch(0.25 0.09 254);
+
+  /* Akcent dodatkowy — zielony (sukces, „w produkcji", akcje pozytywne) */
+  --color-accent-50: oklch(0.97 0.02 155);
+  --color-accent-100: oklch(0.94 0.05 155);
+  --color-accent-200: oklch(0.89 0.09 155);
+  --color-accent-300: oklch(0.82 0.13 155);
+  --color-accent-400: oklch(0.73 0.16 155);
+  --color-accent-500: oklch(0.65 0.17 155);
+  --color-accent-600: oklch(0.56 0.15 155);
+  --color-accent-700: oklch(0.47 0.13 155);
+  --color-accent-800: oklch(0.39 0.1 155);
+  --color-accent-900: oklch(0.31 0.08 155);
+  --color-accent-950: oklch(0.21 0.05 155);
+
+  /* Warstwa semantyczna — wartości poniżej, przełączane w `.dark` */
+  --color-page: var(--c-page);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-fg-subtle: var(--c-fg-subtle);
+}
+
+/* ─── Jasny motyw (domyślny) ─────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  --c-page: oklch(0.977 0.003 254);
+  --c-surface: oklch(1 0 0);
+  --c-surface-2: oklch(0.972 0.004 254);
+  --c-surface-3: oklch(0.945 0.006 254);
+  --c-line: oklch(0.912 0.006 254);
+  --c-line-strong: oklch(0.85 0.008 254);
+
+  /* Kontrast na białej karcie: 17:1, 8:1, 5.4:1 */
+  --c-fg: oklch(0.21 0.02 254);
+  --c-fg-muted: oklch(0.44 0.02 254);
+  --c-fg-subtle: oklch(0.52 0.02 254);
+}
+
+/* ─── Motyw ciemny ────────────────────────────────────────────── */
+.dark {
+  color-scheme: dark;
+
+  --c-page: oklch(0.17 0.008 254);
+  --c-surface: oklch(0.215 0.01 254);
+  --c-surface-2: oklch(0.255 0.012 254);
+  --c-surface-3: oklch(0.295 0.012 254);
+  --c-line: oklch(0.32 0.013 254);
+  --c-line-strong: oklch(0.42 0.015 254);
+
+  /* Kontrast na ciemnej karcie: 14:1, 7:1, 4.8:1 */
+  --c-fg: oklch(0.96 0.005 254);
+  --c-fg-muted: oklch(0.76 0.014 254);
+  --c-fg-subtle: oklch(0.66 0.014 254);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-page text-fg antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Widoczny fokus klawiaturowy — nie usuwamy go nigdzie */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+
+  /* Ciemniejsze pasy przewijania w tabelach */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+
+  /* Ciągłe przejście przy przełączaniu motywu — bez niego zmiana
+     wygląda jak migotanie. Wyłączamy, gdy użytkownik prosi o mniej
+     animacji. */
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-transition,
+    .theme-transition *,
+    .theme-transition *::before,
+    .theme-transition *::after {
+      transition: none;
+    }
+  }
+}
+
+@layer components {
+  /* Odznaka — baza dla wszystkich statusów i klasyfikacji */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5
+           text-xs font-medium whitespace-nowrap ring-1 ring-inset;
+  }
+
+  /* Karta treści */
+  .card {
+    @apply rounded-xl border border-line bg-surface shadow-xs;
+  }
+
+  /* Etykieta pola formularza */
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-fg;
+  }
+
+  /* Pole formularza */
+  .input {
+    @apply w-full rounded-lg border border-line-strong bg-surface px-3 py-2
+           text-sm text-fg shadow-xs transition
+           placeholder:text-fg-subtle
+           focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20
+           focus:outline-none
+           disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-muted;
+  }
+
+  /* Błąd walidacji */
+  .input-error {
+    @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/20;
+  }
+
+  .error-text {
+    @apply mt-1 text-xs text-rose-600 dark:text-rose-400;
+  }
+
+  /* Delikatne tło dla wierszy nagłówkowych tabel i stopek karty */
+  .surface-2 {
+    @apply bg-surface-2;
+  }
+}
+
+/*
+ * Animacja wejścia wiersza tabeli — subtelna, nie przeszkadza
+ * przy dłuższych listach.
+ */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-in-up {
+  animation: fade-in-up 0.18s ease-out;
+}

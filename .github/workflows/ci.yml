@@ -1,0 +1,46 @@
+name: CI
+
+# Typy i testy — bez bazy danych i bez kontenerów, więc job jest szybki
+# i powtarzalny. Migracje stosuje się dopiero przy starcie kontenera API
+# (prisma migrate deploy), więc CI ich nie uruchamia.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# CI tylko czyta repozytorium.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typy i testy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Lockfile jest w repo — `npm ci` nie zmienia zależności.
+      - name: Instalacja zależności
+        run: npm ci --no-audit --no-fund
+
+      # Przygotowanie przed sprawdzeniem typów: API typuje się na
+      # wygenerowanym kliencie Prisma.
+      - name: Wygenerowanie klienta Prisma
+        run: npm run prisma:generate
+
+      - name: Sprawdzenie typów (api + web)
+        run: npm run typecheck
+
+      # tsconfig.test.json włącza do programu testów także
+      # apps/web/src/lib/password.ts — test porównuje politykę haseł
+      # serwera z interfejsem.
+      - name: Testy
+        run: npm test

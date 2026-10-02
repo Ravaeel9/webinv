@@ -1,0 +1,210 @@
+// Rejestr Oprogramowania — schemat bazy danych
+// Dokumentacja pól: docs/ARCHITEKTURA.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Role i uprawnienia ───────────────────────────────────────
+enum Role {
+  SUPER_ADMIN // wszystko + zarządzanie użytkownikami
+  ADMIN // CRUD aplikacji + odczyt userów + audyt
+  VIEWER // tylko odczyt
+}
+
+// ─── Klasyfikacja bezpieczeństwa ──────────────────────────────
+enum SecurityClass {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+// ─── Status wdrożenia ─────────────────────────────────────────
+enum AppStatus {
+  PROD // używana produkcyjnie
+  TEST // w testach
+  DEV // w środowisku deweloperskim
+  PLANNED // zaplanowana, jeszcze nie wdrożona
+  DEPRECATED // wycofywana, wciąż w użyciu
+  RETIRED // wycofana z użytku
+}
+
+// ─── Użytkownicy ──────────────────────────────────────────────
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  username     String    @unique @db.Citext
+  email        String    @unique @db.Citext
+  fullName     String    @map("full_name") @db.VarChar(200)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         Role      @default(VIEWER)
+  isActive     Boolean   @default(true) @map("is_active")
+  // Wymuszenie zmiany hasła przy następnym logowaniu
+  mustChangePassword Boolean @default(false) @map("must_change_password")
+  // Płaska lista do szybkich testów — nie używamy tego w runtime
+  passwordChangedAt DateTime? @map("password_changed_at")
+
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Aplikacje, którymi użytkownik jest właścicielem
+  ownedApplications Application[] @relation("AppOwner")
+  // Aplikacje, którymi użytkownik administruje
+  administeredApps  Application[] @relation("AppAdmins")
+  // Aplikacje utworzone przez użytkownika
+  createdApps       Application[] @relation("AppCreator")
+
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Sesje ────────────────────────────────────────────────────
+model Session {
+  id String @id @default(uuid()) @db.Uuid
+
+  // W bazie trzymamy wyłącznie skrót tokenu — sam token jest tylko w ciasteczku
+  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+
+  ip        String? @db.VarChar(64)
+  userAgent String? @map("user_agent") @db.VarChar(500)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ─── Środowiska ───────────────────────────────────────────────
+model Environment {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique @db.Citext
+  // Kolejność na liście rozwijanej
+  sortOrder Int       @default(0) @map("sort_order")
+  color     String    @default("slate") @db.VarChar(30)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  applications ApplicationEnvironment[]
+
+  @@map("environments")
+}
+
+// ─── Relacja aplikacja ↔ środowisko ──────────────────────────
+model ApplicationEnvironment {
+  applicationId String     @map("application_id") @db.Uuid
+  environmentId String     @map("environment_id") @db.Uuid
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@id([applicationId, environmentId])
+  @@index([environmentId])
+  @@map("application_environments")
+}
+
+// ─── Aplikacje ────────────────────────────────────────────────
+model Application {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String @unique @db.Citext
+  version     String @db.VarChar(100)
+  category    String? @db.VarChar(100)
+
+  // Co to jest i do czego służy
+  description String? @db.Text
+  purpose     String? @db.Text
+
+  // Kto odpowiada
+  ownerId String? @map("owner_id") @db.Uuid
+  owner   User?   @relation("AppOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  admins  User[]  @relation("AppAdmins")
+
+  // Kiedy
+  introducedOn DateTime? @map("introduced_on") @db.Date
+  sunsetOn     DateTime? @map("sunset_on") @db.Date
+
+  // Bezpieczeństwo
+  securityClass SecurityClass @default(INTERNAL) @map("security_class")
+  // 1 = niska, 4 = krytyczna dla organizacji
+  criticality   Int           @default(2) @db.SmallInt
+  status        AppStatus     @default(PROD)
+
+  // Czy uzyskanie dostępu do aplikacji wymaga formalnego wniosku
+  accessRequestRequired Boolean @default(false) @map("access_request_required")
+
+  // Dostawca i licencja
+  vendor       String? @db.VarChar(200)
+  license      String? @db.VarChar(200)
+  licenseCount Int?    @map("license_count")
+  annualCost   Decimal? @map("annual_cost") @db.Decimal(12, 2)
+
+  // Środowiska
+  environments ApplicationEnvironment[]
+
+  // Linki
+  websiteUrl String? @map("website_url") @db.VarChar(500)
+  docsUrl    String? @map("docs_url") @db.VarChar(500)
+  repoUrl    String? @map("repo_url") @db.VarChar(500)
+  runbookUrl String? @map("runbook_url") @db.VarChar(500)
+
+  // Notatki o integracjach / wystawianych API
+  integrations String? @db.Text
+
+  // Metadane
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdBy   User?    @relation("AppCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  // Soft delete — zachowujemy historię zamiast kasować wpis
+  deletedAt   DateTime? @map("deleted_at") @db.Date
+
+  @@index([status])
+  @@index([securityClass])
+  @@index([criticality])
+  @@index([ownerId])
+  @@index([introducedOn])
+  @@index([sunsetOn])
+  @@index([deletedAt])
+  @@index([category])
+  @@map("applications")
+}
+
+// ─── Dziennik zdarzeń ─────────────────────────────────────────
+model AuditLog {
+  id     String @id @default(uuid()) @db.Uuid
+
+  // Co się stało
+  action String @db.VarChar(40)
+  entity String @db.VarChar(60)
+  // Klucz główny rekordu, którego dotyczy zdarzenie
+  entityId String? @map("entity_id") @db.Uuid
+
+  // Kto i skąd
+  actorId String? @map("actor_id") @db.Uuid
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorName String? @map("actor_name") @db.VarChar(200)
+
+  // Zmiana: { pole: { from, to } }
+  changes Json?
+
+  ip        String? @db.VarChar(64)
+  userAgent String? @map("user_agent") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

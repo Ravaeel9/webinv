@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────────────────────
+#  Rejestr Oprogramowania — wspólne narzędzia Compose
+# ─────────────────────────────────────────────────────────────
+name: webinv
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ─── Baza danych ────────────────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    container_name: webinv_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-webinv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD jest wymagane w .env}
+      POSTGRES_DB: ${POSTGRES_DB:-webinv}
+      # Przyspiesza initdb
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Rozszerzenia (citext) — wykonywane raz przy pierwszym initdb
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-webinv} -d ${POSTGRES_DB:-webinv}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # Baza celowo NIE wystawia portu na host — łączymy się przez sieć
+    # wewnętrzną. Do prac lokalnych (migracje, Prisma Studio, psql) użyj
+    # pliku `docker-compose.dev.yml`, który dokłada mapowanie portu:
+    #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+    networks: [internal]
+    logging: *default-logging
+
+  # ─── API (NestJS) ───────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: webinv_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-webinv}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-webinv}?schema=public&connection_limit=10&pool_timeout=20
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET jest wymagane w .env}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+      LOGIN_RATE_LIMIT_WINDOW: ${LOGIN_RATE_LIMIT_WINDOW:-15m}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@firma.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD jest wymagane w .env}
+      SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME:-Administrator Systemu}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [internal]
+    logging: *default-logging
+
+  # ─── Web (nginx: statyczny build React + proxy /api) ───────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: webinv_web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1/nginx-health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks: [internal]
+    logging: *default-logging
+
+volumes:
+  pgdata:
+    name: webinv_pgdata
+
+networks:
+  internal:
+    name: webinv_internal
+    driver: bridge

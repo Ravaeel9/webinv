@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Testy nigdy nie są emitowane — uruchamia je tsx, który zdejmuje
+    // typy, ale ich NIE sprawdza. Dlatego osobny config: główny ma
+    // `include: ["src/**/*"]` i `rootDir: ./src`, a dorzucenie testów
+    // do niego wywaliłoby `nest build`.
+    "noEmit": true,
+    "incremental": false,
+    "tsBuildInfoFile": null,
+    // `rootDir` z głównego configu to `./src`; samo `noEmit` nie
+    // znosi tego sprawdzenia (TS6059), a testy leżą poza `src`.
+    "rootDir": "../.."
+  },
+  // Ostatni wpis to cel: `password-parity.test.ts` porównuje politykę
+  // haseł serwera z jej kopią w interfejsie. Bez tego wpisu import
+  // spoza `apps/api` nie byłby widoczny dla programu TypeScript.
+  "include": ["test/**/*", "../web/src/lib/password.ts"]
+}

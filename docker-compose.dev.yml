@@ -1,0 +1,16 @@
+# ─────────────────────────────────────────────────────────────
+#  Nakładka deweloperska — używaj RAZEM z docker-compose.yml:
+#
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#
+#  Dokłada wyłącznie mapowanie portu bazy na host, żeby można było
+#  podłączyć się Prisma Studio, pgAdmin albo psql z maszyny.
+#  W produkcji NIE używaj tego pliku — baza ma zostać w sieci
+#  wewnętrznej i nieosiągalna z zewnątrz.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  db:
+    # 55432 zamiast 5432, bo na hoście 5432 zajmuje inny projekt
+    ports:
+      - "${DB_DEV_PORT:-55432}:5432"

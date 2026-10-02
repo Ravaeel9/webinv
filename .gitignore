@@ -1,0 +1,51 @@
+# Zależności
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Środowisko — nigdy nie commituj
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Prisma
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+
+# Testy / coverage
+coverage/
+.nyc_output/
+
+# Logi
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Systemowe
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Lokalne skrypty
+/tmp/
+scratch/
+*.tsbuildinfo
+
+# Kopie zapasowe bazy — dane produkcyjne, nigdy do repo
+backups/
+graphify-out/

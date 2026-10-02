@@ -1,0 +1,28 @@
+# Kontekst obu obrazów to katalog główny repo (npm workspaces),
+# więc kontekst musi widzieć package.json i oba pakiety.
+node_modules
+**/node_modules
+
+# Buildy i artefakty — Docker buduje je sam
+dist
+**/dist
+apps/web/dist
+
+# Sekrety — nigdy nie trafiają do obrazu
+.env
+.env.*
+!.env.example
+
+# Dane lokalne
+.git
+.gitignore
+backups
+*.log
+npm-debug.log*
+
+# Dokumentacja i skrośki — nie są potrzebne w produkcji
+docs
+README.md
+Makefile
+docker-compose*.yml
+docker/init
