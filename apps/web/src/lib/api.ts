@@ -6,7 +6,16 @@
  * żadnego nagłówka Authorization.
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+/**
+ * Adres bazowy API.
+ *
+ * Leniwie, nie na poziomie modułu: `import.meta.env` istnieje tylko
+ * w bundlu Vite'a. Czytanie go przy imporcie wywracałoby `api.ts` poza
+ * Vite (testy `node --test`, `tsx`), gdzie tego obiektu nie ma.
+ */
+function baseUrl(): string {
+  return import.meta.env.VITE_API_BASE_URL || '/api';
+}
 
 /** Błąd z komunikatem po polsku, gotowym do pokazania w UI. */
 export class ApiError extends Error {
@@ -95,7 +104,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     init.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, init);
+  const response = await fetch(`${baseUrl()}${path}`, init);
 
   if (!response.ok) {
     throw await extractError(response);
@@ -119,16 +128,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
-/** Buduje query string, pomijając puste i domyślne wartości. */
-export function buildQuery(params: Record<string, unknown>): string {
-  const search = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === '') continue;
-    if (value === false) continue;
-    search.set(key, String(value));
-  }
-
-  const qs = search.toString();
-  return qs ? `?${qs}` : '';
-}
+// `buildQuery` żyje w osobnym module (`query.ts`), bo ten plik czyta
+// `import.meta.env` i nie da się go zaimportować poza bundlem Vite.
+// Reeksportujemy dla wygody dotychczasowego importu.
+export { buildQuery } from './query';

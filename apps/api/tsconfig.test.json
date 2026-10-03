@@ -12,8 +12,15 @@
     // znosi tego sprawdzenia (TS6059), a testy leżą poza `src`.
     "rootDir": "../.."
   },
-  // Ostatni wpis to cel: `password-parity.test.ts` porównuje politykę
-  // haseł serwera z jej kopią w interfejsie. Bez tego wpisu import
-  // spoza `apps/api` nie byłby widoczny dla programu TypeScript.
-  "include": ["test/**/*", "../web/src/lib/password.ts"]
+  // Wpisy spoza `apps/api` to cel: `password-parity.test.ts` porównuje
+  // politykę haseł serwera z jej kopią w interfejsie, a
+  // `build-query.test.ts` pilnuje budowania query stringa. Oba pliki
+  // są celowo wolne od `import.meta` — inaczej nie dało by się ich
+  // zaimportować w CommonJS (stąd `query.ts` wydzielony z `api.ts`).
+  "include": [
+    "test/**/*",
+    "../web/src/lib/password.ts",
+    "../web/src/lib/query.ts",
+    "../web/src/types.ts"
+  ]
 }

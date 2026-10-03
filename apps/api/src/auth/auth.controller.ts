@@ -20,7 +20,11 @@ import {
   Public,
   type AuthUser,
 } from './decorators';
-import { ChangePasswordDto, LoginDto } from './dto/auth.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RevokeSessionDto,
+} from './dto/auth.dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -109,10 +113,10 @@ export class AuthController {
   @HttpCode(200)
   @AllowWhilePasswordChangeRequired()
   async revokeSession(
-    @Body('sessionId') sessionId: string,
+    @Body() dto: RevokeSessionDto,
     @CurrentUser() user: AuthUser,
   ) {
-    await this.auth.revokeSession(user.id, sessionId, user);
+    await this.auth.revokeSession(user.id, dto.sessionId, user);
     return { ok: true };
   }
 }

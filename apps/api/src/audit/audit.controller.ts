@@ -4,10 +4,38 @@ import {
   Query,
   DefaultValuePipe,
   ParseIntPipe,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermission } from '../auth/decorators';
 import { ROLE_LABELS } from '../auth/permissions';
+
+/**
+ * Buduje `where` dla listy zdarzeń.
+ *
+ * `entityId` jest tu celowo: panel „Historia zmian" na karcie aplikacji
+ * prosi o jeden konkretny rekord, a bez tego parametru lista zwracała
+ * ostatnie zdarzenia dowolnej encji — pokazane tak, jakby należały
+ * do tego rekordu. Indeks `[entity, entityId]` w schemacie zakłada,
+ * że zapytanie po obu polach będzie się zdarzać.
+ *
+ * Wyeksportowana dla testu — filtr jest granicą „tej a nie innej"
+ * aplikacji, więc zasługuje na przypięcie przypadkiem.
+ */
+export function buildAuditWhere(filters: {
+  entity?: string;
+  entityId?: string;
+  action?: string;
+  actorId?: string;
+}): Record<string, unknown> {
+  const { entity, entityId, action, actorId } = filters;
+  return {
+    ...(entity ? { entity } : {}),
+    ...(entityId ? { entityId } : {}),
+    ...(action ? { action: { startsWith: action } } : {}),
+    ...(actorId ? { actorId } : {}),
+  };
+}
 
 @Controller('api/audit')
 export class AuditController {
@@ -19,17 +47,14 @@ export class AuditController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
     @Query('entity') entity?: string,
+    @Query('entityId', new ParseUUIDPipe({ optional: true })) entityId?: string,
     @Query('action') action?: string,
-    @Query('actorId') actorId?: string,
+    @Query('actorId', new ParseUUIDPipe({ optional: true })) actorId?: string,
   ) {
     const safeLimit = Math.min(Math.max(limit, 1), 200);
     const safePage = Math.max(page, 1);
 
-    const where = {
-      ...(entity ? { entity } : {}),
-      ...(action ? { action: { startsWith: action } } : {}),
-      ...(actorId ? { actorId } : {}),
-    };
+    const where = buildAuditWhere({ entity, entityId, action, actorId });
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.auditLog.findMany({

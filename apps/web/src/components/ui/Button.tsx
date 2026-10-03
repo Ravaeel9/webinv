@@ -29,12 +29,18 @@ export function Button({
   size = 'md',
   loading = false,
   disabled,
+  // Domyślnie `button`, nie domyślne HTML-owe `submit`. Dziś każdy
+  // przycisk wysyłający formularz ma `type="submit"` jawnie, więc nic
+  // się nie zmienia — a przycisk postawiony w przyszłości wewnątrz
+  // `<form>` nie wyśle go przez przypadek.
+  type = 'button',
   className = '',
   children,
   ...rest
 }: ButtonProps) {
   return (
     <button
+      type={type}
       // Gdy `loading`, blokujemy kliknięcia — inaczej user wysyła
       // formularz dwa razy i tworzy dwa wpisy
       disabled={disabled || loading}

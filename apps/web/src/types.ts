@@ -160,19 +160,59 @@ export interface FieldChange {
 }
 
 /**
- * Mapa zmian z dziennika. Klucz `_truncated` nie jest zmianą —
- * zawiera listę pól, których wartość serwer przyciął.
+ * Mapa zmian z dziennika.
+ *
+ * Klucz `_truncated` nie jest zmianą, ale ma dwa kształty:
+ * `AuditService.diff` dopisuje tam listę nazw pól przyciętych,
+ * a `GET /api/audit` — gdy zmiany nie mieszczą się w odpowiedzi —
+ * zastępuje cały obiekt wartością `true`.
+ *
+ * Poprzednia deklaracja `Record<string, FieldChange> & { _truncated?:
+ * string[] }` nigdy nie działała: indeks sygnatury wymusza, żeby
+ * KAŻDY klucz był `{ from, to }`, więc `_truncated` nie dało się do
+ * typu przypisać w ogóle, a zadeklarowana wartość `string[]` była
+ * fałszywa. Stąd indeks z sumą wartości i osobna deklaracja
+ * `_truncated`; zawężanie do samej zmiany robi `visibleChanges`.
  */
-export type AuditChanges = Record<string, FieldChange> & {
-  _truncated?: string[];
+export type AuditChanges = {
+  [key: string]: FieldChange | string[] | true | undefined;
+  _truncated?: string[] | true;
 };
 
-/** Zmiany do pokazania, bez technicznego klucza `_truncated`. */
+/**
+ * Nazwy pól wymienione w `_truncated`, gdy serwer przyciął ich wartości.
+ *
+ * Pusta lista dla `true`: wtedy przycięto całą zmianę i nie wiadomo
+ * których pól dotyczy — komunikat musi to powiedzieć osobno.
+ */
+export function truncatedFields(changes: AuditChanges): string[] {
+  const value = changes._truncated;
+  return Array.isArray(value) ? value : [];
+}
+
+/** Czy wartość z `changes` jest zmianą pola, a nie kluczem technicznym. */
+function isFieldChange(value: unknown): value is FieldChange {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'from' in value &&
+    'to' in value
+  );
+}
+
+/**
+ * Zmiany do pokazania, bez technicznego klucza `_truncated`.
+ *
+ * Sprawdzamy kształt wartości, a nie samą nazwę klucza: `changes`
+ * przychodzi jako JSON, więc `_truncated` może być listą nazw pól
+ * albo `true`. Odfiltrowanie po kształcie chroni też przed tym, by
+ * komponent zawołał `.map()` na wartości, która nim nie jest.
+ */
 export function visibleChanges(
   changes: AuditChanges,
 ): Array<[string, FieldChange]> {
   return Object.entries(changes).filter(
-    (entry): entry is [string, FieldChange] => entry[0] !== '_truncated',
+    (entry): entry is [string, FieldChange] => isFieldChange(entry[1]),
   );
 }
 
@@ -310,11 +350,6 @@ export const ACCESS_REQUEST_YES =
   'bg-accent-100 text-accent-900 ring-accent-200 dark:bg-accent-500/15 dark:text-accent-300 dark:ring-accent-500/30';
 export const ACCESS_REQUEST_NO = 'bg-surface-2 text-fg-muted ring-line';
 
-/** Karta słowa kluczowego dla <datalist> przeglądarki. */
-export const ENV_COLORS: Record<string, string> = {
-  emerald: 'bg-emerald-100 text-emerald-900 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30',
-  amber: 'bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  sky: 'bg-sky-100 text-sky-900 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  violet: 'bg-violet-100 text-violet-900 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  slate: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
-};
+// `ENV_COLORS` (karta nazwy środowiska) nie było nigdzie używane —
+// odznaki środowisk mają własne klasy w komponentach. Usunięte jako martwy
+// eksport; jeśli wróci potrzeba, odtworzyć razem z call-site'em.

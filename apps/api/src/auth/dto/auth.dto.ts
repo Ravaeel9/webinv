@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsEmail,
   IsBoolean,
+  IsUUID,
   Matches,
 } from 'class-validator';
 
@@ -29,6 +30,21 @@ export class ChangePasswordDto {
   @MinLength(12, { message: 'Nowe hasło musi mieć co najmniej 12 znaków.' })
   @MaxLength(200, { message: 'Maksymalnie 200 znaków.' })
   newPassword!: string;
+}
+
+/**
+ * Cofnięcie jednej sesji.
+ *
+ * Osobna klasa, nie goły `@Body('sessionId')` — brak walidacji znaczył,
+ * że `sessionId` mogło być `undefined`, a Prisma **pomija `undefined`
+ * w `where`**. Zapytanie stawało się wtedy `deleteMany({ where:
+ * { userId } })`, czyli kasowało wszystkie sesje użytkownika i zwracało
+ * `200 {ok:true}`. Dzięki `@IsUUID` pusty lub niepoprawny payload jest
+ * odrzucany walidacją, zanim trafi do bazy.
+ */
+export class RevokeSessionDto {
+  @IsUUID('4', { message: 'Podaj poprawny identyfikator sesji.' })
+  sessionId!: string;
 }
 
 export class CreateUserDto {

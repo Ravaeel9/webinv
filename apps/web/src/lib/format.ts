@@ -88,21 +88,19 @@ export function describeEol(iso: string | null | undefined): {
   return { label: `Za ${days} ${pluralDays(days)}`, tone: 'ok' };
 }
 
-/** Odmiana „dzień/dni/dni". */
+/**
+ * Odmiana „dzień/dni".
+ *
+ * Prosta, bo poprawna gramatycznie forma „dni" jest taka sama dla
+ * wszystkich liczb poza 1 — polski nie ma osobnej liczby mnogiej dla
+ * 2–4 w tym rzeczowniku.
+ */
 export function pluralDays(n: number): string {
-  if (n === 1) return 'dzień';
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'dni';
-  return 'dni';
+  return n === 1 ? 'dzień' : 'dni';
 }
 
-/** Skraca długie teksty z wieloliniową treścią. */
-export function truncate(text: string | null | undefined, max = 140): string {
-  if (!text) return '—';
-  if (text.length <= max) return text;
-  return `${text.slice(0, max).trimEnd()}…`;
-}
+// `truncate` nie miał call-site'ów (pozostałe wystąpienia nazwy to klasa
+// Tailwind `.truncate` w JSX). Usunięty jako martwy eksport.
 
 /**
  * Opis akcji audytowej po polsku. Klucze muszą pokrywać się z tym,

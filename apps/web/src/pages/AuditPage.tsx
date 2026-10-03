@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { describeAction, formatDateTime } from '../lib/format';
-import { visibleChanges, type AuditChanges } from '../types';
+import { visibleChanges, truncatedFields, type AuditChanges } from '../types';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -242,11 +242,17 @@ function Changes({ changes }: { changes: AuditChanges }) {
       )}
       {changes._truncated && (
         <li className="text-xs text-amber-700">
-          Przycięto wartości pól:{' '}
-          {changes._truncated
-            .map((field) => FIELD_LABELS[field] ?? field)
-            .join(', ')}
-          .
+          {truncatedFields(changes).length > 0 ? (
+            <>
+              Przycięto wartości pól:{' '}
+              {truncatedFields(changes)
+                .map((field) => FIELD_LABELS[field] ?? field)
+                .join(', ')}
+              .
+            </>
+          ) : (
+            'Zmiana była zbyt duża, żeby pokazać jej treść.'
+          )}
         </li>
       )}
     </ul>

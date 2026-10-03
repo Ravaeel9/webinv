@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SessionsService } from '../auth/sessions.service';
 import { hashPassword, validatePasswordStrength } from '../auth/password';
-import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { CreateUserDto, UpdateUserDto } from '../auth/dto/auth.dto';
 import type { AuthUser } from '../auth/decorators';
 

@@ -226,12 +226,20 @@ export function useDeleteApplication() {
 }
 
 export function useRestoreApplication() {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateApplicationData();
 
   return useMutation({
     mutationFn: (id: string) =>
       api.post<{ application: Application }>(`/applications/${id}/restore`),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // Klucz pojedynczej aplikacji to `['application', id]`, a
+      // `invalidate()` unieważnia tylko `['applications']`. Bez tego
+      // karta po przywróceniu dalej pokazywała banner „usunięta" —
+      // refetch wymuszają dopiero upływ `staleTime`.
+      void queryClient.invalidateQueries({ queryKey: ['application'] });
+    },
   });
 }
 

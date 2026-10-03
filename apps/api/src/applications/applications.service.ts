@@ -44,6 +44,32 @@ const SORTABLE: Record<string, Prisma.ApplicationOrderByWithRelationInput> = {
 const EOL_WARNING_DAYS = 90;
 
 /**
+ * Granice okna „wycofywane w najbliższych N dniach".
+ *
+ * `sunsetOn` jest kolumną `@db.Date`, więc Postgres rzutuje ją przy
+ * porównaniu na timestamp **o północy**. Zwykłe `now` (z godziną) dawało
+ * przez to wynik odwrotny do zamierzonego: aplikacja wycofywana dziś
+ * miała `sunsetOn < now`, więc trafiała do „po terminie wycofania",
+ * a nie do „wycofywane w ciągu 90 dni". Granice wyznaczamy więc
+ * zawsze od początku doby.
+ *
+ * Wyeksportowana dla testu — to granica między `date` a timestampem,
+ * czyli dokładnie taki rodzaj błędu, którego nie widać w kodzie.
+ */
+export function eolWindow(
+  now: Date,
+  days: number = EOL_WARNING_DAYS,
+): { soonFrom: Date; soonTo: Date; passedBefore: Date } {
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+  return {
+    soonFrom: from,
+    soonTo: new Date(from.getTime() + days * 24 * 60 * 60 * 1000),
+    passedBefore: from,
+  };
+}
+
+/**
  * Sortowania dozwolone gościowi.
  *
  * Odwrotność `GUEST_HIDDEN_FIELDS`: te pola znikają z odpowiedzi, więc
@@ -208,7 +234,7 @@ export class ApplicationsService {
   /** Statystyki na dashboard. */
   async stats() {
     const now = new Date();
-    const eolSoon = new Date(now.getTime() + EOL_WARNING_DAYS * 24 * 60 * 60 * 1000);
+    const { soonFrom, soonTo, passedBefore } = eolWindow(now);
 
     const [
       total,
@@ -271,11 +297,14 @@ export class ApplicationsService {
         },
       }),
 
-      // Wycofywane w ciągu najbliższych 90 dni
+      // Wycofywane w ciągu najbliższych 90 dni.
+      // Granice od początku doby — `sunsetOn` to `date`, więc porównanie
+      // z timestampem z godziną potraktowałoby „wycofywane dziś"
+      // jako termin już miniony (patrz `eolWindow`).
       this.prisma.application.count({
         where: {
           deletedAt: null,
-          sunsetOn: { gte: now, lte: eolSoon },
+          sunsetOn: { gte: soonFrom, lte: soonTo },
           status: { not: 'RETIRED' },
         },
       }),
@@ -284,7 +313,7 @@ export class ApplicationsService {
       this.prisma.application.count({
         where: {
           deletedAt: null,
-          sunsetOn: { lt: now },
+          sunsetOn: { lt: passedBefore },
           status: { notIn: ['RETIRED', 'DEPRECATED'] },
         },
       }),
