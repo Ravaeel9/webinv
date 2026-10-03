@@ -82,6 +82,11 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_BASE_URL: /api
+        # Wersja wplatana do interfejsu. Makefile podstawia tu pole
+        # `version` z package.json; fallback `0.0.0-dev` jest widoczny
+        # w UI, żeby build powstały poza `make up` nie udawał wersji
+        # produkcyjnej.
+        VITE_APP_VERSION: ${APP_VERSION:-0.0.0-dev}
     container_name: webinv_web
     restart: unless-stopped
     depends_on:

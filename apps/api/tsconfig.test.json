@@ -21,6 +21,7 @@
     "test/**/*",
     "../web/src/lib/password.ts",
     "../web/src/lib/query.ts",
+    "../web/src/lib/version.ts",
     "../web/src/types.ts"
   ]
 }

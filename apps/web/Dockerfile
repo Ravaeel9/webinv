@@ -29,6 +29,12 @@ COPY apps/web ./apps/web
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+# Wersja wplatana do interfejsu (plakietka w prawym dolnym rogu).
+# Bez tego ARG-a plakietka nic nie pokazuje — `vite dev` i buildy
+# uruchomione wprost przez compose nie mają bowiem skąd wziąć wersji.
+ARG VITE_APP_VERSION=0.0.0-dev
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
+
 # TypeScript sprawdzamy osobno, żeby błąd w typach nie przepadał
 # w głośnym błędzie bundlera.
 RUN npx --workspace=@webinv/web tsc --noEmit \

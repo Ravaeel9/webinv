@@ -2,6 +2,15 @@
 
 APP := webinv
 COMPOSE := docker compose
+
+# Wersja wplatana do obrazu frontendu (widoczna w prawym dolnym rogu
+# interfejsu). Źródłem jest pole `version` w głównym package.json —
+# jedyne miejsce, które trzeba zmienić przy wydaniu.
+#
+# `node -p` zamiast `grep`, bo package.json to JSON, a nie tekst do
+# regexa. `$(shell …)` przelicza się przy każdym wywołaniu make, więc
+# podniesienie wersji jest widoczne od razu, bez `make clean`.
+APP_VERSION := $(shell node -p "require('./package.json').version" 2>/dev/null || echo 0.0.0-dev)
 # Nakładka deweloperska — wystawia bazę na porcie DB_DEV_PORT (55432),
 # żeby dało się podłączyć Prisma Studio albo psql z maszyny.
 # W produkcyjnym `make up` NIE jest używana — baza zostaje w sieci wewnętrznej.
@@ -32,15 +41,17 @@ init: ## Utwórz .env z losowymi sekretami (pierwsze uruchomienie)
 	@echo "Gotowe. Ustaw SEED_ADMIN_PASSWORD w .env, potem: make up"
 
 up: ## Zbuduj i uruchom cały stos (http://localhost:8080)
-	$(COMPOSE) up -d --build
+	APP_VERSION=$(APP_VERSION) $(COMPOSE) up -d --build
 	@echo ""
 	@echo "  Aplikacja:  http://localhost:$$(grep -E '^APP_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 8080)"
+	@echo "  Wersja:     $(APP_VERSION)"
 	@echo "  Health:     http://localhost:$$(grep -E '^APP_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 8080)/nginx-health"
 
 up-dev: ## Jak up, ale baza wystawiona na porcie DB_DEV_PORT dla Prisma Studio
-	$(COMPOSE_DEV) up -d --build
+	APP_VERSION=$(APP_VERSION) $(COMPOSE_DEV) up -d --build
 	@echo ""
 	@echo "  Baza (dev): localhost:$(DB_DEV_PORT)"
+	@echo "  Wersja:     $(APP_VERSION)"
 
 down: ## Zatrzymaj kontenery (dane zostają)
 	$(COMPOSE) down
@@ -57,7 +68,7 @@ logs: ## Logi (make logs api=api)
 # ─── Build ────────────────────────────────────────────────────
 
 build: ## Zbuduj obrazy
-	$(COMPOSE) build
+	APP_VERSION=$(APP_VERSION) $(COMPOSE) build
 
 rebuild: ## Przebuduj obrazy od zera, bez cache
 	$(COMPOSE) build --no-cache

@@ -5,6 +5,7 @@ import { ROLE_LABELS } from '../../types';
 import { initials } from '../../lib/format';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { VersionBadge } from '../ui/VersionBadge';
 import {
   IconChevronLeft,
   IconGauge,
@@ -201,9 +202,13 @@ export function AppLayout() {
         />
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      {/* `pb-14` zostawia miejsce na plakietkę wersji w prawym dolnym
+          rogu — bez tego `fixed` zasłaniałby ostatni wiersz listy. */}
+      <main className="mx-auto max-w-7xl px-4 pb-14 pt-6 sm:px-6">
         <Outlet />
       </main>
+
+      <VersionBadge />
     </div>
   );
 }
