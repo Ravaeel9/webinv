@@ -108,6 +108,27 @@ więc brak pola w ładunku kasował wartość bez błędu. Teraz do `data` trafi
 tylko pola obecne w żądaniu.
 ```
 
+## Wersjonowanie
+
+Wersja to pole `version` w **głównym** `package.json`. Podnosi się ją
+świadomie, przed wydaniem — commit sam w sobie wersji nie rusza:
+
+```bash
+npm version minor        # 1.0.0 → 1.1.0; robi commit i tag v1.1.0
+git push --follow-tags  # tag musi trafić na GitHub razem z commitem
+```
+
+`npm version` **nie rusza** `apps/api/package.json` ani
+`apps/web/package.json` — to konsekwencja npm workspaces, w których
+każdy pakiet ma własny manifest. Ich wersje zostaną na `1.0.0`; nie
+poprawiaj tego ręcznie, bo tylko rozdzieli historię.
+
+Wersja trafia do interfejsu (plakietka w prawym dolnym rogu) przez
+`make up`, który czyta ją z `package.json` i przekazuje jako argument
+budowania obrazu. Budowanie wprost przez `docker compose build` bez
+`APP_VERSION` daje w UI `v0.0.0-dev` — to celowe, żeby dało się
+rozpoznać obraz zbudowany poza makefile.
+
 ## Przegląd zmian
 
 Checklista dla autora PR-a i dla recenzenta:
@@ -120,6 +141,7 @@ Checklista dla autora PR-a i dla recenzenta:
 - [ ] widok publiczny nie ujawnia nowych pól poufnych (i test to pilnuje)
 - [ ] dokumentacja zaktualizowana, gdy zmienia się API, env, komendy lub model
 - [ ] `.env.example` zaktualizowany, jeśli doszła zmienna środowiskowa
+- [ ] `README.md` nadal zgadza się z liczbą testów i stanem projektu
 - [ ] migracja dołączona do commita (jeśli zmiana schematu)
 
 ## Dokumentacja

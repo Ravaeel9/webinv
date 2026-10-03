@@ -80,8 +80,14 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `query-cache-401.test.ts` | zachowanie cache po utracie sesji (bez zapętlenia `useQuery`) |
 | `seed-password.test.ts` | `assertSeedPasswordIsStrong` oraz to, że `.env.example` nie zawiera hasła przechodzącego politykę |
 | `nginx-config.test.ts` | CSP zdefiniowana dokładnie raz, każde `location` z `add_header` ma `include` nagłówków, brak wycofanego `X-XSS-Protection`, zgodność polityki z buildem frontendu (brak `eval`, `import()` CSS, inline scriptów) i z tym, że API nie włącza CSP samo |
+| `session-revoke.test.ts` | `RevokeSessionDto` odrzuca pusty payload i nie-UUID (bez tego `sessionId` było `undefined`, a `deleteMany` kasował wszystkie sesje użytkownika) |
+| `eol-window.test.ts` | `eolWindow()` liczy granice od początku doby — `sunset_on` to `date`, więc porównanie z timestampem z godziną zaliczało „wycofywane dziś" do „po terminie" |
+| `audit-filter.test.ts` | `buildAuditWhere()` filtruje po `entity` + `entityId` (historia jednego rekordu, nie wszystkich) |
+| `audit-changes.test.ts` | `visibleChanges()` i `truncatedFields()` przy obu kształtach `_truncated` (lista nazw pól z `diff()` i `true` z listy zdarzeń) |
+| `build-query.test.ts` | `buildQuery` przepuszcza `false` — filtr boolean musi dojechać do API, inaczej „tylko aktywne konta” jest ciche |
+| `version.test.ts` | formatowanie wersji pokazywanej w interfejsie: prefiks `v`, brak podwajania, `null` bez ARG-a |
 
-Stan: **215 przypadków, 26 suite'ów, wszystkie przechodzą**, plus
+Stan: **253 przypadków, 33 suite'y, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).
