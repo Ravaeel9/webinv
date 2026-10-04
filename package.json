@@ -1,9 +1,8 @@
 {
   "name": "webinv",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Rejestr oprogramowania używanego w organizacji",
-  "private": true,
   "workspaces": [
     "apps/api",
     "apps/web"
