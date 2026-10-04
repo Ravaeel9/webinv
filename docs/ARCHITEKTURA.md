@@ -216,7 +216,16 @@ bo publiczny odczyt jest celową funkcją.
 
 Pola znikające z odpowiedzi dla niezalogowanego czytelnika
 (`PUBLIC_HIDDEN_FIELDS` w `applications.service.ts`):
-`securityClass`, `criticality`, `ownerEmail`.
+`securityClass`, `criticality`, `ownerEmail` oraz blok dostarczenia i wsparcia
+(`hostingLocation`, `adminTeam`, `supportOwnerType`, `supportOwnerName`,
+`supportEmail`, `supportUrl`, `supportChannel`, `supportNotes`).
+
+Granica biegnie po **znaczeniu**, nie po „nowości": `deliveryType` i
+`baseUrl` zostają, bo to informacja technyczna — bez adresu dostępowego
+publiczny widok nie odpowiada na pytanie „czy da się to otworzyć". Reszta
+opisuje nasze wnętrze: kto u nas administruje, gdzie stoi i pod jakim
+kontaktem dzwonić. E-mail do wsparcia jest tu szczególnie niewdzięczny —
+bezsesyjny czytelnik nie ma powodu nim obciążać cudzego helpdesku.
 
 Samo usunięcie pól nie wystarczyło — filtr i sortowanie działają w bazie, więc
 gość odzyskałby ukryte wartości z **liczby wyników** albo z **kolejności
@@ -228,7 +237,7 @@ serializacji:
 | Pola w odpowiedzi | ukryte | `toPublicView()` usuwa pola **z obiektu** |
 | Filtry | ignorowane | `buildWhere(..., restrict)` pomija `securityClass`, `criticality`, `ownerEmail` |
 | Sortowanie | ograniczone | `GUEST_SORTABLE` — brak `securityClass`, `criticality` |
-| Wyszukiwanie | zawężone | brak wyszukiwania po adresie właściciela i nazwisku administratorów (samo trafienie zdradzałoby, czyj to wpis) |
+| Wyszukiwanie | zawężone | brak wyszukiwania po adresie właściciela, nazwisku administratorów i danych bloku wsparcia (samo trafienie zdradzałoby, czyj to wpis) |
 | Usunięte wpisy | niewidoczne | `includeDeleted` ignorowane dla gościa |
 
 Zapis (`POST`/`PATCH`/`DELETE`) zawsze wymaga `app:write`, więc widok publiczny
@@ -297,6 +306,9 @@ aplikację po wdrożeniu).
 | Throttle w pamięci procesu | brak infrastruktury (Redis) w tym projekcie | nie działa poprawnie przy więcej niż jednej instancji API i po restarcie z resetuje |
 | Własne formatowanie dat i kwot w UI | pełna kontrola nad formatem PL i brak zależności | więcej kodu niż biblioteka |
 | Jeden wolumen `pgdata` | prosty backup i restore | brak HA i replikacji |
+| Typ dostarczenia jako enum zamiast słownika | nie planujemy dodawać typów z poziomu UI; zbiór jest zamknięty, a od niego zależy, czy w rekordzie ma sens blok „hosting i wsparcie” | nowy typ wymaga migracji Prisma, nie kliknięcia w UI |
+| Dane wsparcia przetrwają zmianę typu na `GENERAL_USE` | zmiana typu to zmiana opisu, a nie skasowanie wiedzy; powrót do `SAAS` odsłania dane, które nadal są aktualne | rekord `GENERAL_USE` może mieć ukryte, wypełnione pola — dlatego UI warunkowo je pokazuje |
+| Walidacja bloku wsparcia miękka (wsystko opcjonalne) | rejestr ma opisywać to, co wiemy; brak kontaktu do wsparcia nie może blokować zapisu | nie wymusimy kompletności opisu usługi — jakość zależy od użytkownika |
 | Brak roli „gość” w bazie | gość nie ma sesji, więc nie ma użytkownika | brak śladu, kto oglądał publiczny widok (celowo — to nie jest wymagane) |
 
 ## 10. Granice systemu

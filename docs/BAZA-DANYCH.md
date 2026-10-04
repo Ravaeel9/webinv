@@ -80,7 +80,6 @@ Tabela łącząca aplikację ze środowiskami. Klucz główny złożony
 | `id` | `uuid` | — | |
 | `name` | `citext` | — | unikalny, bez rozróżniania wielkości liter |
 | `version` | `varchar(100)` | — | |
-| `category` | `varchar(100)?` | `null` | wolna tekstowa |
 | `description` | `text?` | `null` | co to jest |
 | `purpose` | `text?` | `null` | do czego służy |
 | `owner_email` | `citext?` | `null` | właściciel jako adres, **nie** FK — nie musi mieć konta |
@@ -91,6 +90,16 @@ Tabela łącząca aplikację ze środowiskami. Klucz główny złożony
 | `criticality` | `smallint` | `2` | 1–4 (aplikacja pilnuje zakresu) |
 | `status` | `AppStatus` | `PROD` | `PROD`/`TEST`/`DEV`/`PLANNED`/`DEPRECATED`/`RETIRED` |
 | `access_request_required` | `boolean` | `false` | czy dostęp wymaga formalnego wniosku |
+| `delivery_type` | `DeliveryType` | `GENERAL_USE` | `GENERAL_USE`/`SELF_HOSTED`/`SAAS`/`VENDOR_MANAGED` |
+| `base_url` | `varchar(500)?` | `null` | adres dostępowy do usługi |
+| `hosting_location` | `varchar(200)?` | `null` | gdzie fizycznie stoi |
+| `admin_team` | `varchar(200)?` | `null` | kto technicznie zarządza |
+| `support_owner_type` | `SupportOwnerType?` | `null` | `INTERNAL`/`VENDOR` |
+| `support_owner_name` | `varchar(200)?` | `null` | kto prowadzi wsparcie |
+| `support_email` | `citext?` | `null` | kontakt do zgłoszeń |
+| `support_url` | `varchar(500)?` | `null` | portal zgłoszeń |
+| `support_channel` | `SupportChannel?` | `null` | `EMAIL`/`PHONE`/`PORTAL`/`CHAT`/`ON_SITE` |
+| `support_notes` | `text?` | `null` | jak wygląda zgłaszanie |
 | `vendor` | `varchar(200)?` | `null` | |
 | `license` | `varchar(200)?` | `null` | |
 | `license_count` | `int?` | `null` | |
@@ -102,8 +111,15 @@ Tabela łącząca aplikację ze środowiskami. Klucz główny złożony
 | `deleted_at` | `date?` | `null` | **soft delete** — rekord zostaje dla audytu |
 
 Indeksy: `status`, `security_class`, `criticality`, `owner_email`,
-`introduced_on`, `sunset_on`, `deleted_at`, `category`. Każde zapytanie listy
-filtruje po `deleted_at IS NULL`, więc indeks jest tu użyteczny.
+`introduced_on`, `sunset_on`, `deleted_at`, `delivery_type`. Każde zapytanie
+listy filtruje po `deleted_at IS NULL`, więc indeks jest tu użyteczny.
+
+Kolumna `category` (wolny tekst) została zastąpiona typem `delivery_type`
+migracją `20261004143000_delivery_type_support`. Stare wartości były
+niejednoznaczne, więc nie przenosimy ich — każdy rekord dostaje
+`GENERAL_USE`, a poprawki robi się w formularzu. Pola wsparcia celowo
+przetrwają zmianę typu z powrotem na `GENERAL_USE`: to zmiana opisu,
+nie skasowanie wiedzy.
 
 `citext` na `name` odpowiada za to, że `GitLab` i `gitlab` to jeden wpis —
 bez dopisywania `mode: 'insensitive'` w każdym zapytaniu. Serwis i tak sprawdza
@@ -137,6 +153,9 @@ zdarzeń i filtrowanie po encji. Kolumna `entity_id` jest indeksowana, ale
 | `Role` | `SUPER_ADMIN`, `ADMIN`, `VIEWER` | uprawnienia, patrz [README](../README.md#role-i-uprawnienia) |
 | `SecurityClass` | `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED` | klasyfikacja danych/aplikacji |
 | `AppStatus` | `PROD`, `TEST`, `DEV`, `PLANNED`, `DEPRECATED`, `RETIRED` | status wdrożenia |
+| `DeliveryType` | `GENERAL_USE`, `SELF_HOSTED`, `SAAS`, `VENDOR_MANAGED` | program na stanowisku czy usługa hostowana |
+| `SupportOwnerType` | `INTERNAL`, `VENDOR` | kto prowadzi wsparcie |
+| `SupportChannel` | `EMAIL`, `PHONE`, `PORTAL`, `CHAT`, `ON_SITE` | główny kanał zgłoszeń |
 
 ## Rozszerzenia
 

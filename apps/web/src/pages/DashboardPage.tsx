@@ -22,13 +22,23 @@ import {
 import {
   CRITICALITY_COLORS,
   CRITICALITY_LABELS,
+  DELIVERY_TYPE_LABELS,
   SECURITY_COLORS,
   SECURITY_LABELS,
   STATUS_COLORS,
   STATUS_LABELS,
   type AppStatus,
+  type DeliveryType,
   type SecurityClass,
 } from '../types';
+
+/** Kolejność typów dostarczenia na pulpicie — jak w formularzu. */
+const DELIVERY_TYPE_ORDER: DeliveryType[] = [
+  'GENERAL_USE',
+  'SELF_HOSTED',
+  'SAAS',
+  'VENDOR_MANAGED',
+];
 
 export function DashboardPage() {
   const { user, can } = useAuth();
@@ -231,33 +241,41 @@ export function DashboardPage() {
         </section>
       </div>
 
-      {/* Kategorie + ostatnie zmiany */}
+      {/* Typ dostarczenia + ostatnie zmiany */}
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <section className="card px-5 py-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
             <IconTag className="size-4 text-brand-600 dark:text-brand-400" />
-            Najczęstsze kategorie
+            Podział wg typu dostarczenia
           </h2>
 
-          {data.byCategory.length === 0 ? (
+          {data.byDeliveryType.length === 0 ? (
             <p className="py-6 text-center text-sm text-fg-muted">
               Brak danych
             </p>
           ) : (
             <ul className="space-y-1.5">
-              {data.byCategory.map((entry) => (
-                <li key={entry.key}>
-                  <Link
-                    to={`/aplikacje?category=${encodeURIComponent(entry.key)}`}
-                    className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-sm hover:bg-page"
-                  >
-                    <span className="truncate text-fg">{entry.key}</span>
-                    <span className="shrink-0 text-xs font-medium tabular-nums text-fg-muted">
-                      {entry.count}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+              {/* Stała kolejność zamiast kolejności w bazie: cztery typy
+                  zawsze w tej samej kolejności, także gdy któryś ma zero. */}
+              {DELIVERY_TYPE_ORDER.map((type) => {
+                const count =
+                  data.byDeliveryType.find((e) => e.key === type)?.count ?? 0;
+                return (
+                  <li key={type}>
+                    <Link
+                      to={`/aplikacje?deliveryType=${encodeURIComponent(type)}`}
+                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-sm hover:bg-page"
+                    >
+                      <span className="truncate text-fg">
+                        {DELIVERY_TYPE_LABELS[type]}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium tabular-nums text-fg-muted">
+                        {count}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -306,7 +324,9 @@ export function DashboardPage() {
                       </p>
                       <p className="truncate text-xs text-fg-muted">
                         {app.ownerEmail ?? 'Bez właściciela'}
-                        {app.category ? ` · ${app.category}` : ''}
+                        {app.deliveryType !== 'GENERAL_USE'
+                          ? ` · ${DELIVERY_TYPE_LABELS[app.deliveryType]}`
+                          : ''}
                       </p>
                     </div>
 

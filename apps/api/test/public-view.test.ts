@@ -66,7 +66,7 @@ describe('toPublicView', () => {
   });
 
   it('usuwa pola nawet gdy mają wartość null — brak i zakaz to nie to samo', () => {
-    // `null` znaczy „pole puste”, `brak pola` znaczy „nie wolno ci tego
+    // `null` znaczy „pole puste", `brak pola` znaczy „nie wolno ci tego
     // widzieć”. Podmiana jednego na drugie ujawniłaby zaślepkę w UI.
     const view = toPublicView({
       ...APP,
@@ -77,5 +77,48 @@ describe('toPublicView', () => {
     assert.equal('securityClass' in view, false);
     assert.equal('criticality' in view, false);
     assert.equal('ownerEmail' in view, false);
+  });
+});
+
+const HOSTED_APP = {
+  ...APP,
+  deliveryType: 'SAAS',
+  baseUrl: 'https://jira.example.pl',
+  hostingLocation: 'k8s-prod-eu',
+  adminTeam: 'Zespół Platformy',
+  supportOwnerType: 'VENDOR',
+  supportOwnerName: 'Atlassian',
+  supportEmail: 'support@example.com',
+  supportUrl: 'https://example.atlassian.net',
+  supportChannel: 'PORTAL',
+  supportNotes: 'Zgłoszenia przez Jira IT.',
+} as const;
+
+describe('toPublicView — blok dostarczania i wsparcia', () => {
+  it('usuwa dane kontaktowe wsparcia', () => {
+    // E-mail do wsparcia i portal zgłoszeń to dane, których bezsesyjny
+    // czytelnik nie musi dostać — a w skrajnym przypadku (zgłoszenie
+    // przez e-mail) pozwalają obciążać cudzy helpdesk.
+    const view = toPublicView({ ...HOSTED_APP });
+    assert.equal('supportEmail' in view, false);
+    assert.equal('supportUrl' in view, false);
+    assert.equal('supportNotes' in view, false);
+  });
+
+  it('usuwa dane wewnętrzne: kto prowadzi wsparcie i kto administruje', () => {
+    const view = toPublicView({ ...HOSTED_APP });
+    assert.equal('supportOwnerType' in view, false);
+    assert.equal('supportOwnerName' in view, false);
+    assert.equal('adminTeam' in view, false);
+    assert.equal('hostingLocation' in view, false);
+    assert.equal('supportChannel' in view, false);
+  });
+
+  it('zostawia typ dostarczenia i adres dostępowy', () => {
+    // To informacja techniczna, a nie osobowa: bez niej widok publiczny
+    // nie mówi, czy aplikację da się w ogóle otworzyć z sieci.
+    const view = toPublicView({ ...HOSTED_APP });
+    assert.equal(view.deliveryType, 'SAAS');
+    assert.equal(view.baseUrl, 'https://jira.example.pl');
   });
 });

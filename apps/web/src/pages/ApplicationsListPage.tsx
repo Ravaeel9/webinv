@@ -32,6 +32,8 @@ import {
   ACCESS_REQUEST_YES,
   CRITICALITY_COLORS,
   CRITICALITY_LABELS,
+  DELIVERY_TYPE_COLORS,
+  DELIVERY_TYPE_LABELS,
   SECURITY_COLORS,
   SECURITY_LABELS,
   STATUS_COLORS,
@@ -39,6 +41,7 @@ import {
   type AppStatus,
   type Application,
   type ApplicationFilters,
+  type DeliveryType,
   type SecurityClass,
 } from '../types';
 import { ApiError } from '../lib/api';
@@ -64,9 +67,21 @@ const SORT_OPTIONS = [
   { value: '-name', label: 'Nazwa Z→A' },
   { value: 'criticality', label: 'Krytyczność ↓', guestHidden: true },
   { value: 'status', label: 'Status' },
+  { value: 'deliveryType', label: 'Typ dostarczenia' },
   { value: 'introducedOn', label: 'Najnowsze' },
   { value: '-introducedOn', label: 'Najstarsze' },
   { value: 'updatedAt', label: 'Ostatnio zmienione' },
+];
+
+/**
+ * Kolejność typów dostarczenia w filtrze — ta sama co w formularzu,
+ * żeby czytelnik nie musiał szukać „SaaS" wśród losowych wpisów.
+ */
+const DELIVERY_TYPE_ORDER: DeliveryType[] = [
+  'GENERAL_USE',
+  'SELF_HOSTED',
+  'SAAS',
+  'VENDOR_MANAGED',
 ];
 
 export function ApplicationsListPage() {
@@ -83,7 +98,7 @@ export function ApplicationsListPage() {
       securityClass: params.get('securityClass') ?? undefined,
       ownerEmail: params.get('ownerEmail') ?? undefined,
       environmentId: params.get('environmentId') ?? undefined,
-      category: params.get('category') ?? undefined,
+      deliveryType: params.get('deliveryType') ?? undefined,
       criticality: params.get('criticality')
         ? Number(params.get('criticality'))
         : undefined,
@@ -156,7 +171,10 @@ export function ApplicationsListPage() {
       key: 'criticality',
       label: `Krytyczność: ${CRITICALITY_LABELS[filters.criticality]}`,
     },
-    filters.category && { key: 'category', label: `Kategoria: ${filters.category}` },
+    filters.deliveryType && {
+      key: 'deliveryType',
+      label: `Dostarczanie: ${DELIVERY_TYPE_LABELS[filters.deliveryType as DeliveryType]}`,
+    },
     filters.missingOwner && { key: 'missingOwner', label: 'Bez właściciela' },
     !isGuest && filters.includeDeleted && { key: 'includeDeleted', label: 'Pokazuj usunięte' },
   ].filter(Boolean) as Array<{ key: string; label: string }>;
@@ -274,6 +292,22 @@ export function ApplicationsListPage() {
               ))}
             </Select>
           )}
+
+          {/* Typ dostarczenia jest widoczny także dla gościa
+              (pole `deliveryType` nie znika z odpowiedzi publicznej). */}
+          <Select
+            label="Dostarczanie"
+            value={filters.deliveryType ?? ''}
+            onChange={(e) => setFilter('deliveryType', e.target.value)}
+            className="w-52"
+          >
+            <option value="">Wszystkie</option>
+            {DELIVERY_TYPE_ORDER.map((type) => (
+              <option key={type} value={type}>
+                {DELIVERY_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </Select>
 
           <Select
             label="Środowisko"
@@ -414,7 +448,7 @@ export function ApplicationsListPage() {
                 <thead className="border-b border-line bg-page">
                   <tr>
                     <Th className="w-[26%]">Nazwa</Th>
-                    <Th>Kategoria</Th>
+                    <Th>Dostarczanie</Th>
                     <Th>Status</Th>
                     <Th>Wniosek o dostęp</Th>
                     {!isGuest && <Th>Bezpieczeństwo</Th>}
@@ -524,9 +558,9 @@ function ApplicationCard({
               </span>
             </Link>
 
-            {app.category && (
+            {app.deliveryType !== 'GENERAL_USE' && (
               <p className="mt-0.5 truncate text-xs text-fg-muted">
-                {app.category}
+                {DELIVERY_TYPE_LABELS[app.deliveryType]}
               </p>
             )}
 
@@ -696,8 +730,10 @@ function ApplicationRow({
           </div>
         </td>
 
-        <td className="px-4 py-2.5 text-fg-muted">
-          {app.category ?? '—'}
+        <td className="px-4 py-2.5">
+          <Badge color={DELIVERY_TYPE_COLORS[app.deliveryType]}>
+            {DELIVERY_TYPE_LABELS[app.deliveryType]}
+          </Badge>
         </td>
 
         <td className="px-4 py-2.5">

@@ -35,6 +35,36 @@ enum AppStatus {
   RETIRED // wycofana z użytku
 }
 
+// ─── Sposób dostarczenia i wsparcia ────────────────────────────
+// Rejestr ma dwa zupełnie różne rodzaje wpisów. Jedne to programy
+// instalowane na stanowisku (7-Zip, czytnik PDF), a drugie to usługi,
+// do których łączymy się przez adres — hostowane u nas albo u dostawcy.
+// Różnią się tym, czego potrzebujemy do opisania: dla usługi liczy się
+// nie tylko „co to jest", ale też gdzie działa i do kogo dzwonić,
+// gdy przestanie działać.
+enum DeliveryType {
+  GENERAL_USE    // program na stanowisku użytkownika
+  SELF_HOSTED    // usługa na naszej infrastrukturze
+  SAAS           // usługa u zewnętrznego dostawcy
+  VENDOR_MANAGED // instalowana lokalnie, zarządza nią dostawca
+}
+
+// Kto odpowiada za wsparcie: my albo dostawca.
+enum SupportOwnerType {
+  INTERNAL
+  VENDOR
+}
+
+// Główny kanał zgłoszeń — wystarczy jeden, bo to coś, czego szuka się
+// w pierwszej kolejności.
+enum SupportChannel {
+  EMAIL
+  PHONE
+  PORTAL
+  CHAT
+  ON_SITE
+}
+
 // ─── Użytkownicy ──────────────────────────────────────────────
 model User {
   id           String    @id @default(uuid()) @db.Uuid
@@ -118,7 +148,6 @@ model Application {
   id          String @id @default(uuid()) @db.Uuid
   name        String @unique @db.Citext
   version     String @db.VarChar(100)
-  category    String? @db.VarChar(100)
 
   // Co to jest i do czego służy
   description String? @db.Text
@@ -142,6 +171,24 @@ model Application {
 
   // Czy uzyskanie dostępu do aplikacji wymaga formalnego wniosku
   accessRequestRequired Boolean @default(false) @map("access_request_required")
+
+  // Sposób dostarczenia i hosting
+  deliveryType DeliveryType @default(GENERAL_USE) @map("delivery_type")
+
+  // Pola niżej opisują usługę, więc wypełnia się je dla typów innych niż
+  // `GENERAL_USE`. Celowo zostają w rekordzie, gdy typ wraca do
+  // `GENERAL_USE` — zmiana typu to zmiana opisu, nie skasowanie wiedzy.
+  baseUrl         String? @db.VarChar(500) @map("base_url")
+  hostingLocation String? @db.VarChar(200) @map("hosting_location")
+  adminTeam       String? @db.VarChar(200) @map("admin_team")
+
+  // Wsparcie: kto, jak i pod jakim kontaktem
+  supportOwnerType SupportOwnerType? @map("support_owner_type")
+  supportOwnerName String?          @db.VarChar(200) @map("support_owner_name")
+  supportEmail     String?          @db.Citext @map("support_email")
+  supportUrl       String?          @db.VarChar(500) @map("support_url")
+  supportChannel   SupportChannel?  @map("support_channel")
+  supportNotes     String?          @db.Text @map("support_notes")
 
   // Dostawca i licencja
   vendor       String? @db.VarChar(200)
@@ -176,7 +223,7 @@ model Application {
   @@index([introducedOn])
   @@index([sunsetOn])
   @@index([deletedAt])
-  @@index([category])
+  @@index([deliveryType])
   @@map("applications")
 }
 

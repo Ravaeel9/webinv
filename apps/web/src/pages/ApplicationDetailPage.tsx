@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   useApplication,
@@ -24,10 +24,14 @@ import {
   ACCESS_REQUEST_YES,
   CRITICALITY_COLORS,
   CRITICALITY_LABELS,
+  DELIVERY_TYPE_COLORS,
+  DELIVERY_TYPE_LABELS,
   SECURITY_COLORS,
   SECURITY_LABELS,
   STATUS_COLORS,
   STATUS_LABELS,
+  SUPPORT_CHANNEL_LABELS,
+  SUPPORT_OWNER_LABELS,
   type Application,
 } from '../types';
 import {
@@ -43,6 +47,23 @@ import {
   IconTrash,
   IconUser,
 } from '../components/ui/icons';
+
+/** Wiersz definicji w sekcji „Dostęp i wsparcie". */
+function DeliveryRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+        {label}
+      </dt>
+      <dd className="text-sm text-fg">{children}</dd>
+    </div>
+  );
+}
+
+/** Zaślepka dla pola, którego nie wypełniono — nie myli „nie wiadomo” z brakiem. */
+function Missing() {
+  return <span className="text-fg-muted">nie uzupełniono</span>;
+}
 
 export function ApplicationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -85,7 +106,7 @@ export function ApplicationDetailPage() {
     <>
       <PageHeader
         title={app.name}
-        description={`Wersja ${app.version}${app.category ? ` · ${app.category}` : ''}`}
+        description={`Wersja ${app.version} · ${DELIVERY_TYPE_LABELS[app.deliveryType]}`}
         back={{ to: '/aplikacje', label: 'Wróć do listy' }}
         actions={
           <>
@@ -222,6 +243,96 @@ export function ApplicationDetailPage() {
             </div>
           </section>
 
+          {/* Blok dla usług: gdzie działa i do kogo dzwonić.
+              Gość tego nie widzi — API nie wysyła mu tych pól, a
+              `user` pilnuje, żeby nie renderować pustej sekcji. */}
+          {user && app.deliveryType !== 'GENERAL_USE' && (
+            <section className="card px-5 py-4">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
+                <IconInfo className="size-4 text-brand-600 dark:text-brand-400" />
+                Dostęp i wsparcie
+              </h2>
+
+              <dl className="space-y-3">
+                <DeliveryRow label="Adres bazowy">
+                  {app.baseUrl ? (
+                    <a
+                      href={app.baseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+                    >
+                      {app.baseUrl}
+                      <IconExternalLink className="size-3" />
+                    </a>
+                  ) : (
+                    <Missing />
+                  )}
+                </DeliveryRow>
+                <DeliveryRow label="Wsparcie prowadzi">
+                  {app.supportOwnerType ? (
+                    SUPPORT_OWNER_LABELS[app.supportOwnerType]
+                  ) : (
+                    <Missing />
+                  )}
+                </DeliveryRow>
+                <DeliveryRow label="Wsparcie — kto">
+                  {app.supportOwnerName ?? <Missing />}
+                </DeliveryRow>
+                <DeliveryRow label="Wsparcie — e-mail">
+                  {app.supportEmail ? (
+                    <a
+                      href={`mailto:${app.supportEmail}`}
+                      className="text-sm text-brand-600 hover:underline"
+                    >
+                      {app.supportEmail}
+                    </a>
+                  ) : (
+                    <Missing />
+                  )}
+                </DeliveryRow>
+                <DeliveryRow label="Główny kanał">
+                  {app.supportChannel ? (
+                    SUPPORT_CHANNEL_LABELS[app.supportChannel]
+                  ) : (
+                    <Missing />
+                  )}
+                </DeliveryRow>
+                <DeliveryRow label="Adres zgłoszeń">
+                  {app.supportUrl ? (
+                    <a
+                      href={app.supportUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+                    >
+                      {app.supportUrl}
+                      <IconExternalLink className="size-3" />
+                    </a>
+                  ) : (
+                    <Missing />
+                  )}
+                </DeliveryRow>
+                <DeliveryRow label="Gdzie hostowane">
+                  {app.hostingLocation ?? <Missing />}
+                </DeliveryRow>
+                <DeliveryRow label="Zespół administracyjny">
+                  {app.adminTeam ?? <Missing />}
+                </DeliveryRow>
+                {app.supportNotes && (
+                  <div>
+                    <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                      Wsparcie — uwagi
+                    </dt>
+                    <dd className="text-sm whitespace-pre-line text-fg">
+                      {app.supportNotes}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+          )}
+
           <ApplicationHistory id={app.id} viewerId={user?.id} />
         </div>
 
@@ -246,6 +357,14 @@ export function ApplicationDetailPage() {
                   color={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
                 >
                   {app.accessRequestRequired ? 'Tak' : 'Nie'}
+                </Badge>
+              </div>
+              {/* Typ dostarczenia widać także bez sesji — to informacja
+                  techniczna, a nie dana wewnętrzna. */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-fg-muted">Dostarczanie</span>
+                <Badge color={DELIVERY_TYPE_COLORS[app.deliveryType]}>
+                  {DELIVERY_TYPE_LABELS[app.deliveryType]}
                 </Badge>
               </div>
               {/* Gość nie widzi klasyfikacji ani krytyczności — API
@@ -544,7 +663,16 @@ function ChangeList({ changes }: { changes: AuditChanges }) {
 const FIELD_LABELS: Record<string, string> = {
   name: 'nazwa',
   version: 'wersja',
-  category: 'kategoria',
+  deliveryType: 'typ dostarczenia',
+  baseUrl: 'adres bazowy',
+  hostingLocation: 'gdzie hostowane',
+  adminTeam: 'zespół administracyjny',
+  supportOwnerType: 'wsparcie prowadzi',
+  supportOwnerName: 'wsparcie — kto',
+  supportEmail: 'wsparcie — e-mail',
+  supportUrl: 'wsparcie — adres zgłoszeń',
+  supportChannel: 'wsparcie — kanał',
+  supportNotes: 'wsparcie — uwagi',
   description: 'opis',
   purpose: 'cel',
   ownerEmail: 'e-mail właściciela',

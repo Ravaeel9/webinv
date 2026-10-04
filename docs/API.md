@@ -107,7 +107,7 @@ curl -b jar.txt http://localhost:8080/api/auth/me
 |---|---|---|---|
 | `GET` | `/applications` | publiczny | lista z filtrowaniem, sortowaniem i stronicowaniem |
 | `GET` | `/applications/:id` | publiczny | szczegóły aplikacji |
-| `GET` | `/applications/stats` | sesja | liczniki na pulpit (status, klasyfikacja, krytyczność, środowiska, kategorie, EOL, ostatnie zmiany) |
+| `GET` | `/applications/stats` | sesja | liczniki na pulpit (status, klasyfikacja, krytyczność, środowiska, typ dostarczenia, EOL, ostatnie zmiany) |
 | `GET` | `/applications/environments` | publiczny | słownik środowisk do filtrów i formularzy |
 | `GET` | `/applications/owner-options` | sesja | unikalne adresy właścicieli do filtra; źródłem są aplikacje, nie `users` |
 | `GET` | `/applications/export` | sesja | CSV (`text/csv`, `Content-Disposition: rejestr-YYYY-MM-DD.csv`, BOM pod Excel), limit 10 000 rekordów |
@@ -124,20 +124,20 @@ Odpowiedź listy:
 
 | Parametr | Typ | Uwagi |
 |---|---|---|
-| `q` | tekst ≤ 200 | szuka w nazwie, wersji, kategorii, opisie, celu i dostawcy (bez znajomości wielkości liter); **tylko dla zalogowanych** także po adresie właściciela i nazwisku administratorów |
+| `q` | tekst ≤ 200 | szuka w nazwie, wersji, opisie, celu i dostawcy (bez znajomości wielkości liter); **tylko dla zalogowanych** także po adresie właściciela, nazwisku administratorów i danych bloku wsparcia |
 | `status` | `PROD`\|`TEST`\|`DEV`\|`PLANNED`\|`DEPRECATED`\|`RETIRED` | |
 | `securityClass` | `PUBLIC`\|`INTERNAL`\|`CONFIDENTIAL`\|`RESTRICTED` | **ignorowany dla gościa** |
 | `criticality` | 1–4 | **ignorowany dla gościa** |
 | `ownerEmail` | adres e-mail | **ignorowany dla gościa**; dokładne dopasowanie |
 | `missingOwner` | `true` | tylko wpisy bez właściciela (karta na pulpicie) |
 | `environmentId` | uuid | |
-| `category` | tekst | porównanie bez wielkości liter |
+| `deliveryType` | `GENERAL_USE`\|`SELF_HOSTED`\|`SAAS`\|`VENDOR_MANAGED` | widoczne także dla gościa |
 | `includeDeleted` | `true` | pokazuje usunięte (soft delete); **ignorowane dla gościa** |
 | `limit` | 1–200 (domyślnie 50) | rozmiar strony |
 | `offset` | ≥ 0 (domyślnie 0) | |
 | `sort` | nazwa pola, `-` = malejąco | biała lista, patrz niżej |
 
-Dozwolone sortowania: `name`, `version`, `category`, `status`,
+Dozwolone sortowania: `name`, `version`, `deliveryType`, `status`,
 `securityClass`, `criticality`, `introducedOn`, `sunsetOn`, `updatedAt`,
 `createdAt`. Nieznana nazwa **nie jest błędem** — lista wraca posortowana po
 nazwie. Gość nie może sortować po `securityClass` i `criticality`: kolejność
@@ -163,7 +163,16 @@ Pola tworzenia i aktualizacji (`CreateApplicationDto`):
 |---|---|---|---|
 | `name` | tekst ≤ 200 | tak (przy tworzeniu) | unikalny, bez rozróżniania wielkości liter; nie może składać się z samych spacji |
 | `version` | tekst ≤ 100 | tak (przy tworzeniu) | |
-| `category` | tekst ≤ 100 | nie | |
+| `deliveryType` | enum | nie (domyślnie `GENERAL_USE`) | `GENERAL_USE`/`SELF_HOSTED`/`SAAS`/`VENDOR_MANAGED` |
+| `baseUrl` | URL ≤ 500 | nie | adres dostępowy do usługi |
+| `hostingLocation` | tekst ≤ 200 | nie | gdzie fizycznie stoi |
+| `adminTeam` | tekst ≤ 200 | nie | kto technicznie zarządza |
+| `supportOwnerType` | enum | nie | `INTERNAL`/`VENDOR` |
+| `supportOwnerName` | tekst ≤ 200 | nie | kto konkretnie prowadzi wsparcie |
+| `supportEmail` | adres e-mail ≤ 320 | nie | |
+| `supportUrl` | URL ≤ 500 | nie | portal zgłoszeń |
+| `supportChannel` | enum | nie | `EMAIL`/`PHONE`/`PORTAL`/`CHAT`/`ON_SITE` |
+| `supportNotes` | tekst ≤ 10 000 | nie | |
 | `description` | tekst ≤ 10 000 | nie | |
 | `purpose` | tekst ≤ 10 000 | nie | „do czego to służy” |
 | `ownerEmail` | adres e-mail ≤ 320 | nie | właściciel jako adres — **nie musi mieć konta** |
@@ -197,7 +206,11 @@ Reguły PATCH-a:
   przywrócić albo zmienić nazwę.
 
 Pola ukryte przed gościem (nieobecne w odpowiedzi): `securityClass`,
-`criticality`, `ownerEmail`.
+`criticality`, `ownerEmail`, a z bloku dostarczenia i wsparcia —
+`hostingLocation`, `adminTeam`, `supportOwnerType`, `supportOwnerName`,
+`supportEmail`, `supportUrl`, `supportChannel`, `supportNotes`. Widoczne
+zostają `deliveryType` i `baseUrl`, bo to informacja techniczna, a nie
+dana wewnętrzna.
 
 ## Użytkownicy `/api/users`
 

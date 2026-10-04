@@ -61,12 +61,26 @@ describe('buildWhere — gość nie dostaje filtrów po ukrytych polach', () => 
 
   it('filtry, których nie ukrywamy, działają również u gościa', () => {
     const where = buildWhere(
-      { status: 'PROD', environmentId: 'e-1', category: 'Finanse' },
+      { status: 'PROD', environmentId: 'e-1', deliveryType: 'SAAS' },
       true,
     );
     assert.equal('status' in where, true);
     assert.equal('environments' in where, true);
-    assert.equal('category' in where, true);
+    assert.equal('deliveryType' in where, true);
+  });
+
+  it('gość nie filtruje po ukrytych danych wsparcia', () => {
+    // `deliveryType` jest widoczne publicznie, ale blok wsparcia już nie —
+    // bez tego gość wyszukiwałby wpisy po nazwie zespołu lub adresie
+    // dostawcy i odzyskiwał w ten sposób dane, które mają zostać ukryte.
+    const where = buildWhere(
+      { q: 'support', supportEmail: 'support@example.com' },
+      true,
+    );
+    const serialised = JSON.stringify(where);
+    assert.equal(serialised.includes('supportEmail'), false);
+    assert.equal(serialised.includes('adminTeam'), false);
+    assert.equal(serialised.includes('supportOwnerName'), false);
   });
 
   it('wyszukiwanie nie szuka po adresie właściciela', () => {

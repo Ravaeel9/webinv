@@ -29,7 +29,7 @@ const APP_INCLUDE = {
 const SORTABLE: Record<string, Prisma.ApplicationOrderByWithRelationInput> = {
   name: { name: 'asc' },
   version: { version: 'asc' },
-  category: { category: 'asc' },
+  deliveryType: { deliveryType: 'asc' },
   status: { status: 'asc' },
   securityClass: { securityClass: 'desc' },
   criticality: { criticality: 'desc' },
@@ -77,7 +77,7 @@ export function eolWindow(
 const GUEST_SORTABLE = new Set([
   'name',
   'version',
-  'category',
+  'deliveryType',
   'status',
   'introducedOn',
   'sunsetOn',
@@ -129,11 +129,27 @@ const PUBLIC_HIDDEN_FIELDS = [
   'securityClass',
   'criticality',
   'ownerEmail',
+  // Blok „hosting i wsparcie". `deliveryType` i `baseUrl` zostają —
+  // to informacja techniczna, bez której widok publiczny nie mówi,
+  // czy aplikację da się w ogóle otworzyć z sieci. Reszta opisuje
+  // nasze wnętrze: kto u nas administruje, gdzie stoi i pod jakim
+  // kontaktem dzwonić. E-mail do wsparcia jest tu szczególnie
+  // niewdzięczny — czytelnik bez sesji nie ma powodu nim obciążać
+  // cudzego helpdesku.
+  'hostingLocation',
+  'adminTeam',
+  'supportOwnerType',
+  'supportOwnerName',
+  'supportEmail',
+  'supportUrl',
+  'supportChannel',
+  'supportNotes',
 ] as const;
 
 /**
  * Usuwa pola, których publiczny (niezalogowany) czytelnik nie ma
- * prawa widzieć: klasyfikację bezpieczeństwa, krytyczność i właściciela.
+ * prawa widzieć: klasyfikację bezpieczeństwa, krytyczność, właściciela
+ * oraz dane wewnętrzne opisujące hosting i wsparcie.
  *
  * Robimy to **po stronie serwera**, a nie w interfejsie — ukrycie
  * kolumny w HTML nic nie daje, bo pełny rekord i tak leci w JSON-ie
@@ -258,7 +274,7 @@ export class ApplicationsService {
       bySecurityClass,
       byCriticality,
       byEnvironment,
-      byCategory,
+      byDeliveryType,
       missingOwner,
       missingDescription,
       eolSoonCount,
@@ -295,12 +311,14 @@ export class ApplicationsService {
         orderBy: { environmentId: 'asc' },
       }),
 
+      // Typ dostarczenia to zamknięty zbiór czterech wartości, więc
+      // w przeciwieństwie do dawniej wolnej tekstowej `category` nic
+      // tu nie ucinamy — żadna kategoria nie wypada z pulpitu.
       this.prisma.application.groupBy({
-        by: ['category'],
-        where: { deletedAt: null, NOT: { category: null } },
+        by: ['deliveryType'],
+        where: { deletedAt: null },
         _count: { _all: true },
-        orderBy: { _count: { category: 'desc' } },
-        take: 12,
+        orderBy: { _count: { deliveryType: 'desc' } },
       }),
 
       this.prisma.application.count({
@@ -366,8 +384,8 @@ export class ApplicationsService {
         color: envMap.get(g.environmentId)?.color ?? 'slate',
         count: countOf(g),
       })),
-      byCategory: byCategory.map((g) => ({
-        key: g.category,
+      byDeliveryType: byDeliveryType.map((g) => ({
+        key: g.deliveryType,
         count: countOf(g),
       })),
       incomplete: { missingOwner, missingDescription },
@@ -565,7 +583,16 @@ export class ApplicationsService {
     const header = [
       'Nazwa',
       'Wersja',
-      'Kategoria',
+      'Typ dostarczenia',
+      'Adres bazowy',
+      'Gdzie hostowane',
+      'Zespół administracyjny',
+      'Wsparcie prowadzi',
+      'Wsparcie — kto',
+      'Wsparcie — e-mail',
+      'Wsparcie — URL',
+      'Wsparcie — kanał',
+      'Wsparcie — uwagi',
       'Status',
       'Krytyczność',
       'Klasyfikacja',
@@ -599,7 +626,16 @@ export class ApplicationsService {
       return [
         s.name,
         s.version,
-        s.category ?? '',
+        s.deliveryType,
+        s.baseUrl ?? '',
+        s.hostingLocation ?? '',
+        s.adminTeam ?? '',
+        s.supportOwnerType ?? '',
+        s.supportOwnerName ?? '',
+        s.supportEmail ?? '',
+        s.supportUrl ?? '',
+        s.supportChannel ?? '',
+        s.supportNotes ?? '',
         s.status,
         s.criticality,
         s.securityClass,
@@ -659,7 +695,6 @@ export class ApplicationsService {
       const clauses: Prisma.ApplicationWhereInput[] = [
         { name: { contains: q, mode: 'insensitive' } },
         { version: { contains: q, mode: 'insensitive' } },
-        { category: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
         { purpose: { contains: q, mode: 'insensitive' } },
         { vendor: { contains: q, mode: 'insensitive' } },
@@ -672,14 +707,27 @@ export class ApplicationsService {
           { ownerEmail: { contains: q, mode: 'insensitive' } },
           { admins: { some: { fullName: { contains: q, mode: 'insensitive' } } } },
         );
+
+        // Blok wsparcia zdradzałby gościowi to, co `toPublicView` mu usuwa:
+        // trafienie po nazwie zespołu albo adresie dostawcy wystarczyłoby,
+        // żeby odtworzyć ukryte pola.
+        clauses.push(
+          { adminTeam: { contains: q, mode: 'insensitive' } },
+          { hostingLocation: { contains: q, mode: 'insensitive' } },
+          { supportOwnerName: { contains: q, mode: 'insensitive' } },
+          { supportEmail: { contains: q, mode: 'insensitive' } },
+          { supportNotes: { contains: q, mode: 'insensitive' } },
+        );
       }
 
       where.OR = clauses;
     }
 
     if (query.status) where.status = query.status as never;
-    if (query.category) {
-      where.category = { equals: query.category, mode: 'insensitive' };
+    if (query.deliveryType) {
+      // Na enumie nie ma `contains`, więc porównanie jest zwykłe —
+      // wielkość liter rozstrzyga sam typ w bazie.
+      where.deliveryType = query.deliveryType as never;
     }
     if (query.environmentId) {
       // Relacja idzie przez tabelę łączącą, więc filtrujemy po environmentId
@@ -701,7 +749,6 @@ export class ApplicationsService {
     return {
       name: dto.name,
       version: dto.version,
-      category: dto.category ?? null,
       description: dto.description ?? null,
       purpose: dto.purpose ?? null,
       ownerEmail: dto.ownerEmail ?? null,
@@ -711,6 +758,19 @@ export class ApplicationsService {
       criticality: dto.criticality ?? 2,
       status: dto.status ?? 'PROD',
       accessRequestRequired: dto.accessRequestRequired ?? false,
+      // `GENERAL_USE` to nie „nie wiem", tylko „to program na stanowisku"
+      // — najczęstszy przypadek, więc pełny POST bez tego pola musi dać
+      // rekord z poprawnym typem, a nie z pustym.
+      deliveryType: dto.deliveryType ?? 'GENERAL_USE',
+      baseUrl: dto.baseUrl ?? null,
+      hostingLocation: dto.hostingLocation ?? null,
+      adminTeam: dto.adminTeam ?? null,
+      supportOwnerType: dto.supportOwnerType ?? null,
+      supportOwnerName: dto.supportOwnerName ?? null,
+      supportEmail: dto.supportEmail ?? null,
+      supportUrl: dto.supportUrl ?? null,
+      supportChannel: dto.supportChannel ?? null,
+      supportNotes: dto.supportNotes ?? null,
       vendor: dto.vendor ?? null,
       license: dto.license ?? null,
       licenseCount: dto.licenseCount ?? null,

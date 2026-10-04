@@ -86,6 +86,27 @@ describe('mapPatchDto — pola obecne w ładunku', () => {
     assert.strictEqual(patch({ securityClass: null }).securityClass, 'INTERNAL');
     assert.strictEqual(patch({ status: null }).status, 'PROD');
     assert.strictEqual(patch({ criticality: null }).criticality, 2);
+    assert.strictEqual(patch({ deliveryType: null }).deliveryType, 'GENERAL_USE');
+  });
+
+  it('nie ma już pola category', () => {
+    // Zmienna natury: po przebudowie kategorii `category` nie istnieje.
+    // Gdyby ktoś zostawił je w DTO, wracałby stary sposób opisywania
+    // aplikacji i rozjechałyby się z dashboardem.
+    assert.equal(CREATE_FIELDS.has('category'), false);
+  });
+
+  it('blok wsparcia da się wyczyścić zerami', () => {
+    // Wyjątek od reguły „null czyści": `GENERAL_USE` nie znaczy
+    // „nie wiem", tylko „nie hostujemy usługi" — więc zmiana typu
+    // musi działać, choćby przy okazji zostawiła dane wsparcia w bazie.
+    const data = patch({
+      deliveryType: 'GENERAL_USE',
+      supportEmail: null,
+      supportNotes: null,
+    });
+    assert.strictEqual(data.deliveryType, 'GENERAL_USE');
+    assert.strictEqual(data.supportEmail, null);
   });
 
   it('pusty string nie jest wysyłany (transform zamienia go na undefined)', () => {
@@ -130,7 +151,16 @@ describe('CREATE_FIELDS — deklaracja DTO', () => {
     for (const field of [
       'name',
       'version',
-      'category',
+      'deliveryType',
+      'baseUrl',
+      'hostingLocation',
+      'adminTeam',
+      'supportOwnerType',
+      'supportOwnerName',
+      'supportEmail',
+      'supportUrl',
+      'supportChannel',
+      'supportNotes',
       'description',
       'purpose',
       'ownerEmail',

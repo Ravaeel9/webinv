@@ -430,7 +430,7 @@ describe('ListApplicationsQuery', () => {
     const { instance, errors } = await check(ListApplicationsQuery, {
       status: '',
       securityClass: '',
-      category: '',
+      deliveryType: '',
       criticality: '',
       limit: '',
       offset: '',
@@ -521,5 +521,136 @@ describe('ListApplicationsQuery', () => {
     assert.equal(instance.criticality, undefined);
     assert.equal(instance.limit, 50);
     assert.equal(instance.offset, 0);
+  });
+
+  it('odrzuca nieznany typ dostarczenia', async () => {
+    const { errors } = await check(ListApplicationsQuery, {
+      deliveryType: 'ON_PREMISE',
+    });
+    assert.equal(errors.length > 0, true);
+  });
+});
+
+describe('deliveryType i blok wsparcia', () => {
+  it('przyjmuje każdy z czterech typów dostarczenia', async () => {
+    for (const deliveryType of [
+      'GENERAL_USE',
+      'SELF_HOSTED',
+      'SAAS',
+      'VENDOR_MANAGED',
+    ]) {
+      const { errors } = await check(CreateApplicationDto, {
+        name: 'CRM',
+        version: '1.0',
+        deliveryType,
+      });
+      assert.deepEqual(errors, [], `deliveryType=${deliveryType}`);
+    }
+  });
+
+  it('odrzuca typ spoza listy, komunikatem po polsku', async () => {
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'CRM',
+      version: '1.0',
+      deliveryType: 'ON_PREMISE',
+    });
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /Nieznany typ dostarczenia/);
+  });
+
+  it('pusty string w filtrze to brak filtra, nie błąd', async () => {
+    // `<select>` z filtrami wysyła "", gdy nic nie wybrano.
+    const { instance, errors } = await check(ListApplicationsQuery, {
+      deliveryType: '',
+    });
+    assert.deepEqual(errors, []);
+    assert.equal(instance.deliveryType, undefined);
+  });
+
+  it('przyjmuje kompletny opis usługi hostowanej', async () => {
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'Jira',
+      version: '2026.1',
+      deliveryType: 'SAAS',
+      baseUrl: 'https://jira.example.pl',
+      hostingLocation: 'chmura dostawcy',
+      adminTeam: 'Zespół Platformy',
+      supportOwnerType: 'VENDOR',
+      supportOwnerName: 'Atlassian',
+      supportEmail: 'support@example.com',
+      supportUrl: 'https://example.atlassian.net',
+      supportChannel: 'PORTAL',
+      supportNotes: 'Zgłoszenia przez Jira IT.',
+    });
+    assert.deepEqual(errors, []);
+  });
+
+  it('odrzuca zły e-mail do wsparcia', async () => {
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'Jira',
+      version: '1.0',
+      supportEmail: 'nie-adres',
+    });
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /E-mail do wsparcia/);
+  });
+
+  it('odrzuca adres bazowy, który nie jest adresem', async () => {
+    // Protokół jest opcjonalny (tak jak przy `websiteUrl`), więc sama
+    // domena jest poprawna — odrzucić musi tekst z odstępem.
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'Jira',
+      version: '1.0',
+      baseUrl: 'jira firma.example.pl',
+    });
+    assert.equal(errors.length, 1);
+  });
+
+  it('przyjmuje adres bazowy bez protokołu', async () => {
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'Jira',
+      version: '1.0',
+      baseUrl: 'jira.example.pl',
+    });
+    assert.deepEqual(errors, []);
+  });
+
+  it('odrzuca nieznany kanał wsparcia', async () => {
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'Jira',
+      version: '1.0',
+      supportChannel: 'KURIER',
+    });
+    assert.equal(errors.length, 1);
+  });
+
+  it('nie ma już pola category', async () => {
+    // Po przebudowie kategorii na typ dostarczenia stare pole musi zniknąć,
+    // inaczej wraca wolny tekst obok typu i dwa źródła prawdy.
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'CRM',
+      version: '1.0',
+      category: 'Finanse',
+    });
+    assert.equal(errors.length > 0, true, 'category powinno być odrzucone');
+  });
+
+  it('puste pola wsparcia nie trafiają do ładunku', async () => {
+    // Formularz wysyła "" dla niewypełnionych pól — transform musi je
+    // zwinąć do `undefined`, inaczej każda pusta nazwa zespołu
+    // zapisywałaby się jako pusty string zamiast zostawiać pole puste.
+    // Sama właściwość na instancji zostaje (przyszła w ładunku),
+    // liczy się jej wartość — to `undefined` znaczy „nie ruszaj".
+    const { instance } = await check(CreateApplicationDto, {
+      name: '7-Zip',
+      version: '24.08',
+      deliveryType: 'GENERAL_USE',
+      supportEmail: '',
+      supportOwnerName: '',
+      supportNotes: '',
+    });
+    assert.equal(instance.supportEmail, undefined);
+    assert.equal(instance.supportOwnerName, undefined);
+    assert.equal(instance.supportNotes, undefined);
   });
 });

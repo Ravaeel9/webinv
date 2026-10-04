@@ -20,6 +20,29 @@ export type AppStatus =
   | 'DEPRECATED'
   | 'RETIRED';
 
+/**
+ * Sposób dostarczenia aplikacji — zastępuje dawną wolną tekstową
+ * kategorię. Różnica jest praktyczna: `GENERAL_USE` to program na
+ * stanowisku, a pozostałe trzy to usługi, dla których w formularzu
+ * pojawia się blok „dostęp i hosting” oraz „wsparcie”.
+ */
+export type DeliveryType =
+  | 'GENERAL_USE'
+  | 'SELF_HOSTED'
+  | 'SAAS'
+  | 'VENDOR_MANAGED';
+
+/** Kto prowadzi wsparcie: nasz zespół czy dostawca. */
+export type SupportOwnerType = 'INTERNAL' | 'VENDOR';
+
+/** Główny kanał zgłoszeń. */
+export type SupportChannel =
+  | 'EMAIL'
+  | 'PHONE'
+  | 'PORTAL'
+  | 'CHAT'
+  | 'ON_SITE';
+
 export interface AuthUser {
   id: string;
   username: string;
@@ -72,7 +95,10 @@ export interface Application {
   id: string;
   name: string;
   version: string;
-  category: string | null;
+  /** Widoczny także dla gościa — to informacja techniczna, nie osobowa. */
+  deliveryType: DeliveryType;
+  /** Adres dostępowy do usługi — widoczny także dla gościa. */
+  baseUrl: string | null;
   description: string | null;
   purpose: string | null;
   /**
@@ -91,6 +117,25 @@ export interface Application {
   status: AppStatus;
   /** Czy dostęp wymaga formalnego wniosku — widoczne także dla gościa. */
   accessRequestRequired: boolean;
+  /**
+   * Opis hostingu i wsparcia.
+   *
+   * Pola są **opcjonalne**, bo publiczny (niezalogowany) odczyt ich
+   * nie zwraca — API usuwa je z odpowiedzi dla gościa. `undefined`
+   * oznacza „nie wolno ci tego widzieć”, a nie `null` oznaczające
+   * „brak wartości”. UI rozróżnia te dwa przypadki.
+   *
+   * Dotyczy `GENERAL_USE` tylko teoretycznie: zmiana typu nie czyści
+   * tych pól, więc rekord może je mieć wypełnione, a ich nie pokazywać.
+   */
+  hostingLocation?: string | null;
+  adminTeam?: string | null;
+  supportOwnerType?: SupportOwnerType | null;
+  supportOwnerName?: string | null;
+  supportEmail?: string | null;
+  supportUrl?: string | null;
+  supportChannel?: SupportChannel | null;
+  supportNotes?: string | null;
   vendor: string | null;
   license: string | null;
   licenseCount: number | null;
@@ -125,7 +170,7 @@ export interface ApplicationFilters {
   /** Adres e-mail właściciela — dokładne dopasowanie. */
   ownerEmail?: string;
   environmentId?: string;
-  category?: string;
+  deliveryType?: string;
   criticality?: number;
   includeDeleted?: boolean;
   /** Tylko aplikacje bez właściciela (karta na pulpicie). */
@@ -148,7 +193,7 @@ export interface Stats {
     color: string;
     count: number;
   }>;
-  byCategory: Array<{ key: string; count: number }>;
+  byDeliveryType: Array<{ key: DeliveryType; count: number }>;
   incomplete: { missingOwner: number; missingDescription: number };
   eol: { soon: number; passed: number; windowDays: number };
   recent: Application[];
@@ -307,6 +352,47 @@ export const CRITICALITY_LABELS: Record<number, string> = {
   2: 'Średnia',
   3: 'Wysoka',
   4: 'Krytyczna',
+};
+
+export const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
+  GENERAL_USE: 'Aplikacja ogólnego użytku',
+  SELF_HOSTED: 'Hostowane u nas',
+  SAAS: 'Usługa SaaS',
+  VENDOR_MANAGED: 'Zarządzane przez dostawcę',
+};
+
+/**
+ * Krótkie wyjaśnienia pod opcjami typu dostarczenia.
+ *
+ * Sam label nie wystarcza — „Hostowane u nas" i „Zarządzane przez
+ * dostawcę" brzmią podobnie, a to zupełnie różne sytuacje.
+ */
+export const DELIVERY_TYPE_DESCS: Record<DeliveryType, string> = {
+  GENERAL_USE: 'Program instalowany na stanowisku — 7-Zip, czytnik PDF.',
+  SELF_HOSTED: 'Uruchamiamy sami na naszej infrastrukturze.',
+  SAAS: 'Usługa u zewnętrznego dostawcy, dostępna przez przeglądarkę.',
+  VENDOR_MANAGED: 'Zainstalowana lokalnie, ale zarządza nią dostawca.',
+};
+
+export const SUPPORT_OWNER_LABELS: Record<SupportOwnerType, string> = {
+  INTERNAL: 'Nasz zespół',
+  VENDOR: 'Dostawca',
+};
+
+export const SUPPORT_CHANNEL_LABELS: Record<SupportChannel, string> = {
+  EMAIL: 'E-mail',
+  PHONE: 'Telefon',
+  PORTAL: 'Portal zgłoszeń',
+  CHAT: 'Czat',
+  ON_SITE: 'Zgłoszenie osobiście',
+};
+
+/** Kolor odznaki typu dostarczenia — ten sam mechanizm co przy statusie. */
+export const DELIVERY_TYPE_COLORS: Record<DeliveryType, string> = {
+  GENERAL_USE: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+  SELF_HOSTED: 'bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
+  SAAS: 'bg-violet-100 text-violet-900 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
+  VENDOR_MANAGED: 'bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
 };
 
 /**

@@ -18,18 +18,42 @@ import { ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { IconCheck } from '../components/ui/icons';
 import { toDateInput } from '../lib/format';
 import {
+  DELIVERY_TYPE_DESCS,
+  DELIVERY_TYPE_LABELS,
   SECURITY_LABELS,
   STATUS_LABELS,
+  SUPPORT_CHANNEL_LABELS,
+  SUPPORT_OWNER_LABELS,
   type AppStatus,
   type Application,
+  type DeliveryType,
   type SecurityClass,
+  type SupportChannel,
+  type SupportOwnerType,
 } from '../types';
+
+/** Kolejność typów dostarczenia w formularzu — od najprostszego. */
+const DELIVERY_TYPE_ORDER: DeliveryType[] = [
+  'GENERAL_USE',
+  'SELF_HOSTED',
+  'SAAS',
+  'VENDOR_MANAGED',
+];
 
 /** Pusty formularz — wartości domyślne zgodne z defaultami schematu Prisma. */
 const EMPTY = {
   name: '',
   version: '',
-  category: '',
+  deliveryType: 'GENERAL_USE' as DeliveryType,
+  baseUrl: '',
+  hostingLocation: '',
+  adminTeam: '',
+  supportOwnerType: '' as '' | SupportOwnerType,
+  supportOwnerName: '',
+  supportEmail: '',
+  supportUrl: '',
+  supportChannel: '' as '' | SupportChannel,
+  supportNotes: '',
   description: '',
   purpose: '',
   ownerEmail: '',
@@ -59,7 +83,16 @@ function fromApp(app: Application): FormState {
   return {
     name: app.name,
     version: app.version,
-    category: app.category ?? '',
+    deliveryType: app.deliveryType,
+    baseUrl: app.baseUrl ?? '',
+    hostingLocation: app.hostingLocation ?? '',
+    adminTeam: app.adminTeam ?? '',
+    supportOwnerType: app.supportOwnerType ?? '',
+    supportOwnerName: app.supportOwnerName ?? '',
+    supportEmail: app.supportEmail ?? '',
+    supportUrl: app.supportUrl ?? '',
+    supportChannel: app.supportChannel ?? '',
+    supportNotes: app.supportNotes ?? '',
     description: app.description ?? '',
     purpose: app.purpose ?? '',
     ownerEmail: app.ownerEmail ?? '',
@@ -89,6 +122,11 @@ function fromApp(app: Application): FormState {
  * Buduje payload. `forbidNonWhitelisted` w ValidationPipe odrzuca
  * nieznane pola, więc wysyłamy wyłącznie to, co jest w DTO —
  * puste wartości zamieniamy na `null`, a nie pusty string.
+ *
+ * Blok wsparcia wysyłamy **zawsze**, także gdy typ to `GENERAL_USE`
+ * i pola nie są widoczne. Dzięki temu przełączenie typu w trakcie
+ * edycji niczego nie gubi, a powrót do `SAAS` odsłania dane, które
+ * nadal tam są. Serwer z kolei ich nie czyści — patrz `mapDto`.
  */
 function toPayload(form: FormState) {
   const text = (v: string) => (v.trim() === '' ? null : v.trim());
@@ -96,7 +134,16 @@ function toPayload(form: FormState) {
   return {
     name: form.name.trim(),
     version: form.version.trim(),
-    category: text(form.category),
+    deliveryType: form.deliveryType,
+    baseUrl: text(form.baseUrl),
+    hostingLocation: text(form.hostingLocation),
+    adminTeam: text(form.adminTeam),
+    supportOwnerType: form.supportOwnerType || null,
+    supportOwnerName: text(form.supportOwnerName),
+    supportEmail: text(form.supportEmail),
+    supportUrl: text(form.supportUrl),
+    supportChannel: form.supportChannel || null,
+    supportNotes: text(form.supportNotes),
     description: text(form.description),
     purpose: text(form.purpose),
     ownerEmail: text(form.ownerEmail),
@@ -295,14 +342,20 @@ export function ApplicationFormPage() {
               maxLength={100}
               placeholder="np. 4.2.1"
             />
-            <TextInput
-              label="Kategoria"
-              value={form.category}
-              onChange={(e) => set('category', e.target.value)}
-              error={errors.category}
-              maxLength={100}
-              placeholder="np. Finanse, HR, Infrastruktura"
-            />
+            <Select
+              label="Typ dostarczenia"
+              value={form.deliveryType}
+              onChange={(e) =>
+                set('deliveryType', e.target.value as DeliveryType)
+              }
+              hint={DELIVERY_TYPE_DESCS[form.deliveryType]}
+            >
+              {DELIVERY_TYPE_ORDER.map((type) => (
+                <option key={type} value={type}>
+                  {DELIVERY_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </Select>
             <TextInput
               label="Dostawca"
               value={form.vendor}
@@ -313,6 +366,129 @@ export function ApplicationFormPage() {
             />
           </div>
         </fieldset>
+
+        {/* ─── Hosting i wsparcie ────────────────────────────── */}
+        {/* Tylko dla typów innych niż `GENERAL_USE`. Ukrycie jest
+            tylko wizualne — wartości zostają w stanie formularza
+            i lecą do serwera, więc powrót do typu usługi niczego
+            nie gubi. */}
+        {form.deliveryType !== 'GENERAL_USE' && (
+          <>
+            <fieldset className="card px-5 py-4">
+              <legend className="px-1 text-sm font-semibold text-fg">
+                Dostęp i hosting
+              </legend>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextInput
+                  label="Adres bazowy"
+                  value={form.baseUrl}
+                  onChange={(e) => set('baseUrl', e.target.value)}
+                  error={errors.baseUrl}
+                  maxLength={500}
+                  placeholder="np. https://jira.firma.pl"
+                  hint="Pod tym adresem aplikacja jest dostępna."
+                />
+                <TextInput
+                  label="Gdzie hostowane"
+                  value={form.hostingLocation}
+                  onChange={(e) => set('hostingLocation', e.target.value)}
+                  error={errors.hostingLocation}
+                  maxLength={200}
+                  placeholder="np. k8s-prod-eu, serwer FIL-01"
+                  hint="Klaster, serwer lub cloud, w którym to działa."
+                />
+                <TextInput
+                  label="Zespół administracyjny"
+                  value={form.adminTeam}
+                  onChange={(e) => set('adminTeam', e.target.value)}
+                  error={errors.adminTeam}
+                  maxLength={200}
+                  placeholder="np. Zespół Platformy"
+                  hint="Kto technicznie zarządza — nie helpdesk."
+                />
+              </div>
+            </fieldset>
+
+            <fieldset className="card px-5 py-4">
+              <legend className="px-1 text-sm font-semibold text-fg">
+                Wsparcie
+              </legend>
+
+              <p className="mb-3 text-xs text-fg-muted">
+                Wszystkie pola są opcjonalne — uzupełnij to, co wiesz.
+              </p>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Select
+                  label="Wsparcie prowadzi"
+                  value={form.supportOwnerType}
+                  onChange={(e) =>
+                    set('supportOwnerType', e.target.value as SupportOwnerType | '')
+                  }
+                >
+                  <option value="">— nie wiadomo —</option>
+                  {Object.entries(SUPPORT_OWNER_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="Główny kanał"
+                  value={form.supportChannel}
+                  onChange={(e) =>
+                    set('supportChannel', e.target.value as SupportChannel | '')
+                  }
+                >
+                  <option value="">— nie wiadomo —</option>
+                  {Object.entries(SUPPORT_CHANNEL_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+                <TextInput
+                  label="Wsparcie — kto"
+                  value={form.supportOwnerName}
+                  onChange={(e) => set('supportOwnerName', e.target.value)}
+                  error={errors.supportOwnerName}
+                  maxLength={200}
+                  placeholder="np. Atlassian albo Helpdesk IT"
+                  hint="Dostawca albo zespół, do którego idzie zgłoszenie."
+                />
+                <TextInput
+                  label="Wsparcie — e-mail"
+                  type="email"
+                  autoComplete="off"
+                  value={form.supportEmail}
+                  onChange={(e) => set('supportEmail', e.target.value)}
+                  error={errors.supportEmail}
+                  maxLength={320}
+                  placeholder="support@firma.pl"
+                />
+                <TextInput
+                  label="Wsparcie — adres zgłoszeń"
+                  value={form.supportUrl}
+                  onChange={(e) => set('supportUrl', e.target.value)}
+                  error={errors.supportUrl}
+                  maxLength={500}
+                  placeholder="https://firma.atlassian.net"
+                  hint="Portal, na którym zakłada się ticket."
+                />
+              </div>
+
+              <Textarea
+                label="Wsparcie — uwagi"
+                value={form.supportNotes}
+                onChange={(e) => set('supportNotes', e.target.value)}
+                error={errors.supportNotes}
+                hint="Jak wygląda zgłaszanie u nas — np. przez Jira IT."
+                rows={3}
+              />
+            </fieldset>
+          </>
+        )}
 
         {/* ─── Opis ─────────────────────────────────────────── */}
         <fieldset className="card px-5 py-4">

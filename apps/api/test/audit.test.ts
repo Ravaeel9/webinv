@@ -27,8 +27,8 @@ describe('AuditService.diff', () => {
 
   it('pomija pola niezmienione', () => {
     const changes = AuditService.diff(
-      { name: 'CRM', category: 'Sprzedaż' },
-      { name: 'CRM', category: 'Sprzedaż' },
+      { name: 'CRM', deliveryType: 'SAAS' },
+      { name: 'CRM', deliveryType: 'SAAS' },
     );
     assert.deepEqual(Object.keys(changes), []);
   });

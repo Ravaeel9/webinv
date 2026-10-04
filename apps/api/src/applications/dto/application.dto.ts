@@ -44,6 +44,31 @@ export const APP_STATUSES = [
 ] as const;
 
 /**
+ * Jak aplikacja trafia do użytkownika.
+ *
+ * To zastępuje dawną wolną tekstową `category`, która w praktyce
+ * trzymała domenę biznesową i rozjechała się na warianty pisowni.
+ * Typ jest zamkniętym zbiorem, bo od niego zależy, czy w rekordzie
+ * ma sens blok „hosting i wsparcie".
+ */
+export const DELIVERY_TYPES = [
+  'GENERAL_USE',
+  'SELF_HOSTED',
+  'SAAS',
+  'VENDOR_MANAGED',
+] as const;
+
+export const SUPPORT_OWNER_TYPES = ['INTERNAL', 'VENDOR'] as const;
+
+export const SUPPORT_CHANNELS = [
+  'EMAIL',
+  'PHONE',
+  'PORTAL',
+  'CHAT',
+  'ON_SITE',
+] as const;
+
+/**
  * Zamienia pusty string na `undefined` — formularze wysyłają "" dla niewypełnionych pól.
  *
  * `null` celowo zostaje `null`: w PATCH-u `undefined` znaczy „nie ruszaj
@@ -97,12 +122,6 @@ export class CreateApplicationDto {
   @Matches(/\S/, { message: 'Wersja nie może składać się z samych spacji.' })
   @MaxLength(100)
   version!: string;
-
-  @IsOptional()
-  @Transform(emptyToUndefined)
-  @IsString()
-  @MaxLength(100)
-  category?: string;
 
   @IsOptional()
   @Transform(emptyToUndefined)
@@ -177,6 +196,80 @@ export class CreateApplicationDto {
   )
   @IsBoolean()
   accessRequestRequired?: boolean;
+
+  /**
+   * Sposób dostarczenia: program na stanowisku czy usługa hostowana.
+   *
+   * Od niego zależy, czy w formularzu ma sens blok „hosting i wsparcie".
+   * Nie jest wymagany — brak wartości znaczy `GENERAL_USE`, czyli
+   * najczęstszy przypadek, a formularz i tak podsyła wartość jawnie.
+   */
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsIn(DELIVERY_TYPES, { message: 'Nieznany typ dostarczenia.' })
+  deliveryType?: (typeof DELIVERY_TYPES)[number];
+
+  // ── Blok „dostęp i hosting" ───────────────────────────────
+  // Wypełniany dla typów innych niż `GENERAL_USE`. Wszystkie pola
+  // opcjonalne: brakujący adres bazowy nie może blokować zapisu,
+  // bo czasem wiemy, że aplikacja jest hostowana, zanim wiemy, gdzie.
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsUrl({ require_protocol: false }, { message: 'Nieprawidłowy adres bazowy aplikacji.' })
+  @MaxLength(500)
+  baseUrl?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(200)
+  hostingLocation?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(200)
+  adminTeam?: string;
+
+  // ── Blok „wsparcie" ───────────────────────────────────────
+  // Odpowiedź na pytanie „kto i jak nam pomoże", którego nie da się
+  // wyczytać z opisu aplikacji. Pola są opcjonalne, bo rejestr ma
+  // opisywać to, co wiemy — a nie blokować wpis tym, czego nie wiemy.
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsIn(SUPPORT_OWNER_TYPES, { message: 'Nieznany rodzaj wsparcia.' })
+  supportOwnerType?: (typeof SUPPORT_OWNER_TYPES)[number];
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(200)
+  supportOwnerName?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsEmail({}, { message: 'E-mail do wsparcia musi być poprawnym adresem.' })
+  @MaxLength(320, { message: 'Adres e-mail do wsparcia jest za długi.' })
+  supportEmail?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsUrl({ require_protocol: false }, { message: 'Nieprawidłowy adres wsparcia.' })
+  @MaxLength(500)
+  supportUrl?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsIn(SUPPORT_CHANNELS, { message: 'Nieznany kanał wsparcia.' })
+  supportChannel?: (typeof SUPPORT_CHANNELS)[number];
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(10_000)
+  supportNotes?: string;
 
   @IsOptional()
   @Transform(emptyToUndefined)
@@ -277,7 +370,7 @@ export function declaredFields(cls: Function): Set<string> {
 export const CREATE_FIELDS = declaredFields(CreateApplicationDto);
 
 export class ListApplicationsQuery {
-  /** Wyszukiwanie pełnotekstowe po nazwie, wersji, opisie, kategorii. */
+  /** Wyszukiwanie pełnotekstowe po nazwie, wersji, opisie, celu, dostawcy. */
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -305,8 +398,8 @@ export class ListApplicationsQuery {
 
   @IsOptional()
   @Transform(({ value }) => (value === '' ? undefined : value))
-  @IsString()
-  category?: string;
+  @IsIn(DELIVERY_TYPES, { message: 'Nieznany typ dostarczenia.' })
+  deliveryType?: (typeof DELIVERY_TYPES)[number];
 
   @IsOptional()
   @Transform(toQueryNumber(undefined))
