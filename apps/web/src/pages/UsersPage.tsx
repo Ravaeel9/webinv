@@ -8,10 +8,12 @@ import {
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
+import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Checkbox, Select, TextInput } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
+import { Th } from '../components/ui/Table';
 import { PasswordInput } from '../components/ui/PasswordField';
 import { formatDateTime } from '../lib/format';
 import { checkPassword } from '../lib/password';
@@ -23,7 +25,7 @@ import {
   IconPlus,
   IconTrash,
 } from '../components/ui/icons';
-import { ROLE_LABELS, type Role, type UserListItem } from '../types';
+import { ROLE_LABELS, type Role, type Tone, type UserListItem } from '../types';
 
 export function UsersPage() {
   const { user: currentUser, can } = useAuth();
@@ -71,7 +73,7 @@ export function UsersPage() {
       <ErrorMessage error={error} onRetry={() => refetch()} className="mb-4" />
 
       {superAdmins.length <= 1 && superAdmins.length === 1 && (
-        <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-900 dark:text-amber-200">
+        <p className="alert alert-warn mb-4 py-2.5">
           To jedyne aktywne konto super administratora. Jego roli nie da się
           zmienić ani go wyłączyć, dopóki nie powstanie drugie.
         </p>
@@ -154,23 +156,6 @@ export function UsersPage() {
   );
 }
 
-function Th({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      scope="col"
-      className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
 function UserRow({
   user,
   isSelf,
@@ -188,29 +173,28 @@ function UserRow({
 }) {
   const [open, setOpen] = useState(false);
 
-  const roleColor =
-    user.role === 'SUPER_ADMIN'
-      ? 'dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30'
-      : user.role === 'ADMIN'
-        ? 'dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30'
-        : 'bg-surface-2 text-fg ring-line';
+  // Ton zamiast składania klas z palety. Wcześniej `SUPER_ADMIN` i `ADMIN`
+  // miały wyłącznie klasy `dark:`, więc w trybie jasnym te odznaki
+  // renderowały się bez tła — były niewidoczne.
+  const roleTone: Tone =
+    user.role === 'SUPER_ADMIN' ? 'violet' : user.role === 'ADMIN' ? 'info' : 'neutral';
 
   return (
     <tr className={`hover:bg-page ${user.isActive ? '' : 'opacity-60'}`}>
       <td className="px-4 py-2.5">
         <span className="font-medium text-fg">{user.fullName}</span>
         {isSelf && (
-          <span className="ml-1.5 text-xs text-fg-muted">(Ty)</span>
+          <span className="ml-1.5 meta-text">(Ty)</span>
         )}
         {user.mustChangePassword && (
-          <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-200">
+          <Badge tone="warn" dot={false} className="ml-1.5 text-[11px]">
             musi zmienić hasło
-          </span>
+          </Badge>
         )}
       </td>
 
       <td className="px-4 py-2.5">
-        <span className="font-mono text-xs text-fg-muted">{user.username}</span>
+        <span className="font-mono meta-text">{user.username}</span>
       </td>
 
       <td className="px-4 py-2.5">
@@ -223,23 +207,17 @@ function UserRow({
       </td>
 
       <td className="px-4 py-2.5">
-        <span className={`badge ${roleColor}`}>{ROLE_LABELS[user.role]}</span>
+        <Badge tone={roleTone}>{ROLE_LABELS[user.role]}</Badge>
       </td>
 
-      <td className="px-4 py-2.5 text-xs text-fg-muted">
+      <td className="px-4 py-2.5 meta-text">
         {formatDateTime(user.lastLoginAt)}
       </td>
 
       <td className="px-4 py-2.5">
-        <span
-          className={`badge ${
-            user.isActive
-              ? 'bg-emerald-100 text-emerald-900 dark:text-emerald-200 ring-emerald-200'
-              : 'bg-surface-3 text-fg-muted ring-line-strong'
-          }`}
-        >
+        <Badge tone={user.isActive ? 'ok' : 'neutral'}>
           {user.isActive ? 'aktywne' : 'wyłączone'}
-        </span>
+        </Badge>
       </td>
 
       {canWrite && (
@@ -567,7 +545,7 @@ function ResetPasswordModal({
       <div className="space-y-4">
         <ErrorMessage error={reset.error} />
 
-        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+        <p className="alert alert-warn px-3 py-2 text-xs">
           Zmiana hasła zamyka wszystkie sesje tego użytkownika. Konto będzie
           musiało ustawić własne hasło przy następnym logowaniu.
         </p>
@@ -622,7 +600,7 @@ function DeleteUserModal({
           {target.fullName}) zostanie trwale usunięte.
         </p>
 
-        <p className="text-xs text-fg-muted">
+        <p className="meta-text">
           Usunięcie jest możliwe tylko wtedy, gdy nikt nie przypisał temu kontu
           żadnej aplikacji jako właściciela. Jeśli tak jest właśnie ten przypadek,
           lepiej wyłączyć konto — zachowasz historię.

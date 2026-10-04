@@ -20,12 +20,12 @@ import {
   IconUser,
 } from '../components/ui/icons';
 import {
-  CRITICALITY_COLORS,
+  CRITICALITY_TONES,
   CRITICALITY_LABELS,
   DELIVERY_TYPE_LABELS,
-  SECURITY_COLORS,
+  SECURITY_TONES,
   SECURITY_LABELS,
-  STATUS_COLORS,
+  STATUS_TONES,
   STATUS_LABELS,
   type AppStatus,
   type DeliveryType,
@@ -92,8 +92,8 @@ export function DashboardPage() {
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Statusy */}
         <section className="card px-5 py-4">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-fg">
-            <IconGauge className="size-4 text-brand-600 dark:text-brand-400" />
+          <h2 className="section-title mb-4">
+            <IconGauge />
             Status wdrożenia
           </h2>
 
@@ -136,8 +136,8 @@ export function DashboardPage() {
 
         {/* Środowiska */}
         <section className="card px-5 py-4">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-fg">
-            <IconBox className="size-4 text-brand-600 dark:text-brand-400" />
+          <h2 className="section-title mb-4">
+            <IconBox />
             Środowiska
           </h2>
 
@@ -177,8 +177,8 @@ export function DashboardPage() {
         {/* Klasyfikacja + krytyczność + kategorie */}
         <section className="space-y-5">
           <div className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconShield className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconShield />
               Klasyfikacja bezpieczeństwa
             </h2>
             <ul className="space-y-2">
@@ -187,7 +187,7 @@ export function DashboardPage() {
                   key={entry.key}
                   className="flex items-center justify-between gap-2"
                 >
-                  <Badge color={SECURITY_COLORS[entry.key as SecurityClass]}>
+                  <Badge tone={SECURITY_TONES[entry.key as SecurityClass]}>
                     {SECURITY_LABELS[entry.key as SecurityClass]}
                   </Badge>
                   <Link
@@ -207,8 +207,8 @@ export function DashboardPage() {
           </div>
 
           <div className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconAlert className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconAlert />
               Krytyczność biznesowa
             </h2>
             <ul className="space-y-2">
@@ -222,7 +222,7 @@ export function DashboardPage() {
                     key={level}
                     className="flex items-center justify-between gap-2"
                   >
-                    <Badge color={CRITICALITY_COLORS[level]}>
+                    <Badge tone={CRITICALITY_TONES[level]}>
                       {CRITICALITY_LABELS[level]}
                     </Badge>
                     <Link
@@ -244,8 +244,8 @@ export function DashboardPage() {
       {/* Typ dostarczenia + ostatnie zmiany */}
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <section className="card px-5 py-4">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <IconTag className="size-4 text-brand-600 dark:text-brand-400" />
+          <h2 className="section-title">
+            <IconTag />
             Podział wg typu dostarczenia
           </h2>
 
@@ -280,7 +280,7 @@ export function DashboardPage() {
           )}
 
           {data.incomplete.missingDescription > 0 && (
-            <p className="mt-4 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            <p className="alert alert-warn mt-4 rounded-md px-3 py-2 text-xs">
               {data.incomplete.missingDescription} aplikacji nie ma opisu.
               Uzupełnij je, żeby rejestr był czytelny dla nowych osób.
             </p>
@@ -289,8 +289,8 @@ export function DashboardPage() {
 
         <section className="card lg:col-span-2">
           <div className="flex items-center justify-between border-b border-line px-5 py-4">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconHistory className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title mb-0">
+              <IconHistory />
               Ostatnio zmienione
             </h2>
             <Link
@@ -322,7 +322,7 @@ export function DashboardPage() {
                           {app.version}
                         </span>
                       </p>
-                      <p className="truncate text-xs text-fg-muted">
+                      <p className="truncate meta-text">
                         {app.ownerEmail ?? 'Bez właściciela'}
                         {app.deliveryType !== 'GENERAL_USE'
                           ? ` · ${DELIVERY_TYPE_LABELS[app.deliveryType]}`
@@ -331,7 +331,7 @@ export function DashboardPage() {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Badge color={STATUS_COLORS[app.status]}>
+                      <Badge tone={STATUS_TONES[app.status]}>
                         {STATUS_LABELS[app.status]}
                       </Badge>
                     </div>
@@ -363,8 +363,11 @@ function StatCard({
     tone === 'danger'
       ? 'text-rose-600 dark:text-rose-400'
       : tone === 'warn'
-        ? // amber-400 na białym tle miał ~2:1 — poniżej WCAG AA,
-          // więc jasny motyw dostaje amber-600, ciemny jaśniejszy.
+        ? // Liczba jest 24 px (`text-2xl`), więc obowiązuje próg 3:1
+          // dla "dużego" tekstu, a nie 4.5:1. `amber-600` daje 3.19:1
+          // na karcie — w tej rozmiarze wystarczająco. Przy 12 px ten sam
+          // odcień nie przechodzi; tam używamy `text-amber-800`, co
+          // pilnuje `ui-contrast.test.ts`.
           'text-amber-600 dark:text-amber-400'
         : tone === 'ok'
           ? 'text-accent-600 dark:text-accent-400'

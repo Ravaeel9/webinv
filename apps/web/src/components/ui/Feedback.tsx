@@ -22,12 +22,7 @@ export function ErrorMessage({
   const message = isApi ? error.message : 'Coś poszło nie tak. Spróbuj ponownie.';
 
   return (
-    <div
-      role="alert"
-      className={`flex items-start gap-3 rounded-lg border border-rose-500/30
-                  bg-rose-500/10 px-4 py-3 text-sm text-rose-800
-                  dark:text-rose-200 ${className}`}
-    >
+    <div role="alert" className={`alert alert-danger ${className}`}>
       <IconAlert className="mt-0.5 size-4 shrink-0" />
 
       <div className="min-w-0 flex-1">
@@ -35,7 +30,7 @@ export function ErrorMessage({
 
         {/* Dodatkowe komunikaty walidacji z serwera */}
         {isApi && error.details.length > 1 && (
-          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-rose-700 dark:text-rose-300">
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
             {error.details.slice(1).map((detail, i) => (
               <li key={i}>{detail}</li>
             ))}
@@ -48,8 +43,8 @@ export function ErrorMessage({
           type="button"
           onClick={onRetry}
           className="shrink-0 rounded-md px-2 py-1 text-xs font-medium
-                     text-rose-700 underline-offset-2 hover:bg-rose-500/20
-                     hover:underline dark:text-rose-300"
+                     underline-offset-2 hover:underline
+                     hover:bg-oklch(0.83 0.08 20 / 0.4)"
         >
           Ponów
         </button>
@@ -87,7 +82,10 @@ export function EmptyState({
         {icon ?? (tone === 'muted' ? <IconFilter className="size-6" /> : <IconBox className="size-6" />)}
       </div>
 
-      <h3 className="text-sm font-semibold text-fg">{title}</h3>
+      {/* `.section-title` zamiast `text-sm font-semibold`: opis poniżej ma
+          14 px, więc tytuł 14 px był dokładnie tak duży jak treść, którą
+          opisuje — odwrócona hierarchia, którą znoszą role z `index.css`. */}
+      <h3 className="section-title mb-0 justify-center">{title}</h3>
       {description && (
         <p className="mt-1 max-w-md text-sm text-fg-muted">{description}</p>
       )}

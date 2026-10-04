@@ -18,8 +18,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* Świadomie bez 'Inter'. Był tu wpisany, ale nigdzie nie wczytany —
+     żadnego `@font-face` ani linku do fontów — więc każdy użytkownik
+     i tak renderował się stosem poniżej. Wartość w stosie sugerowała
+     czcionkę, której nie ma. `font-src 'self'` w CSP wyklucza CDN,
+     więc jedynym sposobem, żeby ją naprawdę mieć, byłoby w bundlowanie
+     fontu (patrz decyzje w docs/ARCHITEKTURA.md). */
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
 
   /* Akcent główny — granatowy */
@@ -139,10 +145,188 @@
 }
 
 @layer components {
+  /* ─── Role typograficzne ──────────────────────────────────
+   *
+   * Rozmiar tekstu przestaje być argumentem przy każdym miejscu
+   * w kodzie, a staje się **nazwą roli**. Bez tego nagłówek sekcji
+   * (`text-sm font-semibold`) był dokładnie tak duży jak treść, którą
+   * opisuje — odwrócona hierarchia, powtórzona w ~20 miejscach.
+   */
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-fg;
+  }
+
+  /* Ikona jest częścią roli, więc call-site nie musi pamiętać jej klas. */
+  .section-title {
+    @apply mb-3 flex items-center gap-2 text-base font-semibold
+           tracking-tight text-fg;
+  }
+  .section-title svg {
+    @apply size-4 shrink-0 text-brand-600 dark:text-brand-400;
+  }
+
+  /* Odpowiednik `.section-title` dla legend grup formularza. Osobna klasa,
+     a nie `.section-title`, bo legenda nie ma ikony ani marginesu — ma za to
+     wcięcie, którego nagłówek sekcji nie potrzebuje. */
+  .group-title {
+    @apply px-1 text-base font-semibold tracking-tight text-fg;
+  }
+
+  /* Wartość pola (`<dd>`): 14 px, ciasny interlinia — lista definicji
+     ma być skanowana, a nie czytana jako tekst ciągły. */
+  .field-value {
+    @apply text-sm text-fg;
+  }
+
+  /* Tekst opisowy w karcie — z luznym interlinią, bo bywa wieloliniowy. */
+  .card-text {
+    @apply text-sm leading-relaxed text-fg;
+  }
+
+  /* Etykieta `<dt>` i `<h3>` opisującego pole. Wariant `.meta-text`,
+     bo wielkimi literami i z rozstrzeleniem — to czytelniejsze przy
+     kilkunastu polach na ekranie niż zwykły tekst 12 px. Osobna klasa,
+     a nie wariant `.meta-text`, bo wygląd wynika z tagu semantycznego,
+     a nie z decyzji na call-site. */
+  .field-label {
+    @apply mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted;
+  }
+
+  .meta-text {
+    @apply text-xs text-fg-muted;
+  }
+
+  .table-head {
+    @apply px-4 py-2.5 text-xs font-semibold uppercase
+           tracking-wide text-fg-muted;
+  }
+
   /* Odznaka — baza dla wszystkich statusów i klasyfikacji */
   .badge {
     @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5
            text-xs font-medium whitespace-nowrap ring-1 ring-inset;
+  }
+
+  /* ─── Tony kolorów ────────────────────────────────────────
+   *
+   * Sześć tonów, każdy z parą jasną i ciemną w jednym miejscu.
+   * Wartości są w `oklch` i należą do projektu, nie do palety
+   * Tailwinda — dzięki temu kontrast da się policzyć, a nie
+   * zgadywać. Pilnuje tego `apps/api/test/ui-contrast.test.ts`.
+   *
+   * Dwie decyzje, które wyglądają na drobiazg:
+   *
+   * 1. **Wartości są lite, nie przezroczyste.** Dawniej tła w trybie
+   *    ciemnym były półprzezroczyste, więc przeglądarka mieszała je
+   *    z powierzchnią w sposób, którego nie da się policzyć. Lite
+   *    `oklch` dają wynik dokładny.
+   * 2. **Kolejność w klasie jest stała: `dark:` przed resztą.**
+   *    Dziś to tylko konwencja czytelności — znaczenia nie ma.
+   *    Wariant `dark:` kompiluje się do osobnego selektora
+   *    `.x:where(.dark, .dark *)`, który w arkuszu stoi zawsze za
+   *    właściwością bez prefiksu, niezależnie od kolejności w `@apply`.
+   *    Sprawdzone na obu kolejnościach: wynikowy CSS identyczny.
+   *
+   *    Była tu wcześniej teza przeciwna („jaśniejsza właściwość by
+   *    wygrała") i test, który ją pilnował. Test przechodził zawsze,
+   *    dla każdej możliwej wartości — czyli pilnował niczego.
+   *
+   * Kontrast tekstu na tle własnym (WCAG, oba motywy):
+   *   info      8.9:1 / 7.9:1      ok      9.3:1 / 8.7:1
+   *   violet    9.3:1 / 7.9:1      warn    8.9:1 / 8.7:1
+   *   danger    9.4:1 / 8.1:1      neutral 16.3:1 / 6.5:1
+   *
+   * Próg to 4.5:1 — odznaki mają 12 px, czyli "normalny" tekst.
+   * `neutral` ma własne liczby liczone z tokenów powierzchni: niczego
+   * nie barwi, tylko odsuwa się od tła, więc opisany jest `--c-surface-2`
+   * i `--c-surface-3`, nie własnym odcieniem.
+   */
+  .tone-neutral {
+    @apply dark:bg-surface-3 dark:text-fg-muted dark:ring-line
+           bg-surface-2 text-fg ring-line;
+  }
+
+  .tone-info {
+    @apply dark:bg-[oklch(0.31_0.075_255)] dark:text-[oklch(0.84_0.12_255)]
+           dark:ring-[oklch(0.44_0.1_255)]
+           bg-[oklch(0.915_0.04_255)] text-[oklch(0.35_0.12_255)]
+           ring-[oklch(0.8_0.08_255)];
+  }
+
+  .tone-violet {
+    @apply dark:bg-[oklch(0.31_0.08_297)] dark:text-[oklch(0.84_0.12_297)]
+           dark:ring-[oklch(0.44_0.1_297)]
+           bg-[oklch(0.92_0.04_297)] text-[oklch(0.35_0.12_297)]
+           ring-[oklch(0.81_0.08_297)];
+  }
+
+  .tone-ok {
+    @apply dark:bg-[oklch(0.305_0.07_155)] dark:text-[oklch(0.85_0.13_155)]
+           dark:ring-[oklch(0.43_0.1_155)]
+           bg-[oklch(0.925_0.05_155)] text-[oklch(0.33_0.11_155)]
+           ring-[oklch(0.8_0.09_155)];
+  }
+
+  .tone-warn {
+    @apply dark:bg-[oklch(0.315_0.07_80)] dark:text-[oklch(0.87_0.12_80)]
+           dark:ring-[oklch(0.44_0.1_80)]
+           bg-[oklch(0.93_0.05_80)] text-[oklch(0.36_0.11_80)]
+           ring-[oklch(0.81_0.09_80)];
+  }
+
+  .tone-danger {
+    @apply dark:bg-[oklch(0.305_0.09_20)] dark:text-[oklch(0.86_0.12_20)]
+           dark:ring-[oklch(0.44_0.11_20)]
+           bg-[oklch(0.92_0.045_20)] text-[oklch(0.35_0.14_20)]
+           ring-[oklch(0.8_0.09_20)];
+  }
+
+  /* ─── Banery komunikatów ──────────────────────────────────
+   *
+   * Inny kształt niż odznaka — wypełnienie tint + obramowanie —
+   * więc osobne klasy, ale ta sama zasada: kontrast policzony,
+   * jedna para na motyw.
+   */
+  .alert {
+    @apply flex items-start gap-3 rounded-lg border px-4 py-3 text-sm;
+  }
+
+  .alert-danger {
+    @apply dark:bg-[oklch(0.285_0.06_20)] dark:text-[oklch(0.88_0.1_20)]
+           dark:border-[oklch(0.42_0.11_20)]
+           bg-[oklch(0.955_0.025_20)] text-[oklch(0.35_0.14_20)]
+           border-[oklch(0.83_0.08_20)];
+  }
+
+  .alert-warn {
+    @apply dark:bg-[oklch(0.295_0.05_80)] dark:text-[oklch(0.89_0.1_80)]
+           dark:border-[oklch(0.43_0.1_80)]
+           bg-[oklch(0.96_0.025_80)] text-[oklch(0.37_0.11_80)]
+           border-[oklch(0.84_0.08_80)];
+  }
+
+  .alert-ok {
+    @apply dark:bg-[oklch(0.285_0.05_155)] dark:text-[oklch(0.88_0.1_155)]
+           dark:border-[oklch(0.42_0.1_155)]
+           bg-[oklch(0.96_0.02_155)] text-[oklch(0.35_0.11_155)]
+           border-[oklch(0.84_0.08_155)];
+  }
+
+  /* ─── Nawigacja ────────────────────────────────────────────
+   *
+   * Aktywna pozycja. Dawniej składana w `AppLayout` z gradientu
+   * `from-brand-50 to-accent-50` w trybie jasnym i przezroczyste
+   * warianty `dark:` w ciemnym — dwa różne mechanizmy, więc żadnego kontraktu, który
+   * dałoby się policzyć. Gradient zniknął celowo: kontrast tekstu na
+   * tle z gradientu zależy od tego, gdzie w padzie pada litera, a
+   * jedna klasa z jedną parą kolorów na motyw daje się policzyć
+   * i pilnuje testem wyżej.
+   *
+   * Tekst na tle własnym (WCAG, jasny / ciemny): 7.2:1 / 8.1:1
+   */
+  .nav-item-active {
+    @apply dark:bg-[oklch(0.285_0.05_254)] dark:text-[oklch(0.82_0.11_254)]
+           bg-[oklch(0.945_0.018_254)] text-[oklch(0.42_0.16_254)];
   }
 
   /* Karta treści */
@@ -165,24 +349,25 @@
            disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-muted;
   }
 
-  /* Błąd walidacji */
+  /* Błąd walidacji — z parą ciemną: obramowanie było jedynym miejscem
+     bez niej, podczas gdy `.error-text` już ją miał. */
   .input-error {
-    @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/20;
+    @apply dark:border-rose-500 dark:focus:border-rose-400
+           dark:focus:ring-rose-400/20
+           border-rose-400 focus:border-rose-500 focus:ring-rose-500/20;
   }
 
   .error-text {
     @apply mt-1 text-xs text-rose-600 dark:text-rose-400;
   }
-
-  /* Delikatne tło dla wierszy nagłówkowych tabel i stopek karty */
-  .surface-2 {
-    @apply bg-surface-2;
-  }
 }
 
 /*
- * Animacja wejścia wiersza tabeli — subtelna, nie przeszkadza
- * przy dłuższych listach.
+ * Animacja wejścia okna modalnego — subtelna, nie przeszkadza.
+ *
+ * Konsument: `components/ui/Modal.tsx`. Plan zakładał, że klasa jest
+ * martwa i do usunięcia; nie jest — bez niej modal pojawia się
+ * natychmiast, co przy ciemku tła wygląda jak błąd renderowania.
  */
 @keyframes fade-in-up {
   from {
@@ -197,4 +382,13 @@
 
 .animate-in-up {
   animation: fade-in-up 0.18s ease-out;
+}
+
+/* Użytkownik, który prosi o mniej ruchu, nie dostaje animacji wejścia.
+   Ten sam wyjątek obejmuje `.theme-transition` wyżej — oba są ruchem,
+   a nie zmianą koloru, więc `prefers-reduced-motion` dotyczy ich obu. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in-up {
+    animation: none;
+  }
 }

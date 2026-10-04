@@ -60,7 +60,7 @@ export function Field({
       {children({ id, describedBy, invalid: Boolean(error) })}
 
       {hint && !error && (
-        <p id={hintId} className="mt-1 text-xs text-fg-muted">
+        <p id={hintId} className="mt-1 meta-text">
           {hint}
         </p>
       )}
@@ -210,11 +210,11 @@ export function Checkbox({
         {...rest}
       />
       <div className="min-w-0">
-        <label htmlFor={id} className="cursor-pointer text-sm text-fg">
+        <label htmlFor={id} className="field-value cursor-pointer">
           {label}
         </label>
         {hint && (
-          <p id={hintId} className="text-xs text-fg-muted">
+          <p id={hintId} className="meta-text">
             {hint}
           </p>
         )}

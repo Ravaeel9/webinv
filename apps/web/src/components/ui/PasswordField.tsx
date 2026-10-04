@@ -77,7 +77,7 @@ export function PasswordInput({
       )}
 
       {!error && hint && !showRules && (
-        <p className="mt-1 text-xs text-fg-muted">{hint}</p>
+        <p className="mt-1 meta-text">{hint}</p>
       )}
     </div>
   );
@@ -91,7 +91,7 @@ function PasswordRules({ met }: { met: Record<string, boolean> }) {
         <li
           key={rule}
           className={`flex items-center gap-1 text-[11px] ${
-            met[rule] ? 'text-emerald-700' : 'text-fg-muted'
+            met[rule] ? 'text-accent-700 dark:text-accent-400' : 'text-fg-muted'
           }`}
         >
           <span aria-hidden="true">{met[rule] ? '✓' : '○'}</span>

@@ -61,7 +61,7 @@ export function AppLayout() {
             [
               'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
               isActive
-                ? 'bg-linear-to-br from-brand-50 to-accent-50 text-brand-700 dark:from-brand-500/15 dark:to-accent-500/15 dark:text-brand-300'
+                ? 'nav-item-active'
                 : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
             ].join(' ')
           }
@@ -238,7 +238,7 @@ export function PageHeader({
             {back.label}
           </NavLink>
         )}
-        <h1 className="truncate text-xl font-semibold text-fg">{title}</h1>
+        <h1 className="page-title break-words">{title}</h1>
         {description && (
           <p className="mt-0.5 text-sm text-fg-muted">{description}</p>
         )}

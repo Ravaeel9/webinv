@@ -387,55 +387,56 @@ export const SUPPORT_CHANNEL_LABELS: Record<SupportChannel, string> = {
   ON_SITE: 'Zgłoszenie osobiście',
 };
 
-/** Kolor odznaki typu dostarczenia — ten sam mechanizm co przy statusie. */
-export const DELIVERY_TYPE_COLORS: Record<DeliveryType, string> = {
-  GENERAL_USE: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
-  SELF_HOSTED: 'bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  SAAS: 'bg-violet-100 text-violet-900 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  VENDOR_MANAGED: 'bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-};
-
 /**
- * Klasa Tailwind dla odznaki statusu.
+ * Tony odznak stanów.
  *
- * Każda odznaka ma dwie postacie. W jasnym motywie jasne tło
- * z ciemnym tekstem, w ciemnym — przezroczyste tło z jasnym tekstem.
- * Jasne tło typu `bg-emerald-100` w trybie ciemnym dawałoby kontrast
- * rzędu 1.2:1, czyli byłoby po prostu niewidoczne.
+ * Wartości to nazwy klas z `index.css` (`.tone-*`), a nie zestawy klas
+ * Tailwinda. Różnica jest praktyczna: dawniej każda wartość składała się
+ * z sześciu ręcznie dobranych klas, gdzie pominięcie `dark:` dawało
+ * po cichu niewidoczną w jednym motywie odznakę — tak właśnie stało się
+ * z rolami na stronie użytkowników. Teraz kontrast obu motywów jest
+ * policzony w jednym miejscu i pilnany przez `apps/api/test/ui-contrast.test.ts`.
  *
- * Wartości 100/800/200 dobrane tak, by w trybie jasnym tekst dawał
- * co najmniej 4.5:1 na tle (rozmiar 12 px, czyli próg „normalnego"
- * tekstu wg WCAG AA).
+ * Ton powtarza się świadomie: TEST i DEPRECATED to oba „zwróć uwagę",
+ * a PLANNED i RETIRED to oba „nieaktywne". Kolor niesie znaczenie,
+ * zamiast tylko odróżniać wartości.
  */
-export const STATUS_COLORS: Record<AppStatus, string> = {
-  PROD: 'bg-accent-100 text-accent-900 ring-accent-200 dark:bg-accent-500/15 dark:text-accent-300 dark:ring-accent-500/30',
-  TEST: 'bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  DEV: 'bg-violet-100 text-violet-900 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/30',
-  PLANNED: 'bg-sky-100 text-sky-900 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30',
-  DEPRECATED: 'bg-orange-100 text-orange-900 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/30',
-  RETIRED: 'bg-slate-200 text-slate-700 ring-slate-300 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
+export type Tone = 'neutral' | 'info' | 'violet' | 'ok' | 'warn' | 'danger';
+
+/** Typ dostarczenia — cztery wartości, cztery różne tony. */
+export const DELIVERY_TYPE_TONES: Record<DeliveryType, Tone> = {
+  GENERAL_USE: 'neutral',
+  SELF_HOSTED: 'info',
+  SAAS: 'violet',
+  VENDOR_MANAGED: 'warn',
 };
 
-/** Klasa Tailwind dla odznaki klasyfikacji bezpieczeństwa. */
-export const SECURITY_COLORS: Record<SecurityClass, string> = {
-  PUBLIC: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
-  INTERNAL: 'bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  CONFIDENTIAL: 'bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  RESTRICTED: 'bg-rose-100 text-rose-900 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+export const STATUS_TONES: Record<AppStatus, Tone> = {
+  PROD: 'ok',
+  TEST: 'warn',
+  DEV: 'info',
+  PLANNED: 'neutral',
+  DEPRECATED: 'warn',
+  RETIRED: 'neutral',
 };
 
-/** Klasa Tailwind dla krytyczności. */
-export const CRITICALITY_COLORS: Record<number, string> = {
-  1: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30',
-  2: 'bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30',
-  3: 'bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30',
-  4: 'bg-rose-100 text-rose-900 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
+export const SECURITY_TONES: Record<SecurityClass, Tone> = {
+  PUBLIC: 'neutral',
+  INTERNAL: 'info',
+  CONFIDENTIAL: 'warn',
+  RESTRICTED: 'danger',
 };
 
-/** Odznaka „wniosek o dostęp": Tak = zielony accent, Nie = neutralna szarość. */
-export const ACCESS_REQUEST_YES =
-  'bg-accent-100 text-accent-900 ring-accent-200 dark:bg-accent-500/15 dark:text-accent-300 dark:ring-accent-500/30';
-export const ACCESS_REQUEST_NO = 'bg-surface-2 text-fg-muted ring-line';
+export const CRITICALITY_TONES: Record<number, Tone> = {
+  1: 'neutral',
+  2: 'info',
+  3: 'warn',
+  4: 'danger',
+};
+
+/** Odznaka „wniosek o dostęp": Tak = potwierdzone, Nie = bez znaczenia. */
+export const ACCESS_REQUEST_YES: Tone = 'ok';
+export const ACCESS_REQUEST_NO: Tone = 'neutral';
 
 // `ENV_COLORS` (karta nazwy środowiska) nie było nigdzie używane —
 // odznaki środowisk mają własne klasy w komponentach. Usunięte jako martwy

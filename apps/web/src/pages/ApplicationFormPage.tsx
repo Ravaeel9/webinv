@@ -12,7 +12,7 @@ import {
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClass } from '../components/ui/Button';
 import { Checkbox, Select, Textarea, TextInput } from '../components/ui/Field';
 import { ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { IconCheck } from '../components/ui/icons';
@@ -319,7 +319,7 @@ export function ApplicationFormPage() {
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {/* ─── Identyfikacja ─────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Identyfikacja
           </legend>
 
@@ -375,7 +375,7 @@ export function ApplicationFormPage() {
         {form.deliveryType !== 'GENERAL_USE' && (
           <>
             <fieldset className="card px-5 py-4">
-              <legend className="px-1 text-sm font-semibold text-fg">
+              <legend className="group-title">
                 Dostęp i hosting
               </legend>
 
@@ -411,11 +411,11 @@ export function ApplicationFormPage() {
             </fieldset>
 
             <fieldset className="card px-5 py-4">
-              <legend className="px-1 text-sm font-semibold text-fg">
+              <legend className="group-title">
                 Wsparcie
               </legend>
 
-              <p className="mb-3 text-xs text-fg-muted">
+              <p className="mb-3 meta-text">
                 Wszystkie pola są opcjonalne — uzupełnij to, co wiesz.
               </p>
 
@@ -492,7 +492,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Opis ─────────────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Opis i przeznaczenie
           </legend>
 
@@ -524,7 +524,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Odpowiedzialni ────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Odpowiedzialni
           </legend>
 
@@ -541,7 +541,7 @@ export function ApplicationFormPage() {
 
             <fieldset>
               <legend className="label">Administratorzy</legend>
-              <p className="mb-2 text-xs text-fg-muted">
+              <p className="mb-2 meta-text">
                 Osoby z uprawnieniami administracyjnymi w tej aplikacji.
               </p>
 
@@ -565,9 +565,9 @@ export function ApplicationFormPage() {
                             checked={form.adminIds.includes(user.id)}
                             onChange={() => toggle('adminIds', user.id)}
                           />
-                          <span className="min-w-0 flex-1 text-sm text-fg">
+                          <span className="field-value min-w-0 flex-1">
                             {user.fullName}
-                            <span className="ml-1.5 text-xs text-fg-muted">
+                            <span className="ml-1.5 meta-text">
                               {user.username}
                             </span>
                           </span>
@@ -583,7 +583,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Daty ─────────────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Daty
           </legend>
 
@@ -608,7 +608,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Klasyfikacja ─────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Klasyfikacja i status
           </legend>
 
@@ -664,7 +664,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Środowiska ───────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Środowiska
           </legend>
 
@@ -701,7 +701,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Licencja i koszty ────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Licencja i koszty
           </legend>
 
@@ -737,7 +737,7 @@ export function ApplicationFormPage() {
 
         {/* ─── Linki ────────────────────────────────────────── */}
         <fieldset className="card px-5 py-4">
-          <legend className="px-1 text-sm font-semibold text-fg">
+          <legend className="group-title">
             Linki
           </legend>
 
@@ -779,11 +779,13 @@ export function ApplicationFormPage() {
 
         {/* ─── Akcje ────────────────────────────────────────── */}
         <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-line bg-surface/95 py-3 backdrop-blur">
+          {/* Link, nie `Button` — `<Link><Button/></Link>` to `<a><button>`,
+              czyli HTML, którego nie da się dobrze obsłużyć klawiaturą.
+              Wygląd bierze z `buttonClass`, żeby nie powtarzać wariantu
+              `secondary` ręcznie. */}
           <Link
             to={isEdit ? `/aplikacje/${id}` : '/aplikacje'}
-            className="inline-flex h-10 items-center rounded-lg border border-line-strong
-                       bg-surface px-4 text-sm font-medium text-fg shadow-xs
-                       hover:bg-page"
+            className={buttonClass('secondary')}
           >
             Anuluj
           </Link>

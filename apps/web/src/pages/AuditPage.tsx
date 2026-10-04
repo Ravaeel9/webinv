@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useAudit, useAuditMeta, useUsers } from '../lib/queries';
 import { PageHeader } from '../components/layout/AppLayout';
+import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { describeAction, formatDateTime } from '../lib/format';
+import { fieldLabel, formatChangeValue } from '../lib/audit-fields';
 import { visibleChanges, truncatedFields, type AuditChanges } from '../types';
 import {
   IconChevronLeft,
@@ -140,7 +142,7 @@ export function AuditPage() {
                       </span>
                       <ActionTone action={entry.action} />
                       {entry.entity && (
-                        <span className="text-xs text-fg-muted">
+                        <span className="meta-text">
                           {entry.entity}
                         </span>
                       )}
@@ -148,13 +150,13 @@ export function AuditPage() {
 
                     <time
                       dateTime={entry.createdAt}
-                      className="text-xs text-fg-muted"
+                      className="meta-text"
                     >
                       {formatDateTime(entry.createdAt)}
                     </time>
                   </div>
 
-                  <p className="mt-0.5 text-xs text-fg-muted">
+                  <p className="mt-0.5 meta-text">
                     {entry.actorName ?? 'system'}
                     {entry.ip ? ` · ${entry.ip}` : ''}
                   </p>
@@ -164,7 +166,7 @@ export function AuditPage() {
               ))}
             </ul>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-xs text-fg-muted">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 meta-text">
               <span>
                 Strona {page} z {lastPage} · {total} zdarzeń
               </span>
@@ -197,22 +199,20 @@ export function AuditPage() {
   );
 }
 
-/** Kolorowa odznika: czerwień dla operacji nieudanych. */
+/** Odznika zdarzenia: czerwień dla operacji nieudanych. */
 function ActionTone({ action }: { action: string }) {
   const failed = action.includes('failed') || action.includes('revoked');
 
   if (!failed) return null;
 
+  // `revoked` to nie błąd — administrator zamknął sesje celem, więc ton
+  // neutralny. Wcześniej oba przypadki miały tę samą klasę sklepaną
+  // ręcznie, co oznaczało przezroczyste `dark:bg-rose-500/15`, którego
+  // kontrastu nie da się policzyć.
   return (
-    <span
-      className={`badge ${
-        action.includes('failed')
-          ? 'bg-rose-100 text-rose-800 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30'
-          : 'bg-surface-2 text-fg-muted ring-line'
-      }`}
-    >
+    <Badge tone={action.includes('failed') ? 'danger' : 'neutral'} dot={false}>
       {action.includes('failed') ? 'niepowodzenie' : 'sesje zamknięte'}
-    </span>
+    </Badge>
   );
 }
 
@@ -223,16 +223,13 @@ function Changes({ changes }: { changes: AuditChanges }) {
   return (
     <ul className="mt-1.5 space-y-0.5">
       {entries.slice(0, 10).map(([field, change]) => (
-        <li key={field} className="text-xs text-fg-muted">
-          <span className="font-medium text-fg">
-            {FIELD_LABELS[field] ?? field}
-          </span>
+        <li key={field} className="meta-text">
+          <span className="font-medium text-fg">{fieldLabel(field)}</span>
           {': '}
           <span className="text-fg-muted line-through">
-            {show(change.from)}
+            {formatChangeValue(change.from)}
           </span>{' '}
-          →{' '}
-          <span className="text-fg">{show(change.to)}</span>
+          → <span className="text-fg">{formatChangeValue(change.to)}</span>
         </li>
       ))}
       {entries.length > 10 && (
@@ -241,13 +238,11 @@ function Changes({ changes }: { changes: AuditChanges }) {
         </li>
       )}
       {changes._truncated && (
-        <li className="text-xs text-amber-700">
+        <li className="text-xs text-amber-800 dark:text-amber-300">
           {truncatedFields(changes).length > 0 ? (
             <>
               Przycięto wartości pól:{' '}
-              {truncatedFields(changes)
-                .map((field) => FIELD_LABELS[field] ?? field)
-                .join(', ')}
+              {truncatedFields(changes).map(fieldLabel).join(', ')}
               .
             </>
           ) : (
@@ -259,50 +254,3 @@ function Changes({ changes }: { changes: AuditChanges }) {
   );
 }
 
-/** Nazwy pól w formie używanej w dzienniku (snake_case z bazy). */
-const FIELD_LABELS: Record<string, string> = {
-  name: 'nazwa',
-  username: 'nazwa użytkownika',
-  email: 'e-mail',
-  fullName: 'imię i nazwisko',
-  role: 'rola',
-  isActive: 'aktywność',
-  version: 'wersja',
-  deliveryType: 'typ dostarczenia',
-  baseUrl: 'adres bazowy',
-  hostingLocation: 'gdzie hostowane',
-  adminTeam: 'zespół administracyjny',
-  supportOwnerType: 'wsparcie prowadzi',
-  supportOwnerName: 'wsparcie — kto',
-  supportEmail: 'wsparcie — e-mail',
-  supportUrl: 'wsparcie — adres zgłoszeń',
-  supportChannel: 'wsparcie — kanał',
-  supportNotes: 'wsparcie — uwagi',
-  description: 'opis',
-  purpose: 'cel',
-  ownerEmail: 'e-mail właściciela',
-  securityClass: 'klasyfikacja',
-  criticality: 'krytyczność',
-  status: 'status',
-  vendor: 'dostawca',
-  license: 'licencja',
-  licenseCount: 'liczba licencji',
-  annualCost: 'koszt roczny',
-  introducedOn: 'data wprowadzenia',
-  sunsetOn: 'data wycofania',
-  accessRequestRequired: 'wniosek o dostęp',
-  websiteUrl: 'adres WWW',
-  docsUrl: 'dokumentacja',
-  repoUrl: 'repozytorium',
-  runbookUrl: 'runbook',
-  integrations: 'integracje',
-  count: 'liczba',
-  mustChangePassword: 'wymuszona zmiana hasła',
-};
-
-function show(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'tak' : 'nie';
-  if (typeof value === 'object') return JSON.stringify(value).slice(0, 40);
-  return String(value);
-}

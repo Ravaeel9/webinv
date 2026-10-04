@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import { Checkbox, Select } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
+import { Th } from '../components/ui/Table';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -30,13 +31,13 @@ import { downloadApplicationsCsv } from '../lib/queries';
 import {
   ACCESS_REQUEST_NO,
   ACCESS_REQUEST_YES,
-  CRITICALITY_COLORS,
+  CRITICALITY_TONES,
   CRITICALITY_LABELS,
-  DELIVERY_TYPE_COLORS,
+  DELIVERY_TYPE_TONES,
   DELIVERY_TYPE_LABELS,
-  SECURITY_COLORS,
+  SECURITY_TONES,
   SECURITY_LABELS,
-  STATUS_COLORS,
+  STATUS_TONES,
   STATUS_LABELS,
   type AppStatus,
   type Application,
@@ -475,7 +476,7 @@ export function ApplicationsListPage() {
             {/* Paginacja — przy jednej stronie (albo pustej liście)
                 licznik „1–5 z 5" tylko zajmuje miejsce. */}
             {total > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-xs text-fg-muted">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 meta-text">
                 <span>
                   {offset + 1}–{Math.min(offset + items.length, total)} z {total}
                   {isFetching && ' · aktualizuję…'}
@@ -509,17 +510,6 @@ export function ApplicationsListPage() {
         )}
       </div>
     </>
-  );
-}
-
-function Th({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <th
-      scope="col"
-      className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted ${className}`}
-    >
-      {children}
-    </th>
   );
 }
 
@@ -559,7 +549,7 @@ function ApplicationCard({
             </Link>
 
             {app.deliveryType !== 'GENERAL_USE' && (
-              <p className="mt-0.5 truncate text-xs text-fg-muted">
+              <p className="mt-0.5 truncate meta-text">
                 {DELIVERY_TYPE_LABELS[app.deliveryType]}
               </p>
             )}
@@ -593,23 +583,24 @@ function ApplicationCard({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Badge color={STATUS_COLORS[app.status]}>
+          <Badge tone={STATUS_TONES[app.status]}>
             {STATUS_LABELS[app.status]}
           </Badge>
           <Badge
-            color={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
+            dot={false}
+            tone={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
           >
             {app.accessRequestRequired ? 'wniosek' : 'bez wniosku'}
           </Badge>
           {showRestricted && app.securityClass && (
-            <Badge color={SECURITY_COLORS[app.securityClass]}>
+            <Badge tone={SECURITY_TONES[app.securityClass]}>
               {SECURITY_LABELS[app.securityClass]}
             </Badge>
           )}
           {app.deletedAt && (
-            <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-medium text-rose-800 dark:bg-rose-500/15 dark:text-rose-300">
+            <Badge tone="danger" dot={false} className="text-[11px]">
               usunięta
-            </span>
+            </Badge>
           )}
         </div>
       </li>
@@ -723,28 +714,29 @@ function ApplicationRow({
               </span>
             )}
             {app.deletedAt && (
-              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-medium text-rose-800 dark:bg-rose-500/15 dark:text-rose-300">
+              <Badge tone="danger" dot={false} className="text-[11px]">
                 usunięta
-              </span>
+              </Badge>
             )}
           </div>
         </td>
 
         <td className="px-4 py-2.5">
-          <Badge color={DELIVERY_TYPE_COLORS[app.deliveryType]}>
+          <Badge tone={DELIVERY_TYPE_TONES[app.deliveryType]}>
             {DELIVERY_TYPE_LABELS[app.deliveryType]}
           </Badge>
         </td>
 
         <td className="px-4 py-2.5">
-          <Badge color={STATUS_COLORS[app.status]}>
+          <Badge tone={STATUS_TONES[app.status]}>
             {STATUS_LABELS[app.status]}
           </Badge>
         </td>
 
         <td className="px-4 py-2.5">
           <Badge
-            color={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
+            dot={false}
+            tone={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
           >
             {app.accessRequestRequired ? 'Tak' : 'Nie'}
           </Badge>
@@ -753,7 +745,7 @@ function ApplicationRow({
         {showRestricted && (
           <td className="px-4 py-2.5">
             {app.securityClass && (
-              <Badge color={SECURITY_COLORS[app.securityClass]}>
+              <Badge tone={SECURITY_TONES[app.securityClass]}>
                 {SECURITY_LABELS[app.securityClass]}
               </Badge>
             )}
@@ -763,7 +755,7 @@ function ApplicationRow({
         {showRestricted && (
           <td className="px-4 py-2.5">
             {app.criticality !== undefined && (
-              <Badge color={CRITICALITY_COLORS[app.criticality]}>
+              <Badge tone={CRITICALITY_TONES[app.criticality]}>
                 {CRITICALITY_LABELS[app.criticality]}
               </Badge>
             )}
@@ -780,7 +772,9 @@ function ApplicationRow({
                 {app.ownerEmail}
               </a>
             ) : (
-              <span className="text-xs text-amber-600 dark:text-amber-400">nieprzypisana</span>
+              <span className="meta-text text-amber-800 dark:text-amber-300">
+                      nieprzypisana
+                    </span>
             )}
           </td>
         )}
@@ -825,9 +819,8 @@ function RowActions({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={`Akcje dla ${app.name}`}
-        className="rounded-md p-1.5 text-fg-subtle transition
-                   hover:bg-surface-2 hover:text-fg-muted
-                   focus:opacity-100 group-hover:opacity-100"
+        className="rounded-md p-1.5 text-fg-subtle transition-colors
+                   hover:bg-surface-2 hover:text-fg-muted"
       >
         <IconDots className="size-4" />
       </button>

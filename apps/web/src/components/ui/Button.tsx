@@ -17,6 +17,26 @@ const SIZES: Record<Size, string> = {
   md: 'h-10 px-4 text-sm gap-2',
 };
 
+/**
+ * Wygląd przycisku jako samodzielna klasa.
+ *
+ * Dla miejsc, które muszą być linkiem, a nie przyciskiem — `<Link>` z
+ * klasami `Button` to `<a><button></a>`, czyli niepoprawny HTML i
+ * zawodne sterowanie klawiaturą. Zamiast sklejać wariant drugi raz
+ * w JSX (i mieć go potem w dwóch miejscach), link bierze tę samą
+ * klasę co przycisk.
+ *
+ * Nie używaj tego, jeśli można po prostu wstawić `Button`.
+ */
+export function buttonClass(variant: Variant = 'primary', size: Size = 'md'): string {
+  return [
+    'inline-flex items-center justify-center rounded-lg font-medium',
+    'transition-colors',
+    VARIANTS[variant],
+    SIZES[size],
+  ].join(' ');
+}
+
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
@@ -45,10 +65,8 @@ export function Button({
       // formularz dwa razy i tworzy dwa wpisy
       disabled={disabled || loading}
       className={[
-        'inline-flex items-center justify-center rounded-lg font-medium',
-        'transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-        VARIANTS[variant],
-        SIZES[size],
+        buttonClass(variant, size),
+        'disabled:cursor-not-allowed disabled:opacity-60',
         className,
       ].join(' ')}
       {...rest}

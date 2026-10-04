@@ -34,7 +34,7 @@ export function AccountPage() {
       />
 
       {mustChangePassword && (
-        <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+        <div className="alert alert-warn mb-5">
           <strong className="font-semibold">Ustaw własne hasło.</strong> Twoje
           konto działa na haśle nadanym przez administratora — dopóki go nie
           zmienisz, dostęp do rejestru będzie ograniczony.
@@ -43,8 +43,8 @@ export function AccountPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card px-5 py-4">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-            <IconUser className="size-4 text-brand-600 dark:text-brand-400" />
+          <h2 className="section-title">
+            <IconUser />
             Profil
           </h2>
 
@@ -86,7 +86,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <div className="grid grid-cols-[140px_1fr] gap-3">
       <dt className="text-sm text-fg-muted">{label}</dt>
-      <dd className="min-w-0 break-words text-sm text-fg">{children}</dd>
+      <dd className="field-value min-w-0 break-words">{children}</dd>
     </div>
   );
 }
@@ -131,14 +131,14 @@ function ChangePasswordCard() {
 
   return (
     <form onSubmit={handleSubmit} className="card space-y-4 px-5 py-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-        <IconLock className="size-4 text-brand-600 dark:text-brand-400" />
+      <h2 className="section-title mb-0">
+        <IconLock />
         {mustChangePassword ? 'Ustaw nowe hasło' : 'Zmiana hasła'}
       </h2>
 
       {mutation.isSuccess && (
         <p
-          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-200"
+          className="alert alert-ok px-3 py-2"
           role="status"
         >
           Hasło zmienione. Pozostałe sesje zostały zamknięte.
@@ -182,7 +182,7 @@ function ChangePasswordCard() {
         Zmień hasło
       </Button>
 
-      <p className="text-xs text-fg-muted">
+      <p className="meta-text">
         Konto: <span className="font-mono">{user?.username}</span>. Po zmianie
         hasła pozostałe sesje zostaną zamknięte.
       </p>
@@ -199,11 +199,11 @@ function SessionsCard() {
   return (
     <section className="card mt-5">
       <div className="border-b border-line px-5 py-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-          <IconMonitor className="size-4 text-brand-600 dark:text-brand-400" />
+        <h2 className="section-title mb-0">
+          <IconMonitor />
           Aktywne sesje
         </h2>
-        <p className="mt-0.5 text-xs text-fg-muted">
+        <p className="mt-0.5 meta-text">
           Każde logowanie z innego urządzenia tworzy osobną sesję. Możesz
           zamknąc dostęp, którego nie rozpoznajesz.
         </p>
@@ -223,10 +223,10 @@ function SessionsCard() {
               className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm text-fg">
+                <p className="field-value truncate">
                   {session.userAgent ?? 'Nieznane urządzenie'}
                 </p>
-                <p className="text-xs text-fg-muted">
+                <p className="meta-text">
                   IP {session.ip ?? '—'} · logowanie{' '}
                   {formatDateTime(session.createdAt)} · ostatnia aktywność{' '}
                   {formatDateTime(session.lastSeenAt)}

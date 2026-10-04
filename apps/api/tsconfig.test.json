@@ -19,6 +19,7 @@
   // zaimportować w CommonJS (stąd `query.ts` wydzielony z `api.ts`).
   "include": [
     "test/**/*",
+    "../web/src/lib/audit-fields.ts",
     "../web/src/lib/password.ts",
     "../web/src/lib/query.ts",
     "../web/src/lib/version.ts",

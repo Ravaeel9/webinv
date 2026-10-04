@@ -18,17 +18,18 @@ import {
   formatDate,
   formatDateTime,
 } from '../lib/format';
+import { fieldLabel, formatChangeValue } from '../lib/audit-fields';
 import { visibleChanges, truncatedFields, type AuditChanges } from '../types';
 import {
   ACCESS_REQUEST_NO,
   ACCESS_REQUEST_YES,
-  CRITICALITY_COLORS,
+  CRITICALITY_TONES,
   CRITICALITY_LABELS,
-  DELIVERY_TYPE_COLORS,
+  DELIVERY_TYPE_TONES,
   DELIVERY_TYPE_LABELS,
-  SECURITY_COLORS,
+  SECURITY_TONES,
   SECURITY_LABELS,
-  STATUS_COLORS,
+  STATUS_TONES,
   STATUS_LABELS,
   SUPPORT_CHANNEL_LABELS,
   SUPPORT_OWNER_LABELS,
@@ -52,10 +53,10 @@ import {
 function DeliveryRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+      <dt className="field-label">
         {label}
       </dt>
-      <dd className="text-sm text-fg">{children}</dd>
+      <dd className="field-value">{children}</dd>
     </div>
   );
 }
@@ -138,7 +139,7 @@ export function ApplicationDetailPage() {
       />
 
       {app.deletedAt && (
-        <div className="mb-5 flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
+        <div className="alert alert-danger mb-5">
           <IconTrash className="mt-0.5 size-4 shrink-0 text-rose-600 dark:text-rose-400" />
           <span>
             Ta aplikacja została usunięta {formatDate(app.deletedAt)} i jest
@@ -151,8 +152,8 @@ export function ApplicationDetailPage() {
         {/* ─── Kolumna główna ─────────────────────────────────── */}
         <div className="space-y-5 lg:col-span-2">
           <section className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconInfo className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconInfo />
               Opis
             </h2>
             <Prose label="Czym to jest" text={app.description} />
@@ -164,14 +165,14 @@ export function ApplicationDetailPage() {
               API nie zwraca `ownerEmail`, więc u gościa sekcji nie ma wcale. */}
           {app.ownerEmail !== undefined && (
             <section className="card px-5 py-4">
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-                <IconUser className="size-4 text-brand-600 dark:text-brand-400" />
+              <h2 className="section-title">
+                <IconUser />
                 Odpowiedzialni
               </h2>
 
             <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
               <div>
-                <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                <dt className="field-label">
                   Właściciel
                 </dt>
                 <dd className="text-sm">
@@ -183,7 +184,7 @@ export function ApplicationDetailPage() {
                       {app.ownerEmail}
                     </a>
                   ) : (
-                    <span className="text-sm text-amber-600 dark:text-amber-400">
+                    <span className="field-value text-amber-800 dark:text-amber-300">
                       nieprzypisana — ktoś musi to uzupełnić
                     </span>
                   )}
@@ -191,7 +192,7 @@ export function ApplicationDetailPage() {
               </div>
 
               <div>
-                <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                <dt className="field-label">
                   Administratorzy
                 </dt>
                 <dd className="text-sm">
@@ -219,8 +220,8 @@ export function ApplicationDetailPage() {
           )}
 
           <section className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconBox className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconBox />
               Środowiska
             </h2>
               <div className="flex flex-wrap gap-1.5">
@@ -248,8 +249,8 @@ export function ApplicationDetailPage() {
               `user` pilnuje, żeby nie renderować pustej sekcji. */}
           {user && app.deliveryType !== 'GENERAL_USE' && (
             <section className="card px-5 py-4">
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-                <IconInfo className="size-4 text-brand-600 dark:text-brand-400" />
+              <h2 className="section-title">
+                <IconInfo />
                 Dostęp i wsparcie
               </h2>
 
@@ -321,7 +322,7 @@ export function ApplicationDetailPage() {
                 </DeliveryRow>
                 {app.supportNotes && (
                   <div>
-                    <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                    <dt className="field-label">
                       Wsparcie — uwagi
                     </dt>
                     <dd className="text-sm whitespace-pre-line text-fg">
@@ -339,22 +340,23 @@ export function ApplicationDetailPage() {
         {/* ─── Kolumna boczna ──────────────────────────────────── */}
         <div className="space-y-5">
           <section className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconShield className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconShield />
               Klasyfikacja
             </h2>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-fg-muted">Status</span>
-                <Badge color={STATUS_COLORS[app.status]}>
+                <Badge tone={STATUS_TONES[app.status]}>
                   {STATUS_LABELS[app.status]}
                 </Badge>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-fg-muted">Wniosek o dostęp</span>
                 <Badge
-                  color={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
+                  dot={false}
+                  tone={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
                 >
                   {app.accessRequestRequired ? 'Tak' : 'Nie'}
                 </Badge>
@@ -363,7 +365,7 @@ export function ApplicationDetailPage() {
                   techniczna, a nie dana wewnętrzna. */}
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-fg-muted">Dostarczanie</span>
-                <Badge color={DELIVERY_TYPE_COLORS[app.deliveryType]}>
+                <Badge tone={DELIVERY_TYPE_TONES[app.deliveryType]}>
                   {DELIVERY_TYPE_LABELS[app.deliveryType]}
                 </Badge>
               </div>
@@ -372,7 +374,7 @@ export function ApplicationDetailPage() {
               {app.securityClass && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm text-fg-muted">Bezpieczeństwo</span>
-                  <Badge color={SECURITY_COLORS[app.securityClass]}>
+                  <Badge tone={SECURITY_TONES[app.securityClass]}>
                     {SECURITY_LABELS[app.securityClass]}
                   </Badge>
                 </div>
@@ -380,7 +382,7 @@ export function ApplicationDetailPage() {
               {app.criticality !== undefined && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm text-fg-muted">Krytyczność</span>
-                  <Badge color={CRITICALITY_COLORS[app.criticality]}>
+                  <Badge tone={CRITICALITY_TONES[app.criticality]}>
                     {CRITICALITY_LABELS[app.criticality]}
                   </Badge>
                 </div>
@@ -389,45 +391,45 @@ export function ApplicationDetailPage() {
           </section>
 
           <section className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconCalendar className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconCalendar />
               Daty
             </h2>
 
             <dl className="space-y-3">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                <dt className="field-label">
                   Wprowadzono
                 </dt>
-                <dd className="text-sm text-fg">
+                <dd className="field-value">
                   {formatDate(app.introducedOn)}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                <dt className="field-label">
                   Wycofanie (EOL)
                 </dt>
-                <dd className="flex flex-wrap items-center gap-2 text-sm text-fg">
+                <dd className="field-value flex flex-wrap items-center gap-2">
                   {formatDate(app.sunsetOn)}
                   <EolBadge date={app.sunsetOn} />
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                <dt className="field-label">
                   Ostatnia zmiana
                 </dt>
-                <dd className="text-sm text-fg">
+                <dd className="field-value">
                   {formatDateTime(app.updatedAt)}
                 </dd>
               </div>
               {app.createdBy && (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">
+                  <dt className="field-label">
                     Dodał
                   </dt>
-                  <dd className="text-sm text-fg">
+                  <dd className="field-value">
                     {app.createdBy.fullName}
-                    <span className="ml-1.5 text-xs text-fg-muted">
+                    <span className="ml-1.5 meta-text">
                       {formatDateTime(app.createdAt)}
                     </span>
                   </dd>
@@ -437,8 +439,8 @@ export function ApplicationDetailPage() {
           </section>
 
           <section className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconTag className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconTag />
               Dostawca i licencja
             </h2>
 
@@ -465,8 +467,8 @@ export function ApplicationDetailPage() {
           </section>
 
           <section className="card px-5 py-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
-              <IconExternalLink className="size-4 text-brand-600 dark:text-brand-400" />
+            <h2 className="section-title">
+              <IconExternalLink />
               Linki
             </h2>
 
@@ -517,15 +519,13 @@ export function ApplicationDetailPage() {
 function Prose({ label, text }: { label: string; text: string | null }) {
   return (
     <div className="mb-4 last:mb-0">
-      <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+      <h3 className="field-label">
         {label}
       </h3>
       {text ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg">
-          {text}
-        </p>
+        <p className="card-text whitespace-pre-wrap">{text}</p>
       ) : (
-        <p className="text-sm text-fg-subtle">nie uzupełniono</p>
+        <p className="card-text text-fg-subtle">nie uzupełniono</p>
       )}
     </div>
   );
@@ -535,7 +535,7 @@ function SimpleRow({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-sm text-fg-muted">{label}</dt>
-      <dd className="min-w-0 break-words text-right text-sm text-fg">
+      <dd className="field-value min-w-0 break-words text-right">
         {value ?? '—'}
       </dd>
     </div>
@@ -582,8 +582,8 @@ function ApplicationHistory({
   return (
     <section className="card">
       <div className="border-b border-line px-5 py-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-          <IconHistory className="size-4 text-brand-600 dark:text-brand-400" />
+        <h2 className="section-title mb-0">
+          <IconHistory />
           Historia zmian
         </h2>
       </div>
@@ -600,11 +600,11 @@ function ApplicationHistory({
                 <span className="text-sm font-medium text-fg">
                   {describeAction(entry.action)}
                 </span>
-                <span className="text-xs text-fg-muted">
+                <span className="meta-text">
                   {formatDateTime(entry.createdAt)}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-fg-muted">
+              <p className="mt-0.5 meta-text">
                 {entry.actorName ?? 'system'}
                 {entry.actorId === viewerId ? ' (Ty)' : ''}
                 {entry.ip ? ` · ${entry.ip}` : ''}
@@ -625,14 +625,13 @@ function ChangeList({ changes }: { changes: AuditChanges }) {
   return (
     <ul className="mt-1.5 space-y-0.5">
       {entries.slice(0, 8).map(([field, change]) => (
-        <li key={field} className="text-xs text-fg-muted">
-          <span className="font-medium text-fg">{FIELD_LABELS[field] ?? field}</span>
+        <li key={field} className="meta-text">
+          <span className="font-medium text-fg">{fieldLabel(field)}</span>
           {': '}
           <span className="text-fg-muted line-through">
-            {formatValue(change.from)}
+            {formatChangeValue(change.from)}
           </span>{' '}
-          →{' '}
-          <span className="text-fg">{formatValue(change.to)}</span>
+          → <span className="text-fg">{formatChangeValue(change.to)}</span>
         </li>
       ))}
       {entries.length > 8 && (
@@ -641,13 +640,11 @@ function ChangeList({ changes }: { changes: AuditChanges }) {
         </li>
       )}
       {changes._truncated && (
-        <li className="text-xs text-amber-700">
+        <li className="text-xs text-amber-800 dark:text-amber-300">
           {truncatedFields(changes).length > 0 ? (
             <>
               Przycięto wartości pól:{' '}
-              {truncatedFields(changes)
-                .map((field) => FIELD_LABELS[field] ?? field)
-                .join(', ')}
+              {truncatedFields(changes).map(fieldLabel).join(', ')}
               .
             </>
           ) : (
@@ -657,52 +654,6 @@ function ChangeList({ changes }: { changes: AuditChanges }) {
       )}
     </ul>
   );
-}
-
-/** Nazwy pól camelCase → po polsku. */
-const FIELD_LABELS: Record<string, string> = {
-  name: 'nazwa',
-  version: 'wersja',
-  deliveryType: 'typ dostarczenia',
-  baseUrl: 'adres bazowy',
-  hostingLocation: 'gdzie hostowane',
-  adminTeam: 'zespół administracyjny',
-  supportOwnerType: 'wsparcie prowadzi',
-  supportOwnerName: 'wsparcie — kto',
-  supportEmail: 'wsparcie — e-mail',
-  supportUrl: 'wsparcie — adres zgłoszeń',
-  supportChannel: 'wsparcie — kanał',
-  supportNotes: 'wsparcie — uwagi',
-  description: 'opis',
-  purpose: 'cel',
-  ownerEmail: 'e-mail właściciela',
-  introducedOn: 'data wprowadzenia',
-  sunsetOn: 'data wycofania',
-  accessRequestRequired: 'wniosek o dostęp',
-  securityClass: 'klasyfikacja',
-  criticality: 'krytyczność',
-  status: 'status',
-  vendor: 'dostawca',
-  license: 'licencja',
-  licenseCount: 'liczba licencji',
-  annualCost: 'koszt roczny',
-  websiteUrl: 'adres WWW',
-  docsUrl: 'dokumentacja',
-  repoUrl: 'repozytorium',
-  runbookUrl: 'runbook',
-  integrations: 'integracje',
-  username: 'nazwa użytkownika',
-  email: 'e-mail',
-  fullName: 'imię i nazwisko',
-  role: 'rola',
-  isActive: 'aktywność',
-};
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'tak' : 'nie';
-  if (typeof value === 'object') return JSON.stringify(value).slice(0, 40);
-  return String(value);
 }
 
 export type { Application };

@@ -20,27 +20,12 @@ import { strict as assert } from 'node:assert';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
+import { REPO_ROOT, read } from './helpers/repo';
 
-/**
- * Katalog repozytorium.
- *
- * `npm test` uruchamia się z `apps/api`, ale wywołanie skryptu
- * z katalogu nadrzędnego też musi działać — stąd szukanie `nginx/`
- * w górę, zamiast hardkodowanego `../../..`.
- */
-const ROOT = (() => {
-  let dir = process.cwd();
-  for (let i = 0; i < 5; i++) {
-    if (existsSync(join(dir, 'nginx', 'default.conf'))) return dir;
-    const parent = join(dir, '..');
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error('Nie znaleziono katalogu repozytorium (brak nginx/default.conf)');
-})();
+const ROOT = REPO_ROOT;
 
 function config(path: string): string {
-  return readFileSync(join(ROOT, path), 'utf8');
+  return read(...path.split('/'));
 }
 
 /** Wyciąga wartość `add_header <nazwa> "<wartość>";` z pliku. */
