@@ -37,6 +37,7 @@ export const qk = {
   environments: ['environments'] as const,
   users: ['users'] as const,
   userOptions: ['user-options'] as const,
+  ownerOptions: ['owner-options'] as const,
   audit: (params: Record<string, unknown>) => ['audit', params] as const,
   auditMeta: ['audit-meta'] as const,
   sessions: ['sessions'] as const,
@@ -176,7 +177,16 @@ export function useApplicationFormOptions(includeUsers = true) {
     enabled: includeUsers,
   });
 
-  return { environments, users };
+  // Adresy właścicieli do selecta na liście aplikacji. Zdobywamy je
+  // z aplikacji, nie z `users` — właściciel nie musi mieć konta.
+  const owners = useQuery({
+    queryKey: qk.ownerOptions,
+    queryFn: () => api.get<{ owners: string[] }>('/applications/owner-options'),
+    staleTime: 5 * 60_000,
+    enabled: includeUsers,
+  });
+
+  return { environments, users, owners };
 }
 
 function useInvalidateApplicationData() {

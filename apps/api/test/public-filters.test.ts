@@ -42,9 +42,9 @@ describe('buildWhere — gość nie dostaje filtrów po ukrytych polach', () => 
     assert.equal('criticality' in where, false);
   });
 
-  it('ignoruje ownerId', () => {
-    const where = buildWhere({ ownerId: 'u-1' }, true);
-    assert.equal('ownerId' in where, false);
+  it('ignoruje ownerEmail', () => {
+    const where = buildWhere({ ownerEmail: 'a@firma.local' }, true);
+    assert.equal('ownerEmail' in where, false);
   });
 
   it('zalogowany dostaje wszystkie trzy filtry', () => {
@@ -53,7 +53,10 @@ describe('buildWhere — gość nie dostaje filtrów po ukrytych polach', () => 
       true,
     );
     assert.equal('criticality' in buildWhere({ criticality: 4 }, false), true);
-    assert.equal('ownerId' in buildWhere({ ownerId: 'u-1' }, false), true);
+    assert.equal(
+      'ownerEmail' in buildWhere({ ownerEmail: 'a@firma.local' }, false),
+      true,
+    );
   });
 
   it('filtry, których nie ukrywamy, działają również u gościa', () => {
@@ -66,19 +69,19 @@ describe('buildWhere — gość nie dostaje filtrów po ukrytych polach', () => 
     assert.equal('category' in where, true);
   });
 
-  it('wyszukiwanie nie szuka po nazwisku właściciela', () => {
-    // Gość wpisując imię właściciela dostawałby trafienie w wynikach —
+  it('wyszukiwanie nie szuka po adresie właściciela', () => {
+    // Gość wpisując fragment adresu dostawałby trafienie w wynikach —
     // samo to wystarcza, żeby wyciągnąć czyj to wpis.
-    const where = buildWhere({ q: 'Anna' }, true);
+    const where = buildWhere({ q: 'firma.local' }, true);
     const serialised = JSON.stringify(where);
-    assert.equal(serialised.includes('owner'), false);
+    assert.equal(serialised.includes('ownerEmail'), false);
     assert.equal(serialised.includes('admins'), false);
   });
 
-  it('zalogowany nadal szuka po nazwisku właściciela', () => {
-    const where = buildWhere({ q: 'Anna' }, false);
+  it('zalogowany nadal szuka po adresie właściciela', () => {
+    const where = buildWhere({ q: 'firma.local' }, false);
     const serialised = JSON.stringify(where);
-    assert.equal(serialised.includes('owner'), true);
+    assert.equal(serialised.includes('ownerEmail'), true);
   });
 
   it('wyszukiwanie po nazwie działa u gościa', () => {
@@ -94,8 +97,8 @@ describe('buildWhere — gość nie dostaje filtrów po ukrytych polach', () => 
   it('missingOwner działa i u gościa, i zalogowanego', () => {
     // To filtr, którego karta na pulpicie używa dla każdego,
     // więc nie może być ukryty tylko przed gościem.
-    assert.equal(buildWhere({ missingOwner: true }, true).ownerId, null);
-    assert.equal(buildWhere({ missingOwner: true }, false).ownerId, null);
+    assert.equal(buildWhere({ missingOwner: true }, true).ownerEmail, null);
+    assert.equal(buildWhere({ missingOwner: true }, false).ownerEmail, null);
   });
 });
 

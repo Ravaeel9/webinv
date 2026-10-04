@@ -140,8 +140,8 @@ export function ApplicationDetailPage() {
           </section>
 
           {/* Właściciel i administratorzy — tylko dla zalogowanych.
-              API nie zwraca `owner`, więc u gościa sekcji nie ma wcale. */}
-          {app.owner !== undefined && (
+              API nie zwraca `ownerEmail`, więc u gościa sekcji nie ma wcale. */}
+          {app.ownerEmail !== undefined && (
             <section className="card px-5 py-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
                 <IconUser className="size-4 text-brand-600 dark:text-brand-400" />
@@ -154,16 +154,13 @@ export function ApplicationDetailPage() {
                   Właściciel
                 </dt>
                 <dd className="text-sm">
-                  {app.owner ? (
-                    <>
-                      <span className="text-fg">{app.owner.fullName}</span>
-                      <a
-                        href={`mailto:${app.owner.email}`}
-                        className="block text-xs text-brand-600 hover:underline"
-                      >
-                        {app.owner.email}
-                      </a>
-                    </>
+                  {app.ownerEmail ? (
+                    <a
+                      href={`mailto:${app.ownerEmail}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      {app.ownerEmail}
+                    </a>
                   ) : (
                     <span className="text-sm text-amber-600 dark:text-amber-400">
                       nieprzypisana — ktoś musi to uzupełnić
@@ -550,7 +547,7 @@ const FIELD_LABELS: Record<string, string> = {
   category: 'kategoria',
   description: 'opis',
   purpose: 'cel',
-  ownerId: 'właściciel',
+  ownerEmail: 'e-mail właściciela',
   introducedOn: 'data wprowadzenia',
   sunsetOn: 'data wycofania',
   accessRequestRequired: 'wniosek o dostęp',

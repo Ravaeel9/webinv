@@ -54,7 +54,7 @@ z wersjami, opisami i linkami, bez pól poufnych.
 
 ### Widok publiczny
 
-- Pola poufne (`securityClass`, `criticality`, `owner`, `ownerId`) są usuwane
+- Pola poufne (`securityClass`, `criticality`, `ownerEmail`) są usuwane
   **z odpowiedzi** na serwerze, nie ukrywane w HTML.
 - Filtry i sortowanie po tych polach są **ignorowane** dla gościa — kolejność
   wierszy i liczba wyników nie mogą zdradzić ukrytej wartości.

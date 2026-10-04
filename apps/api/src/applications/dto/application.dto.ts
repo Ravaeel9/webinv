@@ -5,6 +5,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsNumber,
@@ -115,10 +116,18 @@ export class CreateApplicationDto {
   @MaxLength(10_000)
   purpose?: string;
 
+  /**
+   * Właściciel to sam adres e-mail, a nie konto w systemie.
+   *
+   * Dzięki temu właścicielem może być osoba z zewnątrz organizacji
+   * albo ktoś, kto nie ma jeszcze konta. Nie ma więc sensu
+   * sprawdzania, czy taki adres należy do `users`.
+   */
   @IsOptional()
   @Transform(emptyToUndefined)
-  @IsUUID('4', { message: 'Właściciel musi być poprawnym identyfikatorem.' })
-  ownerId?: string;
+  @IsEmail({}, { message: 'Właściciel musi być poprawnym adresem e-mail.' })
+  @MaxLength(320, { message: 'Adres e-mail właściciela jest za długi.' })
+  ownerEmail?: string;
 
   @IsOptional()
   @IsArray()
@@ -286,8 +295,8 @@ export class ListApplicationsQuery {
 
   @IsOptional()
   @Transform(({ value }) => (value === '' ? undefined : value))
-  @IsString()
-  ownerId?: string;
+  @IsEmail({}, { message: 'Filtr właściciela musi być poprawnym adresem e-mail.' })
+  ownerEmail?: string;
 
   @IsOptional()
   @Transform(({ value }) => (value === '' ? undefined : value))
@@ -315,7 +324,7 @@ export class ListApplicationsQuery {
   /**
    * Tylko aplikacje bez właściciela.
    *
-   * Osobny parametr, a nie `ownerId=''`, bo pusty string jest
+   * Osobny parametr, a nie `ownerEmail=''`, bo pusty string jest
    * niejednoznaczny: „puste pole” znaczy co innego niż
    * „nieprzypisane”. Karta „Bez właściciela” na pulpicie
    * linkuje właśnie tutaj.

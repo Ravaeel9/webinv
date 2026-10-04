@@ -53,8 +53,6 @@ model User {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  // Aplikacje, którymi użytkownik jest właścicielem
-  ownedApplications Application[] @relation("AppOwner")
   // Aplikacje, którymi użytkownik administruje
   administeredApps  Application[] @relation("AppAdmins")
   // Aplikacje utworzone przez użytkownika
@@ -126,10 +124,11 @@ model Application {
   description String? @db.Text
   purpose     String? @db.Text
 
-  // Kto odpowiada
-  ownerId String? @map("owner_id") @db.Uuid
-  owner   User?   @relation("AppOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  admins  User[]  @relation("AppAdmins")
+  // Kto odpowiada — sam adres e-mail, celowo bez relacji do `users`.
+  // Właścicielem bywa osoba spoza organizacji albo ktoś bez konta,
+  // więc wolny tekst jest tu poprawniejszy niż klucz obcego.
+  ownerEmail String? @map("owner_email") @db.Citext
+  admins     User[]  @relation("AppAdmins")
 
   // Kiedy
   introducedOn DateTime? @map("introduced_on") @db.Date
@@ -173,7 +172,7 @@ model Application {
   @@index([status])
   @@index([securityClass])
   @@index([criticality])
-  @@index([ownerId])
+  @@index([ownerEmail])
   @@index([introducedOn])
   @@index([sunsetOn])
   @@index([deletedAt])

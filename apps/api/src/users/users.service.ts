@@ -203,9 +203,11 @@ export class UsersService {
   }
 
   /**
-   * Usuwa konto — ale tylko jeśli nie jest ostatnim super adminem
-   * i nie ma przypisanych aplikacji jako właściciel/administrator.
+   * Usuwa konto — ale tylko jeśli nie jest ostatnim super adminem.
    * W praktyce prawie zawsze lepiej wyłączyć konto (isActive=false).
+   *
+   * Właściciel aplikacji jest dziś zwykłym adresem e-mail, więc nie
+   * blokuje tu niczego: usunięcie konta nie zaburza własności.
    */
   async remove(id: string, actor: AuthUser, ip?: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
@@ -224,15 +226,6 @@ export class UsersService {
       }
     }
 
-    const owned = await this.prisma.application.count({
-      where: { ownerId: id, deletedAt: null },
-    });
-    if (owned > 0) {
-      throw new BadRequestException(
-        `Użytkownik jest właścicielem ${owned} aplikacji. Przenieś własność albo wyłącz konto.`,
-      );
-    }
-
     await this.sessions.revokeAllForUser(id);
     await this.prisma.user.delete({ where: { id } });
 
@@ -247,7 +240,7 @@ export class UsersService {
     });
   }
 
-  /** Prosty słownik użytkowników do wyboru ownera/administratora w formularzu. */
+  /** Prosty słownik użytkowników do wyboru administratora w formularzu. */
   async options() {
     return this.prisma.user.findMany({
       where: { isActive: true },

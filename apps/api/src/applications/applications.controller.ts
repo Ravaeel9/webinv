@@ -55,6 +55,18 @@ export class ApplicationsController {
     return this.apps.stats();
   }
 
+  /**
+   * Adresy właścicieli do filtra na liście.
+   *
+   * Tylko dla zalogowanych — `ownerEmail` nie leci do widoku
+   * publicznego, więc gość nie ma z czego budować selecta.
+   */
+  @Get('owner-options')
+  @RequirePermission('app:read')
+  async ownerOptions() {
+    return { owners: await this.apps.ownerOptions() };
+  }
+
   /** Potrzebne publicznie do filtrów na liście (lista środowisk). */
   @Get('environments')
   @Public()

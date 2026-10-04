@@ -32,7 +32,7 @@ const EMPTY = {
   category: '',
   description: '',
   purpose: '',
-  ownerId: '',
+  ownerEmail: '',
   adminIds: [] as string[],
   introducedOn: '',
   sunsetOn: '',
@@ -62,7 +62,7 @@ function fromApp(app: Application): FormState {
     category: app.category ?? '',
     description: app.description ?? '',
     purpose: app.purpose ?? '',
-    ownerId: app.ownerId ?? '',
+    ownerEmail: app.ownerEmail ?? '',
     adminIds: app.admins.map((a) => a.id),
     introducedOn: toDateInput(app.introducedOn),
     sunsetOn: toDateInput(app.sunsetOn),
@@ -99,7 +99,7 @@ function toPayload(form: FormState) {
     category: text(form.category),
     description: text(form.description),
     purpose: text(form.purpose),
-    ownerId: text(form.ownerId),
+    ownerEmail: text(form.ownerEmail),
     adminIds: form.adminIds,
     introducedOn: text(form.introducedOn),
     sunsetOn: text(form.sunsetOn),
@@ -130,6 +130,8 @@ export function ApplicationFormPage() {
 
   const { data, isLoading, error: loadError } = useApplication(id);
   const { environments, users } = useApplicationFormOptions();
+  // `users` zostało potrzebne dla administratorów — właściciel to
+  // teraz zwykły adres, więc formularz nie potrzebuje słownika kont.
 
   const create = useCreateApplication();
   const update = useUpdateApplication(id ?? '');
@@ -351,20 +353,15 @@ export function ApplicationFormPage() {
           </legend>
 
           <div className="space-y-4">
-            <Select
-              label="Właściciel"
-              value={form.ownerId}
-              onChange={(e) => set('ownerId', e.target.value)}
-              error={errors.ownerId}
-              hint="Osoba odpowiedzialna za aplikację — pierwsze zapytanie przy incydencie."
-            >
-              <option value="">— nieprzypisana —</option>
-              {users.data?.users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.fullName} ({user.username})
-                </option>
-              ))}
-            </Select>
+            <TextInput
+              label="Właściciel (e-mail)"
+              type="email"
+              autoComplete="off"
+              value={form.ownerEmail}
+              onChange={(e) => set('ownerEmail', e.target.value)}
+              error={errors.ownerEmail}
+              hint="Adres e-mail osoby odpowiedzialnej za aplikację — nie musi mieć konta w systemie."
+            />
 
             <fieldset>
               <legend className="label">Administratorzy</legend>

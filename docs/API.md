@@ -109,6 +109,7 @@ curl -b jar.txt http://localhost:8080/api/auth/me
 | `GET` | `/applications/:id` | publiczny | szczegóły aplikacji |
 | `GET` | `/applications/stats` | sesja | liczniki na pulpit (status, klasyfikacja, krytyczność, środowiska, kategorie, EOL, ostatnie zmiany) |
 | `GET` | `/applications/environments` | publiczny | słownik środowisk do filtrów i formularzy |
+| `GET` | `/applications/owner-options` | sesja | unikalne adresy właścicieli do filtra; źródłem są aplikacje, nie `users` |
 | `GET` | `/applications/export` | sesja | CSV (`text/csv`, `Content-Disposition: rejestr-YYYY-MM-DD.csv`, BOM pod Excel), limit 10 000 rekordów |
 
 Odpowiedź listy:
@@ -123,11 +124,11 @@ Odpowiedź listy:
 
 | Parametr | Typ | Uwagi |
 |---|---|---|
-| `q` | tekst ≤ 200 | szuka w nazwie, wersji, kategorii, opisie, celu i dostawcy (bez znajomości wielkości liter); **tylko dla zalogowanych** także po nazwisku właściciela i administratorów |
+| `q` | tekst ≤ 200 | szuka w nazwie, wersji, kategorii, opisie, celu i dostawcy (bez znajomości wielkości liter); **tylko dla zalogowanych** także po adresie właściciela i nazwisku administratorów |
 | `status` | `PROD`\|`TEST`\|`DEV`\|`PLANNED`\|`DEPRECATED`\|`RETIRED` | |
 | `securityClass` | `PUBLIC`\|`INTERNAL`\|`CONFIDENTIAL`\|`RESTRICTED` | **ignorowany dla gościa** |
 | `criticality` | 1–4 | **ignorowany dla gościa** |
-| `ownerId` | uuid | **ignorowany dla gościa** |
+| `ownerEmail` | adres e-mail | **ignorowany dla gościa**; dokładne dopasowanie |
 | `missingOwner` | `true` | tylko wpisy bez właściciela (karta na pulpicie) |
 | `environmentId` | uuid | |
 | `category` | tekst | porównanie bez wielkości liter |
@@ -165,7 +166,7 @@ Pola tworzenia i aktualizacji (`CreateApplicationDto`):
 | `category` | tekst ≤ 100 | nie | |
 | `description` | tekst ≤ 10 000 | nie | |
 | `purpose` | tekst ≤ 10 000 | nie | „do czego to służy” |
-| `ownerId` | uuid | nie | musi istnieć |
+| `ownerEmail` | adres e-mail ≤ 320 | nie | właściciel jako adres — **nie musi mieć konta** |
 | `adminIds` | uuid[] | nie | maks. 50, muszą istnieć |
 | `environmentIds` | uuid[] | nie | maks. 20, muszą istnieć |
 | `introducedOn` | `RRRR-MM-DD` | nie | nie później niż `sunsetOn` |
@@ -196,7 +197,7 @@ Reguły PATCH-a:
   przywrócić albo zmienić nazwę.
 
 Pola ukryte przed gościem (nieobecne w odpowiedzi): `securityClass`,
-`criticality`, `owner`, `ownerId`.
+`criticality`, `ownerEmail`.
 
 ## Użytkownicy `/api/users`
 

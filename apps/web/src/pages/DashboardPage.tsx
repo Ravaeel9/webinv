@@ -305,7 +305,7 @@ export function DashboardPage() {
                         </span>
                       </p>
                       <p className="truncate text-xs text-fg-muted">
-                        {app.owner?.fullName ?? 'Bez właściciela'}
+                        {app.ownerEmail ?? 'Bez właściciela'}
                         {app.category ? ` · ${app.category}` : ''}
                       </p>
                     </div>

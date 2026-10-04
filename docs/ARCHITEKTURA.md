@@ -216,7 +216,7 @@ bo publiczny odczyt jest celową funkcją.
 
 Pola znikające z odpowiedzi dla niezalogowanego czytelnika
 (`PUBLIC_HIDDEN_FIELDS` w `applications.service.ts`):
-`securityClass`, `criticality`, `owner`, `ownerId`.
+`securityClass`, `criticality`, `ownerEmail`.
 
 Samo usunięcie pól nie wystarczyło — filtr i sortowanie działają w bazie, więc
 gość odzyskałby ukryte wartości z **liczby wyników** albo z **kolejności
@@ -226,9 +226,9 @@ serializacji:
 | Przeklęka | Gość | Logika |
 |---|---|---|
 | Pola w odpowiedzi | ukryte | `toPublicView()` usuwa pola **z obiektu** |
-| Filtry | ignorowane | `buildWhere(..., restrict)` pomija `securityClass`, `criticality`, `ownerId` |
+| Filtry | ignorowane | `buildWhere(..., restrict)` pomija `securityClass`, `criticality`, `ownerEmail` |
 | Sortowanie | ograniczone | `GUEST_SORTABLE` — brak `securityClass`, `criticality` |
-| Wyszukiwanie | zawężone | brak wyszukiwania po nazwisku właściciela i administratorów (samo trafienie zdradzałoby imię) |
+| Wyszukiwanie | zawężone | brak wyszukiwania po adresie właściciela i nazwisku administratorów (samo trafienie zdradzałoby, czyj to wpis) |
 | Usunięte wpisy | niewidoczne | `includeDeleted` ignorowane dla gościa |
 
 Zapis (`POST`/`PATCH`/`DELETE`) zawsze wymaga `app:write`, więc widok publiczny
@@ -291,7 +291,7 @@ aplikację po wdrożeniu).
 |---|---|---|
 | Publiczny odczyt rejestru | dostawca i audytor sprawdzają obecność aplikacji bez konta | gość nie widzi właściciela, klasyfikacji ani krytyczności; filtr i sort po tych polach ignorowane |
 | Sesje w bazie zamiast JWT | natychmiastowe unieważnienie (wylogowanie, reset hasła, zmiana roli) | jedno zapytanie do bazy na żądanie |
-| Soft delete aplikacji | dziennik zdarzeń i historia właścicieli muszą zostać czytelne | osobne flagi `deletedAt` w każdym zapytaniu; przywracanie przez `POST /:id/restore` |
+| Soft delete aplikacji | dziennik zdarzeń i historia przypisań muszą zostać czytelne | osobne flagi `deletedAt` w każdym zapytaniu; przywracanie przez `POST /:id/restore` |
 | Sesje w roli: guard, nie w logice kontrolera | nie da się zapomnieć o sprawdzeniu w nowym kontrolerze | dekoratory trzeba nałożyć świadomie (brak endpointu = dostęp wymagający sesji) |
 | Limit logowania liczony na IP | prosty i skuteczny przeciw zgadywaniu haseł | za NAT/ VPN wielu użytkowników dzieli limit; brak limitu per konto |
 | Throttle w pamięci procesu | brak infrastruktury (Redis) w tym projekcie | nie działa poprawnie przy więcej niż jednej instancji API i po restarcie z resetuje |

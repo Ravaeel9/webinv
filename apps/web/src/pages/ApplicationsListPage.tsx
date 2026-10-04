@@ -81,7 +81,7 @@ export function ApplicationsListPage() {
       q: params.get('q') ?? undefined,
       status: params.get('status') ?? undefined,
       securityClass: params.get('securityClass') ?? undefined,
-      ownerId: params.get('ownerId') ?? undefined,
+      ownerEmail: params.get('ownerEmail') ?? undefined,
       environmentId: params.get('environmentId') ?? undefined,
       category: params.get('category') ?? undefined,
       criticality: params.get('criticality')
@@ -111,9 +111,9 @@ export function ApplicationsListPage() {
   const clearFilters = () => setParams(new URLSearchParams(), { replace: true });
 
   const { data, isLoading, isFetching, error, refetch } = useApplications(filters);
-  // Słownik użytkowników idzie tylko do opisu filtra „Właściciel",
-  // a `/users/options` wymaga sesji — gość nie musi go pobierać.
-  const { environments, users } = useApplicationFormOptions(Boolean(user));
+  // Adresy właścicieli idą tylko do filtra „Właściciel", a
+  // `/applications/owner-options` wymaga sesji — gość go nie pobiera.
+  const { environments, owners } = useApplicationFormOptions(Boolean(user));
 
   // Pole wyszukiwania ma własny stan, żeby nie odpytywać API
   // na każdy znak — synchronizujemy je z URL przy zmianie filtra.
@@ -148,9 +148,9 @@ export function ApplicationsListPage() {
       key: 'environmentId',
       label: `Środowisko: ${environments.data?.environments.find((e) => e.id === filters.environmentId)?.name ?? '…'}`,
     },
-    filters.ownerId && {
-      key: 'ownerId',
-      label: `Właściciel: ${users.data?.users.find((u) => u.id === filters.ownerId)?.fullName ?? '…'}`,
+    filters.ownerEmail && {
+      key: 'ownerEmail',
+      label: `Właściciel: ${filters.ownerEmail}`,
     },
     !isGuest && filters.criticality && {
       key: 'criticality',
@@ -252,6 +252,24 @@ export function ApplicationsListPage() {
               {Object.entries(SECURITY_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
+                </option>
+              ))}
+            </Select>
+          )}
+
+          {/* Właściciel to adres, nie konto — lista pochodzi
+              z aplikacji, więc obejmuje też osoby bez konta. */}
+          {!isGuest && (
+            <Select
+              label="Właściciel"
+              value={filters.ownerEmail ?? ''}
+              onChange={(e) => setFilter('ownerEmail', e.target.value)}
+              className="w-56"
+            >
+              <option value="">Wszystkie</option>
+              {owners.data?.owners.map((email) => (
+                <option key={email} value={email}>
+                  {email}
                 </option>
               ))}
             </Select>
@@ -718,8 +736,13 @@ function ApplicationRow({
 
         {showRestricted && (
           <td className="px-4 py-2.5">
-            {app.owner ? (
-              <span className="text-fg">{app.owner.fullName}</span>
+            {app.ownerEmail ? (
+              <a
+                href={`mailto:${app.ownerEmail}`}
+                className="text-brand-600 hover:underline dark:text-brand-400"
+              >
+                {app.ownerEmail}
+              </a>
             ) : (
               <span className="text-xs text-amber-600 dark:text-amber-400">nieprzypisana</span>
             )}

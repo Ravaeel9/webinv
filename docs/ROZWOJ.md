@@ -71,7 +71,7 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 |---|---|
 | `application-dto.test.ts` | walidację `CreateApplicationDto` / `UpdateApplicationDto` / `ListApplicationsQuery` dokładnie tak, jak robi to `ValidationPipe` w produkcji: puste liczby nie stają się zerem, `null` czyści pole, nieznane pole jest błędem, daty w formacie `RRRR-MM-DD`, zakresy, UUID-y, limity; plus `mapPatchDto`, `CREATE_FIELDS`, `isoDate`, `buildOrderBy` |
 | `applications-patch.test.ts` | scalenie PATCH-a: pusty ładunek nie wywala, pominięte pola nie są zerowane, `null` czyści |
-| `public-view.test.ts` | `toPublicView()` ukrywa `securityClass`, `criticality`, `owner`, `ownerId` i nie mutuje rekordu źródłowego |
+| `public-view.test.ts` | `toPublicView()` ukrywa `securityClass`, `criticality`, `ownerEmail` i nie mutuje rekordu źródłowego |
 | `public-filters.test.ts` | gość nie może filtrować ani sortować po ukrytych polach (inaczej wartość odzyskałaby się z liczby wyników lub kolejności wierszy) |
 | `password.test.ts` | hashowanie i weryfikacja, w tym „atrapę” dla nieistniejącego konta; komunikaty odrzuceń |
 | `password-parity.test.ts` | serwer i interfejs mówią to samo o polityce haseł: ta sama długość, ta sama lista popularnych haseł, zgodność na 500 losowych haseł |

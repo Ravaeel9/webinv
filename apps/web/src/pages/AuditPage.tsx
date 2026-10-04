@@ -271,7 +271,7 @@ const FIELD_LABELS: Record<string, string> = {
   category: 'kategoria',
   description: 'opis',
   purpose: 'cel',
-  ownerId: 'właściciel',
+  ownerEmail: 'e-mail właściciela',
   securityClass: 'klasyfikacja',
   criticality: 'krytyczność',
   status: 'status',

@@ -9,7 +9,6 @@ opisuje modele, wartości domyślne i decyzje, których sam schemat nie wyjaśni
 ```
 User ──< Session
   │
-  ├──< Application (ownerId)          "AppOwner"
   ├──< Application >── Application.admins (wielokrotność)   "AppAdmins"
   └──< Application (createdById)      "AppCreator"
 
@@ -34,9 +33,11 @@ AuditLog ──> User (opcjonalnie)
 | `last_login_at` | `timestamptz?` | aktualizowane przy udanym logowaniu |
 | `created_at` / `updated_at` | `timestamptz` | `updated_at` automatycznie |
 
-Usunięcie konta jest kasowaniem rekordu — dlatego `Application.ownerId` ma
-`onDelete: SetNull` (wpis zostaje, właściciel znika), a sesje i wpisy audytowe
-kaskadowo się kasują albo zerują.
+Usunięcie konta jest kasowaniem rekordu — dlatego `Application.createdById` ma
+`onDelete: SetNull` (wpis zostaje, autor znika), a sesje i wpisy audytowe
+kaskadowo się kasują albo zerują. Właściciel aplikacji nie jest kontem:
+to `owner_email`, wolny tekst, więc usunięcie użytkownika nie zaburza
+własności.
 
 ### `sessions`
 
@@ -82,7 +83,7 @@ Tabela łącząca aplikację ze środowiskami. Klucz główny złożony
 | `category` | `varchar(100)?` | `null` | wolna tekstowa |
 | `description` | `text?` | `null` | co to jest |
 | `purpose` | `text?` | `null` | do czego służy |
-| `owner_id` | `uuid?` | `null` | FK → `users`, `SetNull` |
+| `owner_email` | `citext?` | `null` | właściciel jako adres, **nie** FK — nie musi mieć konta |
 | `admins` | m:n → `users` | — | administratorzy aplikacji |
 | `introduced_on` | `date?` | `null` | kiedy wprowadzono |
 | `sunset_on` | `date?` | `null` | planowane wycofanie; `>= introduced_on` |
@@ -100,7 +101,7 @@ Tabela łącząca aplikację ze środowiskami. Klucz główny złożony
 | `created_at` / `updated_at` | `timestamptz` | — | |
 | `deleted_at` | `date?` | `null` | **soft delete** — rekord zostaje dla audytu |
 
-Indeksy: `status`, `security_class`, `criticality`, `owner_id`,
+Indeksy: `status`, `security_class`, `criticality`, `owner_email`,
 `introduced_on`, `sunset_on`, `deleted_at`, `category`. Każde zapytanie listy
 filtruje po `deleted_at IS NULL`, więc indeks jest tu użyteczny.
 

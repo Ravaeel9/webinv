@@ -133,7 +133,7 @@ describe('CREATE_FIELDS — deklaracja DTO', () => {
       'category',
       'description',
       'purpose',
-      'ownerId',
+      'ownerEmail',
       'adminIds',
       'introducedOn',
       'sunsetOn',

@@ -266,13 +266,45 @@ describe('CreateApplicationDto', () => {
     assert.deepEqual(errors, []);
   });
 
-  it('odrzuca ownerId, które nie jest UUID', async () => {
+  it('przyjmuje adres e-mail właściciela', async () => {
+    // Właściciel nie musi mieć konta, więc nie ma tu żadnego UUID —
+    // poprawność sprawdza wyłącznie format adresu.
     const { errors } = await check(CreateApplicationDto, {
       name: 'CRM',
       version: '1.0',
-      ownerId: 'admin',
+      ownerEmail: 'wlasciciel@firma.local',
+    });
+    assert.deepEqual(errors, []);
+  });
+
+  it('odrzuca właściciela, który nie jest adresem e-mail', async () => {
+    for (const ownerEmail of ['admin', 'anna@firma', '@firma.local', 'a b@firma.local']) {
+      const { errors } = await check(CreateApplicationDto, {
+        name: 'CRM',
+        version: '1.0',
+        ownerEmail,
+      });
+      assert.equal(errors.length > 0, true, `„${ownerEmail}" nie powinno przejść`);
+    }
+  });
+
+  it('odrzuca właściciela ze zbyt długim adresem', async () => {
+    const { errors } = await check(CreateApplicationDto, {
+      name: 'CRM',
+      version: '1.0',
+      ownerEmail: `${'a'.repeat(320)}@firma.local`,
     });
     assert.equal(errors.length > 0, true);
+  });
+
+  it('pusty właściciel to brak właściciela, nie błąd', async () => {
+    const { errors, instance } = await check(CreateApplicationDto, {
+      name: 'CRM',
+      version: '1.0',
+      ownerEmail: '',
+    });
+    assert.deepEqual(errors, []);
+    assert.equal(instance.ownerEmail, undefined);
   });
 
   it('odrzuca listę administratorów ze złym identyfikatorem', async () => {

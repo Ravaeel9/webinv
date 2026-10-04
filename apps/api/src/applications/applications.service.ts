@@ -16,7 +16,6 @@ import {
 } from './dto/application.dto';
 
 const APP_INCLUDE = {
-  owner: { select: { id: true, username: true, fullName: true, email: true } },
   admins: { select: { id: true, username: true, fullName: true, email: true } },
   environments: {
     include: {
@@ -129,8 +128,7 @@ type ApplicationWithRelations = Prisma.ApplicationGetPayload<{
 const PUBLIC_HIDDEN_FIELDS = [
   'securityClass',
   'criticality',
-  'owner',
-  'ownerId',
+  'ownerEmail',
 ] as const;
 
 /**
@@ -141,8 +139,8 @@ const PUBLIC_HIDDEN_FIELDS = [
  * kolumny w HTML nic nie daje, bo pełny rekord i tak leci w JSON-ie
  * i jest widoczny w devtoolsach. Pole po prostu znika z odpowiedzi.
  *
- * `owner` kasujemy razem z `ownerId`, bo sam identyfikator pozwoliłby
- * odszukać właściciela w innym miejscu API.
+ * `ownerEmail` to adres, nie identyfikator, ale nadal jest daną
+ * osobową — gość nie ma prawa go widzieć, więc pole znika z odpowiedzi.
  *
  * Wyeksportowana dla testu — to granica widoczności danych, więc
  * zasługuje na przypięcie przypadkiem, a nie tylko wywołaniem z usługi.
@@ -231,6 +229,24 @@ export class ApplicationsService {
     });
   }
 
+  /**
+   * Właściciele jako lista adresów — do selecta w filtrach.
+   *
+   * Źródłem są istniejące aplikacje, a nie `users`: właścicielem
+   * bywa ktoś bez konta, więc słownik użytkowników pokazałby tylko
+   * część realnych właścicieli i pozwoliłby przefiltrować tylko po
+   * nich. `distinct` na kolumnie skraca listę do unikalnych adresów.
+   */
+  async ownerOptions() {
+    const rows = await this.prisma.application.findMany({
+      where: { deletedAt: null, ownerEmail: { not: null } },
+      distinct: ['ownerEmail'],
+      select: { ownerEmail: true },
+      orderBy: { ownerEmail: 'asc' },
+    });
+    return rows.map((r) => r.ownerEmail).filter((e): e is string => Boolean(e));
+  }
+
   /** Statystyki na dashboard. */
   async stats() {
     const now = new Date();
@@ -288,7 +304,7 @@ export class ApplicationsService {
       }),
 
       this.prisma.application.count({
-        where: { deletedAt: null, ownerId: null },
+        where: { deletedAt: null, ownerEmail: null },
       }),
       this.prisma.application.count({
         where: {
@@ -374,7 +390,7 @@ export class ApplicationsService {
     await this.assertNameFree(dto.name);
 
     // Weryfikacja referencji — lepszy komunikat błędu niż obcy komunikat Prisma
-    await this.assertUsersExist(dto.ownerId, dto.adminIds);
+    await this.assertUsersExist(dto.adminIds);
     await this.assertEnvironmentsExist(dto.environmentIds);
     this.assertDates(dto.introducedOn, dto.sunsetOn);
 
@@ -424,7 +440,7 @@ export class ApplicationsService {
       await this.assertNameFree(dto.name, id);
     }
 
-    await this.assertUsersExist(dto.ownerId, dto.adminIds);
+    await this.assertUsersExist(dto.adminIds);
     await this.assertEnvironmentsExist(dto.environmentIds);
 
     // PATCH scala dane z tym, co jest w bazie. Dopiero tak walidacja dat
@@ -471,7 +487,7 @@ export class ApplicationsService {
       changes: AuditService.diff(
         before as unknown as Record<string, unknown>,
         app as unknown as Record<string, unknown>,
-        ['updatedAt', 'createdAt', 'admins', 'environments', 'owner', 'createdBy'],
+        ['updatedAt', 'createdAt', 'admins', 'environments', 'createdBy'],
       ),
       ip,
     });
@@ -587,7 +603,7 @@ export class ApplicationsService {
         s.status,
         s.criticality,
         s.securityClass,
-        s.owner?.fullName ?? '',
+        s.ownerEmail ?? '',
         s.admins.map((u) => u.fullName).join('; '),
         s.environments.map((e) => e.name).join('; '),
         s.introducedOn ?? '',
@@ -620,7 +636,7 @@ export class ApplicationsService {
    *
    * `restrict` = true oznacza gościa (brak sesji). Wtedy ignorujemy
    * filtry, których nie ma w publicznym widoku — `securityClass`,
-   * `criticality` i `ownerId`. Bez tego byłyby wyrocznią: gość
+   * `criticality` i `ownerEmail`. Bez tego byłyby wyrocznią: gość
    * odpytywałby `?securityClass=RESTRICTED` i po samej liczbie
    * wyników odtwarzał ukrytą klasyfikację, mimo że samo pole
    * nigdy nie leci w odpowiedzi.
@@ -649,12 +665,11 @@ export class ApplicationsService {
         { vendor: { contains: q, mode: 'insensitive' } },
       ];
 
-      // Wyszukiwanie po nazwisku właściciela też zdradzałoby właściciela
-      // gościowi — samo trafienie w wynik wystarczy, żeby wyciągnąć imię.
+      // Wyszukiwanie po adresie właściciela też zdradzałoby właściciela
+      // gościowi — samo trafienie w wynik wystarczy, żeby wyciągnąć adres.
       if (!restrict) {
         clauses.push(
-          { owner: { fullName: { contains: q, mode: 'insensitive' } } },
-          { owner: { username: { contains: q, mode: 'insensitive' } } },
+          { ownerEmail: { contains: q, mode: 'insensitive' } },
           { admins: { some: { fullName: { contains: q, mode: 'insensitive' } } } },
         );
       }
@@ -671,12 +686,12 @@ export class ApplicationsService {
       where.environments = { some: { environmentId: query.environmentId } };
     }
 
-    if (query.missingOwner) where.ownerId = null;
+    if (query.missingOwner) where.ownerEmail = null;
 
     if (!restrict) {
       if (query.securityClass) where.securityClass = query.securityClass as never;
       if (query.criticality) where.criticality = query.criticality;
-      if (query.ownerId) where.ownerId = query.ownerId;
+      if (query.ownerEmail) where.ownerEmail = query.ownerEmail;
     }
 
     return where;
@@ -689,7 +704,7 @@ export class ApplicationsService {
       category: dto.category ?? null,
       description: dto.description ?? null,
       purpose: dto.purpose ?? null,
-      ownerId: dto.ownerId ?? null,
+      ownerEmail: dto.ownerEmail ?? null,
       introducedOn: dto.introducedOn ? new Date(dto.introducedOn) : null,
       sunsetOn: dto.sunsetOn ? new Date(dto.sunsetOn) : null,
       securityClass: dto.securityClass ?? 'INTERNAL',
@@ -768,11 +783,8 @@ annualCost:
     );
   }
 
-  private async assertUsersExist(
-    ownerId?: string,
-    adminIds?: string[],
-  ): Promise<void> {
-    const ids = [...(ownerId ? [ownerId] : []), ...(adminIds ?? [])];
+  private async assertUsersExist(adminIds?: string[]): Promise<void> {
+    const ids = [...(adminIds ?? [])];
     if (ids.length === 0) return;
 
     const unique = [...new Set(ids)];

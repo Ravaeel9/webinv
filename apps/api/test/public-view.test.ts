@@ -22,8 +22,7 @@ const APP = {
   description: 'System wynagrodzeń',
   securityClass: 'CONFIDENTIAL',
   criticality: 4,
-  ownerId: 'u-owner',
-  owner: { id: 'u-owner', fullName: 'Anna Kowalska', email: 'a@firma.local' },
+  ownerEmail: 'a@firma.local',
   admins: [],
   environments: [],
   annualCost: 48000,
@@ -40,11 +39,12 @@ describe('toPublicView', () => {
     assert.equal('criticality' in view, false);
   });
 
-  it('usuwa właściciela razem z ownerId', () => {
+  it('usuwa adres właściciela', () => {
+    // Adres zamiast identyfikatora — właściciel nie ma konta, więc nie
+    // ma czego szukać w `users`. Nadal jest to dana osobowa, więc gość
+    // nie ma prawa jej widzieć.
     const view = toPublicView({ ...APP });
-    assert.equal('owner' in view, false);
-    // Sam identyfikator pozwoliłby odszukać właściciela w innym API.
-    assert.equal('ownerId' in view, false);
+    assert.equal('ownerEmail' in view, false);
   });
 
   it('nie usuwa pól, które mają być widoczne', () => {
@@ -62,7 +62,7 @@ describe('toPublicView', () => {
     // Gdyby rzeczywiście usuwał z obiektu, po serwisie zostałby
     // uszkodzony rekord używany dalej (np. do logowania audytu).
     assert.equal(input.securityClass, 'CONFIDENTIAL');
-    assert.notEqual(input.owner, undefined);
+    assert.equal(input.ownerEmail, 'a@firma.local');
   });
 
   it('usuwa pola nawet gdy mają wartość null — brak i zakaz to nie to samo', () => {
@@ -72,10 +72,10 @@ describe('toPublicView', () => {
       ...APP,
       securityClass: null,
       criticality: null,
-      owner: null,
+      ownerEmail: null,
     } as never);
     assert.equal('securityClass' in view, false);
     assert.equal('criticality' in view, false);
-    assert.equal('owner' in view, false);
+    assert.equal('ownerEmail' in view, false);
   });
 });

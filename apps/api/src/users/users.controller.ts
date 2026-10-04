@@ -43,7 +43,7 @@ export class UsersController {
     return { users: await this.users.list(include) };
   }
 
-  /** Słownik do formularzy (owner, administratorzy). */
+  /** Słownik do wyboru administratorów w formularzu aplikacji. */
   @Get('options')
   @RequirePermission('app:read')
   async options() {

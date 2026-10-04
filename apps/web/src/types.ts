@@ -81,8 +81,8 @@ export interface Application {
    * `undefined` oznacza „nie wolno ci tego widzieć”, a nie `null`
    * oznacające „brak wartości”. UI rozróżnia te dwa przypadki.
    */
-  ownerId?: string | null;
-  owner?: UserSummary | null;
+  /** Adres e-mail właściciela — nie musi odpowiadać żadnemu kontu. */
+  ownerEmail?: string | null;
   admins: UserSummary[];
   introducedOn: string | null;
   sunsetOn: string | null;
@@ -122,7 +122,8 @@ export interface ApplicationFilters {
   q?: string;
   status?: string;
   securityClass?: string;
-  ownerId?: string;
+  /** Adres e-mail właściciela — dokładne dopasowanie. */
+  ownerEmail?: string;
   environmentId?: string;
   category?: string;
   criticality?: number;
