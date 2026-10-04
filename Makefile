@@ -84,6 +84,11 @@ release: ## Wydanie: podbij wersję, zbuduj, uruchom, zweryfikuj i wypchnij
 release-dry: ## Pokaż, co zrobi make release, niczego nie zmieniając
 	@./scripts/release.sh --dry
 
+# Osobny cel, bo `make release` nie przyjmuje argumentów — release.sh
+# jest jedynym miejscem, które zna kolejność kroków wydania.
+release-minor: ## Wydanie podbijające minor (zmiana API lub modelu danych)
+	@./scripts/release.sh --minor
+
 # ─── Prisma (poza Dockerem — baza musi być włączona) ──────────
 
 db-up: ## Włącz samą bazę z portem dev (do migracji i Prisma Studio)

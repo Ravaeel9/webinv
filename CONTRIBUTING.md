@@ -132,8 +132,9 @@ Skrypt (`scripts/release.sh`) wykonuje po kolei:
    commit, tag i obraz muszą opisywać ten sam stan.
 2. **`npm test` i `make typecheck`** — wersja jest podbijana *po*
    testach, więc zielone testy są warunkiem wydania.
-3. **`npm version patch`** — `1.0.0` → `1.0.1`. To jedyne miejsce,
-   które zna reguły podbijania; skrypt nie wyznacza wersji obok.
+3. **`npm version patch`** — `1.0.0` → `1.0.1` (albo `npm version minor`
+   przy `make release-minor`). To jedyne miejsce, które zna reguły
+   podbijania; skrypt nie wyznacza wersji obok.
 4. **Commit `release: 1.0.1` i tag `v1.0.1`.** Bez `--git-tag-version`,
    bo domyślny commit npm brzmiałby po angielsku i bez kontekstu.
 5. **Buduje i uruchamia** z `APP_VERSION` podstawionym z `package.json`.
@@ -145,8 +146,9 @@ Skrypt (`scripts/release.sh`) wykonuje po kolei:
 Warianty:
 
 ```bash
-make release-dry             # pokaże, co zrobi, niczego nie zmienia
+make release-dry                 # pokaże, co zrobi, niczego nie zmienia
 ./scripts/release.sh --no-push   # zbuduje lokalnie, bez wysyłania
+make release-minor               # podbije minor (zmiana API lub modelu danych)
 ```
 
 Wersja rośnie co wydanie, więc po każdej zmianie w kodzie dostajesz
@@ -185,7 +187,17 @@ git push --follow-tags  # tag musi trafić na GitHub razem z commitem
 
 Domyślnie `make release` podbija tylko patch (`1.0.0` → `1.0.1`), bo
 każda zmiana w kodzie ma dostać swój numer. `minor` zostaw sobie na
-wydania, które faktycznie zmieniają interfejs API lub model danych.
+wydania, które faktycznie zmieniają interfejs API lub model danych —
+te są wydawane przez:
+
+```bash
+make release-minor      # albo: ./scripts/release.sh --minor
+```
+
+Nie podbijaj wersji ręką `npm version minor`, bo tak skrócisz drogę
+i stracisz weryfikację obrazu (kroki 4–6 wyżej). `--dry` działa
+z każdą flagą, więc `./scripts/release.sh --dry --minor` pokaże cały
+przebieg bez zmian.
 
 `npm version` **nie rusza** `apps/api/package.json` ani
 `apps/web/package.json` — to konsekwencja npm workspaces, w których

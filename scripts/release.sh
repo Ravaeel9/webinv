@@ -12,6 +12,7 @@
 #   ./scripts/release.sh              pełne wydanie
 #   ./scripts/release.sh --dry        pokaże, co zrobi, nic nie zmieni
 #   ./scripts/release.sh --no-push    zbuduje lokalnie, bez wysyłania
+#   ./scripts/release.sh --minor      podbije minor zamiast patch
 #
 # Skrypt jest celowo ostrożny: odmawia pracy na brudnym drzewie i na
 # gałęzi innej niż main. Wersja, commit, tag i obraz muszą opisywać
@@ -23,12 +24,21 @@ cd "$(dirname "$0")/.."
 
 DRY=0
 PUSH=1
+BUMP=patch
 
 for arg in "$@"; do
   case "$arg" in
     --dry) DRY=1 ;;
     --no-push) PUSH=0 ;;
-    -h|--help) sed -n '3,20p' "$0"; exit 0 ;;
+    # `minor` jest zarezerwowane dla wydania, które realnie zmienia
+    # interfejs API albo model danych — patrz CONTRIBUTING. Bez tej opcji
+    # takie wydanie dostałoby numer patcha, a czytelnik tagów nie
+    # odróżniłby go od poprawki w tekście.
+    --minor) BUMP=minor ;;
+    # Pomoc wypisuje nagłówek pliku — blok komentarza aż do pierwszej
+    # linii, która nie zaczyna się od `#`. Zakres `sed` rozjechałby się
+    # przy każdej dopisanej linijce komentarza.
+    -h|--help) awk 'NR>2 { if ($0 !~ /^#/) exit; print }' "$0"; exit 0 ;;
     *) echo "Nieznana opcja: $arg (spróbuj --dry)" >&2; exit 1 ;;
   esac
 done
@@ -99,15 +109,21 @@ if [ "$DRY" = "1" ]; then
   # W podglądzie niczego nie podbijamy, więc nową wersję trzeba
   # wyliczyć na oko. To jedyne miejsce z podobną matematyką — w realnym
   # przebiegu wersję zawsze ustawia `npm version`.
-  NEW=$(node -p "const v='$OLD'.split('.').map(Number); [v[0], v[1], v[2]+1].join('.')")
-  echo "wersja: $OLD → $NEW"
+  NEW=$(node -p "
+    const v='$OLD'.split('.').map(Number);
+    const i='$BUMP' === 'minor' ? 1 : 2;
+    v[i] += 1;
+    if (i === 1) v[2] = 0;
+    v.join('.')
+  ")
+  echo "wersja: $OLD → $NEW ($BUMP)"
 else
   # Czytamy wersję z manifestu, a nie wyznaczamy jej obok — `npm version`
   # jest jedynym miejscem, które zna swoje reguły podbijania. Własne
   # wyliczanie potrafiłoby się z nim rozjechać.
-  npm version patch --no-git-tag-version
+  npm version "$BUMP" --no-git-tag-version
   NEW=$(node -p "require('./package.json').version")
-  echo "wersja: $OLD → $NEW"
+  echo "wersja: $OLD → $NEW ($BUMP)"
 fi
 
 # ─── 3. Commit i tag ─────────────────────────────────────────
