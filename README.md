@@ -21,7 +21,7 @@ czy dana aplikacja w ogóle u nas jest, bez znajomości loginu i hasła.
 | Wersja | z `package.json` (pole `version`), podbijana przez `make release` — widoczna w prawym dolnym rogu interfejsu |
 | Środowisko produkcyjne | Docker Compose (3 kontenery) |
 | Baza danych | PostgreSQL 17 + Prisma 6 |
-| Testy | 253 przypadków, `npm test`, bez bazy danych |
+| Testy | 384 przypadków, `npm test`, bez bazy danych |
 | Licencja | brak — repozytorium prywatne, kod własnością organizacji |
 
 ## Stos technologiczny
@@ -215,11 +215,18 @@ domyślne; opis w [.env.example](.env.example) i [docs/WDROZENIE.md](docs/WDROZE
 ## Testy
 
 ```bash
-npm test        # 253 przypadków: walidacja DTO, audyt, hasła, konfiguracja nginx
+npm test        # 384 przypadków: walidacja DTO, audyt, hasła, konfiguracja nginx, kontrast UI
 make typecheck  # tsc --noEmit w API i web
 ```
 
 Testy nie potrzebują bazy danych ani kontenerów — `node:test` przez `tsx`.
+
+`npm test` najpierw buduje interfejs (`npm run test:web-build`, czyli
+`tsc --noEmit && vite build`), bo część testów sprawdza **zbudowany**
+CSS w `apps/web/dist/assets` — między `index.css` a tym, co widzi
+użytkownik, stoi LightningCSS, który potrafi po cichu zgubić regułę.
+Sam `npm run test --workspace @webinv/api` bez wcześniejszego builda
+zakończy się błędem `brak apps/web/dist/assets`.
 Obejmują m.in. walidację ładunków (tak jak w produkcji), scalenie PATCH-a,
 bialą listę sortowania, różnicę w dzienniku zdarzeń, spójność polityki haseł
 serwer–interfejs oraz zgodność konfiguracji nginx z tym, co naprawdę ładuje

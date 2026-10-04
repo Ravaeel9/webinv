@@ -49,7 +49,19 @@ export function Badge({
   );
 }
 
-/** Odznaka terminu wycofania — ton zależy od tego, ile zostało czasu. */
+/**
+ * Odznaka terminu wycofania — ton zależy od tego, ile zostało czasu.
+ *
+ * `describeEol` zwraca `ok` dla terminów dalej niż 90 dni, więc odznaka
+ * jest wtedy zielona — ten sam ton co PROD. To świadome: `ok` znaczy
+ * „termin bez problemu”, a nie „to jest produkcja”. Gdyby zielony
+ * zaczął się kojarzyć z czymś innym niż stan, to `describeEol`, a nie
+ * ta odznaka, jest miejscem do zmiany.
+ *
+ * Do zmiany zachowania z tonu na jaśniejszy szar wystarczy mapowanie
+ * `ok` → `neutral` poniżej; wcześniej robił to `else` w trójdzielnym
+ * warunku, który `ok` omijał.
+ */
 export function EolBadge({ date }: { date: string | null }) {
   if (!date) return null;
 

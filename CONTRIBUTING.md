@@ -30,6 +30,12 @@ Do pracy nad kodem: `make db-up && make migrate`, potem `make dev-api` i
    `bash -n install.sh scripts/release.sh` (albo `shellcheck`, jeśli masz
    go zainstalowane).
 
+   `npm test` buduje najpierw interfejs (`npm run test:web-build`).
+   Testy kontrastu sprawdzają **zbudowany** CSS, nie `index.css`
+   bezpośrednio — między nimi stoi LightningCSS, który potrafi po cichu
+   zgubić regułę klasy. Dlatego samo `npm run test --workspace @webinv/api`
+   bez wcześniejszego builda kończy się błędem `brak apps/web/dist/assets`.
+
 4. Commit i pull request z krótkim opisem **co się zmienia i dlaczego**.
 
 5. Po zmerowaniu na `main` — `make release` (patrz

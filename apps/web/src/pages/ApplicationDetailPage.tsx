@@ -234,8 +234,7 @@ export function ApplicationDetailPage() {
                     <Link
                       key={env.id}
                       to={`/aplikacje?environmentId=${env.id}`}
-                      className="badge bg-surface-2 text-fg ring-line
-                                 hover:bg-surface-3"
+                      className="badge tone-neutral hover:bg-surface-3"
                     >
                       {env.name}
                     </Link>

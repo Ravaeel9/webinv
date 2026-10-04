@@ -68,7 +68,14 @@ npm run dev:api
 
 ## Testy
 
-`npm test` = `typecheck:test` + `tsx --test test/*.test.ts` w `apps/api`.
+`npm test` = `test:web-build` + `typecheck:test` + `tsx --test test/*.test.ts`
+w `apps/api`. Pierwszy krok to pełny build interfejsu (`tsc --noEmit &&
+vite build`): testy UI kontrastu sprawdzają **zbudowany** CSS, bo między
+`index.css` a tym, co widzi użytkownik, stoi LightningCSS, który potrafi
+po cichu zgubić regułę. Uruchomienie samego
+`npm run test --workspace @webinv/api` bez wcześniejszego builda kończy się
+błędem `brak apps/web/dist/assets` — to zależność jawna, nie przypadek.
+
 Testy **nie potrzebują bazy ani kontenerów** — to warte zachowania: każda
 funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 
@@ -91,8 +98,14 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `audit-changes.test.ts` | `visibleChanges()` i `truncatedFields()` przy obu kształtach `_truncated` (lista nazw pól z `diff()` i `true` z listy zdarzeń) |
 | `build-query.test.ts` | `buildQuery` przepuszcza `false` — filtr boolean musi dojechać do API, inaczej „tylko aktywne konta” jest ciche |
 | `version.test.ts` | formatowanie wersji pokazywanej w interfejsie: prefiks `v`, brak podwajania, `null` bez ARG-a |
+| `audit-field-labels.test.ts` | kompletność mapy nazw pól dziennika **wobec schematu Prisma**, a nie wobec drugiej kopii (kopie się rozjechały: `count` i `mustChangePassword` wychodziły na ekran jako surowe klucze) + że mapa ma jedną definicję w całym interfejsie |
+| `ui-contrast.test.ts` | kontrast każdego tonu odznaki, każdego baneru i aktywnej pozycji nawigacji, w obu motywach, liczony z `oklch` w `index.css` — plus wartości tokenów tekstu na karcie i odcienie palet używane jako tekst 12–14 px |
+| `ui-css-builds.test.ts` | że `index.css` daje się skompilować tym samym kompilatorem, co `vite build` (Tailwind odrzuca `oklch(...)` ze spacjami w `@apply`, więc UI bywa nieskompilowalne, a testy czytające plik jako tekst są zielone) |
+| `ui-css-output.test.ts` | że każda klasa z `@layer components` **dotarła do `dist/`** — LightningCSS gubi reguły po `*/` w komentarzu, po cichu; oraz że w komentarzu nie ma sekwencji zamykającej komentarz |
+| `ui-state-colors.test.ts` | każda właściwość koloru stanu w JSX ma wariant jasny **i** ciemny (brak `dark:` przy `bg-*` = niewidoczna odznaka w jasnym motywie), z wyjątkami nazwanymi po pliku |
+| `ui-class-syntax.test.ts` | że utility koloru w JSX ma wartość w nawiasie kwadratowym — `hover:bg-oklch(0.83 0.08 20 / 0.4)` wygląda poprawnie, przechodzi build bez ostrzeżenia i nie robi nic |
 
-Stan: **253 przypadków, 33 suite'y, wszystkie przechodzą**, plus
+Stan: **384 przypadków, 48 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).

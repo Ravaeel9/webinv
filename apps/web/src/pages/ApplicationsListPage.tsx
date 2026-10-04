@@ -361,7 +361,7 @@ export function ApplicationsListPage() {
                   key={filter.key}
                   type="button"
                   onClick={() => setFilter(filter.key, null)}
-                  className="badge bg-surface-2 text-fg ring-line hover:bg-surface-3"
+                  className="badge tone-neutral hover:bg-surface-3"
                 >
                   <IconTag className="size-3 opacity-60" />
                   {filter.label}

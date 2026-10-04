@@ -18,7 +18,10 @@ export function Th({
   ...rest
 }: { children?: React.ReactNode } & ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th scope="col" className={`table-head ${className}`} {...rest}>
+    // `scope` po `{...rest}`: klasa ma być kontraktem, a nie propozycją.
+    // Gdyby spread szedł pierwszy, wywołujący mógłby przykryć `scope`
+    // przypadkiem — a bez niego nagłówek jest w dokumencie zwykłym `<th>`.
+    <th {...rest} scope="col" className={`table-head ${className}`}>
       {children}
     </th>
   );

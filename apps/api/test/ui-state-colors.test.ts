@@ -22,12 +22,9 @@
  * nie jest tym, co ten test ma pilnować.
  */
 import { strict as assert } from 'node:assert';
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { REPO_ROOT, read } from './helpers/repo';
-
-const WEB_SRC = join(REPO_ROOT, 'apps', 'web', 'src');
+import { read } from './helpers/repo';
+import { webSources } from './helpers/web-sources';
 
 /**
  * Palety, których odcień sam w sobie niesie znaczenie.
@@ -130,19 +127,6 @@ function decorativeFor(file: string, className: string): boolean {
   return (DECORATIVE.get(file) ?? []).includes(className);
 }
 
-/** Wszystkie pliki źródłowe interfejsu, rekurencyjnie. */
-function sources(dir: string): string[] {
-  const files: string[] = [];
-
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) files.push(...sources(path));
-    else if (/\.tsx?$/.test(entry.name)) files.push(path);
-  }
-
-  return files;
-}
-
 /**
  * Wszystkie wartości `className` w pliku.
  *
@@ -208,7 +192,8 @@ function classNameValues(source: string): string[] {
   return values;
 }
 
-const FILES = sources(WEB_SRC);
+/** Wszystkie pliki źródłowe interfejsu, rekurencyjnie. */
+const FILES = webSources();
 
 describe('Kolory stanów w JSX — para jasna i ciemna', () => {
   it('test w ogóle widzi pliki interfejsu', () => {
@@ -217,9 +202,7 @@ describe('Kolory stanów w JSX — para jasna i ciemna', () => {
     assert.ok(FILES.length > 20, `znaleziono tylko ${FILES.length} plików`);
   });
 
-  for (const file of FILES) {
-    const relative = file.slice(REPO_ROOT.length + 1);
-
+  for (const relative of FILES) {
     it(`${relative}: właściwość stanu ma oba warianty`, () => {
       const source = read(...relative.split('/'));
 

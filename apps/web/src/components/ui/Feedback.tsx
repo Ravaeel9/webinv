@@ -44,7 +44,7 @@ export function ErrorMessage({
           onClick={onRetry}
           className="shrink-0 rounded-md px-2 py-1 text-xs font-medium
                      underline-offset-2 hover:underline
-                     hover:bg-oklch(0.83 0.08 20 / 0.4)"
+                     hover:bg-[oklch(0.83_0.08_20_/_0.4)]"
         >
           Ponów
         </button>
