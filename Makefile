@@ -1,4 +1,9 @@
-.PHONY: help install init up up-dev down restart logs ps build rebuild migrate generate dev dev-api dev-web typecheck psql shell db-shell backup restore reset clean
+.PHONY: help install init up up-dev down restart logs ps build rebuild release release-dry migrate generate dev dev-api dev-web typecheck psql shell db-shell backup restore reset clean
+
+# Ścieżka wydania żyje w scripts/release.sh, nie tutaj: kroków jest
+# dużo i kolejność ma znaczenie (testy → wersja → commit → tag → build →
+# weryfikacja → push). Rozbicie tego na cele make pozwoliłoby uruchomić
+# pół drogi i zostać z obrazem, którego wersja nie pasuje do commita.
 
 APP := webinv
 COMPOSE := docker compose
@@ -71,7 +76,13 @@ build: ## Zbuduj obrazy
 	APP_VERSION=$(APP_VERSION) $(COMPOSE) build
 
 rebuild: ## Przebuduj obrazy od zera, bez cache
-	$(COMPOSE) build --no-cache
+	APP_VERSION=$(APP_VERSION) $(COMPOSE) build --no-cache
+
+release: ## Wydanie: podbij wersję, zbuduj, uruchom, zweryfikuj i wypchnij
+	@./scripts/release.sh
+
+release-dry: ## Pokaż, co zrobi make release, niczego nie zmieniając
+	@./scripts/release.sh --dry
 
 # ─── Prisma (poza Dockerem — baza musi być włączona) ──────────
 

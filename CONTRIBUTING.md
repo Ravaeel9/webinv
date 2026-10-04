@@ -26,10 +26,16 @@ Do pracy nad kodem: `make db-up && make migrate`, potem `make dev-api` i
    make typecheck
    ```
 
-   Zmiana w `install.sh` wymaga dodatkowo `bash -n install.sh`
-   (albo `shellcheck install.sh`, jeśli masz go zainstalowane).
+   Zmiana w `install.sh` lub `scripts/release.sh` wymaga dodatkowo
+   `bash -n install.sh scripts/release.sh` (albo `shellcheck`, jeśli masz
+   go zainstalowane).
 
 4. Commit i pull request z krótkim opisem **co się zmienia i dlaczego**.
+
+5. Po zmerowaniu na `main` — `make release` (patrz
+   [Wydanie](#wydanie-zmiana-kodu--działająca-aplikacja)). To podbija
+   wersję, buduje obraz i weryfikuje, że wersja faktycznie dotarła do
+   interfejsu.
 
 CI (`.github/workflows/ci.yml`) uruchamia `bash -n install.sh`, `npm test`
 i `make typecheck` na każdym pushu i w każdym PR-ze — wszystko musi być
@@ -108,15 +114,78 @@ więc brak pola w ładunku kasował wartość bez błędu. Teraz do `data` trafi
 tylko pola obecne w żądaniu.
 ```
 
-## Wersjonowanie
+## Wydanie (zmiana kodu → działająca aplikacja)
 
-Wersja to pole `version` w **głównym** `package.json`. Podnosi się ją
-świadomie, przed wydaniem — commit sam w sobie wersji nie rusza:
+**Jedyna droga to `make release`.** Nie buduj przez `docker compose build`
+i nie podnoś wersji ręcznie — obie drogi dają obraz, w którym plakietka
+w prawym dolnym rogu pokazuje `v0.0.0-dev`, bo `APP_VERSION` trafia do
+obrazu jako argument budowania, a zwykłe `docker compose` go nie podaje.
 
 ```bash
-npm version minor        # 1.0.0 → 1.1.0; robi commit i tag v1.1.0
+make release
+```
+
+Skrypt (`scripts/release.sh`) wykonuje po kolei:
+
+1. **Sprawdza stan repozytorium** — przerywa na brudnym drzewie, na
+   gałęzi innej niż `main` i na commicie, który ma już tag. Wersja,
+   commit, tag i obraz muszą opisywać ten sam stan.
+2. **`npm test` i `make typecheck`** — wersja jest podbijana *po*
+   testach, więc zielone testy są warunkiem wydania.
+3. **`npm version patch`** — `1.0.0` → `1.0.1`. To jedyne miejsce,
+   które zna reguły podbijania; skrypt nie wyznacza wersji obok.
+4. **Commit `release: 1.0.1` i tag `v1.0.1`.** Bez `--git-tag-version`,
+   bo domyślny commit npm brzmiałby po angielsku i bez kontekstu.
+5. **Buduje i uruchamia** z `APP_VERSION` podstawionym z `package.json`.
+6. **Weryfikuje zawartość bundla** — szuka wersji w plikach obrazu,
+   a nie ufa wyjściu `docker compose`. Ten krok istnieje, bo build
+   potrafi przejść, a wersja i tak nie trafi do interfejsu.
+7. **Wysyła commit i tag na GitHub.**
+
+Warianty:
+
+```bash
+make release-dry             # pokaże, co zrobi, niczego nie zmienia
+./scripts/release.sh --no-push   # zbuduje lokalnie, bez wysyłania
+```
+
+Wersja rośnie co wydanie, więc po każdej zmianie w kodzie dostajesz
+inny numer — to pozwala odpowiedzieć na pytanie „co jest zainstalowane
+u klienta” bez zaglądania do kontenera.
+
+### Kiedy `make release` nie wystarczy
+
+- **Zmiana `schema.prisma`** — najpierw `make db-up && make migrate`
+  i dołącz migrację do commita. Migracja musi być w repozytorium,
+  inaczej kontener API nie wstanie na serwerze.
+- **Zmiana `install.sh`** — dodatkowo `bash -n install.sh`.
+- **Poprawka w tekście** — `docs: …` wystarczy, wersja rośnie i tak.
+
+### Poza `make release`
+
+Te cele są do prac w trakcie dnia i **nie podbijają wersji**:
+
+| Cel | Po co |
+|---|---|
+| `make up` | start / restart istniejących obrazów, z wersją z `package.json` |
+| `make build` | zbuduj obrazy, nie uruchamiaj |
+| `make rebuild` | to samo od zera, bez cache |
+| `make dev-api`, `make dev-web` | praca lokalna, Vite na 5173 |
+
+## Wersjonowanie
+
+Wersja to pole `version` w **głównym** `package.json`. Podnosi ją
+`make release` (patrz wyżej) — ręcznie nie ruszaj, bo wtedy plakietka
+w interfejsie i numer w `package.json` rozjadą się:
+
+```bash
+npm version minor        # 1.0.0 → 1.1.0; tylko przy wydaniu dużej wersji
 git push --follow-tags  # tag musi trafić na GitHub razem z commitem
 ```
+
+Domyślnie `make release` podbija tylko patch (`1.0.0` → `1.0.1`), bo
+każda zmiana w kodzie ma dostać swój numer. `minor` zostaw sobie na
+wydania, które faktycznie zmieniają interfejs API lub model danych.
 
 `npm version` **nie rusza** `apps/api/package.json` ani
 `apps/web/package.json` — to konsekwencja npm workspaces, w których
@@ -124,16 +193,17 @@ każdy pakiet ma własny manifest. Ich wersje zostaną na `1.0.0`; nie
 poprawiaj tego ręcznie, bo tylko rozdzieli historię.
 
 Wersja trafia do interfejsu (plakietka w prawym dolnym rogu) przez
-`make up`, który czyta ją z `package.json` i przekazuje jako argument
-budowania obrazu. Budowanie wprost przez `docker compose build` bez
-`APP_VERSION` daje w UI `v0.0.0-dev` — to celowe, żeby dało się
-rozpoznać obraz zbudowany poza makefile.
+`make release` i `make up`, które czytają ją z `package.json` i przekazują
+jako argument budowania obrazu. Budowanie wprost przez
+`docker compose build` bez `APP_VERSION` daje w UI `v0.0.0-dev` — to
+celowe, żeby dało się rozpoznać obraz zbudowany poza makefile.
 
 ## Przegląd zmian
 
 Checklista dla autora PR-a i dla recenzenta:
 
 - [ ] `npm test` i `make typecheck` przechodzą
+- [ ] po zmerowaniu na `main` zrobione `make release`, a plakietka pokazuje nową wersję
 - [ ] nowa logika ma test tam, gdzie to możliwe bez I/O
 - [ ] endpointy mają `@RequirePermission` (albo świadomy komentarz o `@Public()`)
 - [ ] zapis loguje zdarzenie w dzienniku, a `changes` nie wpycha całych opisów

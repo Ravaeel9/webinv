@@ -29,6 +29,10 @@ Do zmiany kodu trzeba przebudować obraz: `make rebuild` (bez cache) albo
 `make build && make restart`. To najbliższe produkcji, ale najwolniejsze w
 pracy dniowej.
 
+Te cele **nie podbijają wersji** — do prac w trakcie dnia to właściwe.
+Wersja rośnie przy wydaniu, przez `make release`
+(patrz [CONTRIBUTING.md](../CONTRIBUTING.md#wydanie-zmiana-kodu--działająca-aplikacja)).
+
 ### B. Kod lokalnie, baza w Dockerze (zalecane do pracy)
 
 ```bash
@@ -55,7 +59,8 @@ npm run dev:api
 |---|---|
 | `npm test` | przed każdym pushem |
 | `make typecheck` / `npm run typecheck` | przed każdym pushem |
-| `bash -n install.sh` | przy zmianach w instalatorze (CI sprawdza to samo) |
+| `bash -n install.sh scripts/release.sh` | przy zmianach w skryptach (CI sprawdza to samo) |
+| `make release` / `make release-dry` | wydanie (podbicie wersji + build + weryfikacja) albo podgląd bez zmian |
 | `make studio` | podgląd danych (port 5555) |
 | `make psql` / `make shell` | psql w kontenerze bazy / shell w kontenerze API |
 | `make backup` / `make restore f=…` | kopia lokalna |
@@ -163,6 +168,24 @@ make migrate            # prisma migrate dev — pyta o nazwę migracji
 Potem `npm run prisma:generate`, jeśli migracja sama tego nie zrobiła.
 Migracja trafia do `apps/api/prisma/migrations/` i **jest commitowana** —
 to historia wdrożenia, nie lokalny śmieć.
+
+Migracja musi być w repozytorium **przed** `make release`: kontener API
+stosuje ją przy starcie, więc jej brak zatrzymuje wdrożenie na serwerze.
+
+## Wydanie
+
+```bash
+make release-dry         # najpierw pokaże, co zrobi
+make release             # podbija wersję, buduje, weryfikuje, wypycha
+```
+
+Skrypt odmawia pracy na brudnym drzewie i poza `main`. Wersja rośnie co
+wydanie (`1.0.0` → `1.0.1`), a jej obecność w obrazie jest sprawdzana
+grepem po zbudowaniu — dlatego build, w którym `APP_VERSION` nie dotarło
+do bundla, wychodzi na jaw przy wydaniu, a nie przy zgłoszeniu błędu.
+
+Pełen opis kroków:
+[CONTRIBUTING.md](../CONTRIBUTING.md#wydanie-zmiana-kodu--działająca-aplikacja).
 
 ## Typowe problemy
 

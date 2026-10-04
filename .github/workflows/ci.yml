@@ -31,12 +31,12 @@ jobs:
       - name: Instalacja zależności
         run: npm ci --no-audit --no-fund
 
-      # Instalator jest jedynym bashowym kodem w repozytorium. Do
-      # pierwszego uruchomienia dochodzi dopiero na serwerze, więc
-      # literówka w składni kosztowałaby godziny diagnostyki — stąd
-      # sprawdzenie składni w CI (bez wykonywania skryptu).
-      - name: Składnia instalatora
-        run: bash -n install.sh
+      # `install.sh` i `scripts/release.sh` to jedyny bash w repozytorium.
+      # Oba działają dopiero na serwerze użytkownika, więc literówka
+      # w składni kosztowałaby godziny diagnostyki — stąd sprawdzenie
+      # składni w CI, bez wykonywania skryptów.
+      - name: Składnia skryptów
+        run: bash -n install.sh scripts/release.sh
 
       # Przygotowanie przed sprawdzeniem typów: API typuje się na
       # wygenerowanym kliencie Prisma.

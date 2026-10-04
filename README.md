@@ -18,7 +18,7 @@ czy dana aplikacja w ogóle u nas jest, bez znajomości loginu i hasła.
 
 | | |
 |---|---|
-| Wersja | z `package.json` (pole `version`) — widoczna w prawym dolnym rogu interfejsu |
+| Wersja | z `package.json` (pole `version`), podbijana przez `make release` — widoczna w prawym dolnym rogu interfejsu |
 | Środowisko produkcyjne | Docker Compose (3 kontenery) |
 | Baza danych | PostgreSQL 17 + Prisma 6 |
 | Testy | 253 przypadków, `npm test`, bez bazy danych |
@@ -82,6 +82,22 @@ konta nie robi nic (konto zostawiamy w spokoju; hasło resetuje się z panelu).
 Zarówno `make init`, jak i `install.sh` są idempotentne — istniejącego
 `.env` nie ruszają.
 
+### Aktualizacja po zmianie kodu
+
+Po każdej aktualizacji użyj `make release` — jedyna droga, która podbija
+wersję, buduje obraz i sprawdza, że wersja faktycznie dotarła do
+interfejsu:
+
+```bash
+git pull                 # pobierz zmiany
+make migrate             # tylko jeśli doszła zmiana w schema.prisma
+make release             # 1.0.0 → 1.0.1, build, start, tag v1.0.1, push
+```
+
+Budowanie przez `docker compose build` wprost pomija podstawienie
+`APP_VERSION`, więc plakietka w interfejsu pokaże `v0.0.0-dev`. Szczegóły
+kroków: [CONTRIBUTING.md](CONTRIBUTING.md#wydanie-zmiana-kodu--działająca-aplikacja).
+
 ## Polecenia
 
 Wszystko kręci się wokół `Makefile`; pełna lista: `make help`.
@@ -89,6 +105,7 @@ Wszystko kręci się wokół `Makefile`; pełna lista: `make help`.
 | Polecenie | Co robi |
 |---|---|
 | `make install` | kreator instalacji na serwerze (to samo co `./install.sh`) |
+| `make release` | **wydanie**: podbija wersję, buduje, uruchamia, weryfikuje i wypycha na GitHub |
 | `make init` | `.env` z losowymi sekretami (raz, przy pierwszym uruchomieniu) |
 | `make up` | buduje obrazy i uruchamia stos na `APP_PORT` (domyślnie 8080) |
 | `make up-dev` | j.w., ale baza wystawiona na hoście na `DB_DEV_PORT` |
