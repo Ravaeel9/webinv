@@ -95,14 +95,20 @@ step "Podbicie wersji"
 
 OLD=$(node -p "require('./package.json').version")
 
-run npm version patch --no-git-tag-version
-
-# Czytamy wersję z manifestu, a nie wyznaczamy jej obok — `npm version`
-# jest jedynym miejscem, które zna swoje reguły podbijania. Własne
-# wyliczanie potrafiłoby się z nim rozjechać.
-NEW=$(node -p "require('./package.json').version")
-
-echo "wersja: $OLD → $NEW"
+if [ "$DRY" = "1" ]; then
+  # W podglądzie niczego nie podbijamy, więc nową wersję trzeba
+  # wyliczyć na oko. To jedyne miejsce z podobną matematyką — w realnym
+  # przebiegu wersję zawsze ustawia `npm version`.
+  NEW=$(node -p "const v='$OLD'.split('.').map(Number); [v[0], v[1], v[2]+1].join('.')")
+  echo "wersja: $OLD → $NEW"
+else
+  # Czytamy wersję z manifestu, a nie wyznaczamy jej obok — `npm version`
+  # jest jedynym miejscem, które zna swoje reguły podbijania. Własne
+  # wyliczanie potrafiłoby się z nim rozjechać.
+  npm version patch --no-git-tag-version
+  NEW=$(node -p "require('./package.json').version")
+  echo "wersja: $OLD → $NEW"
+fi
 
 # ─── 3. Commit i tag ─────────────────────────────────────────
 
@@ -180,5 +186,4 @@ cat <<EOF
   Wersja:   v$NEW
   Aplikacja: http://localhost:$(grep -E '^APP_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 8080)
   Tag:      v$NEW
-EOF
 EOF
