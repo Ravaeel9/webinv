@@ -105,7 +105,7 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `ui-state-colors.test.ts` | każda właściwość koloru stanu w JSX ma wariant jasny **i** ciemny (brak `dark:` przy `bg-*` = niewidoczna odznaka w jasnym motywie), z wyjątkami nazwanymi po pliku |
 | `ui-class-syntax.test.ts` | że utility koloru w JSX ma wartość w nawiasie kwadratowym — `hover:bg-oklch(0.83 0.08 20 / 0.4)` wygląda poprawnie, przechodzi build bez ostrzeżenia i nie robi nic |
 
-Stan: **384 przypadków, 48 suite'ów, wszystkie przechodzą**, plus
+Stan: **386 przypadków, 48 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).

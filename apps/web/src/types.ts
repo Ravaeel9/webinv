@@ -60,13 +60,6 @@ export interface UserSummary {
   email: string;
 }
 
-/** Autor wpisu — bez e-maila (createdBy w APP_INCLUDE). */
-export interface UserRef {
-  id: string;
-  username: string;
-  fullName: string;
-}
-
 /** Słownik do formularzy — GET /users/options (tylko konta aktywne). */
 export interface UserOption {
   id: string;

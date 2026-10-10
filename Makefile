@@ -1,4 +1,4 @@
-.PHONY: help install init up up-dev down restart logs ps build rebuild release release-dry migrate generate dev dev-api dev-web typecheck psql shell db-shell backup restore reset clean
+.PHONY: help install init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean
 
 # Ścieżka wydania żyje w scripts/release.sh, nie tutaj: kroków jest
 # dużo i kolejność ma znaczenie (testy → wersja → commit → tag → build →

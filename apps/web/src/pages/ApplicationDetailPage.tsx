@@ -18,8 +18,7 @@ import {
   formatDate,
   formatDateTime,
 } from '../lib/format';
-import { fieldLabel, formatChangeValue } from '../lib/audit-fields';
-import { visibleChanges, truncatedFields, type AuditChanges } from '../types';
+import { ChangeList } from '../components/audit/ChangeList';
 import {
   ACCESS_REQUEST_NO,
   ACCESS_REQUEST_YES,
@@ -33,7 +32,6 @@ import {
   STATUS_LABELS,
   SUPPORT_CHANNEL_LABELS,
   SUPPORT_OWNER_LABELS,
-  type Application,
 } from '../types';
 import {
   IconBox,
@@ -608,7 +606,9 @@ function ApplicationHistory({
                 {entry.actorId === viewerId ? ' (Ty)' : ''}
                 {entry.ip ? ` · ${entry.ip}` : ''}
               </p>
-              {entry.changes && <ChangeList changes={entry.changes} />}
+              {entry.changes && (
+                <ChangeList changes={entry.changes} limit={8} />
+              )}
             </li>
           ))}
         </ol>
@@ -616,43 +616,3 @@ function ApplicationHistory({
     </section>
   );
 }
-
-function ChangeList({ changes }: { changes: AuditChanges }) {
-  const entries = visibleChanges(changes);
-  if (entries.length === 0) return null;
-
-  return (
-    <ul className="mt-1.5 space-y-0.5">
-      {entries.slice(0, 8).map(([field, change]) => (
-        <li key={field} className="meta-text">
-          <span className="font-medium text-fg">{fieldLabel(field)}</span>
-          {': '}
-          <span className="text-fg-muted line-through">
-            {formatChangeValue(change.from)}
-          </span>{' '}
-          → <span className="text-fg">{formatChangeValue(change.to)}</span>
-        </li>
-      ))}
-      {entries.length > 8 && (
-        <li className="text-xs text-fg-subtle">
-          …i {entries.length - 8} innych pól
-        </li>
-      )}
-      {changes._truncated && (
-        <li className="text-xs text-amber-800 dark:text-amber-300">
-          {truncatedFields(changes).length > 0 ? (
-            <>
-              Przycięto wartości pól:{' '}
-              {truncatedFields(changes).map(fieldLabel).join(', ')}
-              .
-            </>
-          ) : (
-            'Zmiana była zbyt duża, żeby pokazać jej treść.'
-          )}
-        </li>
-      )}
-    </ul>
-  );
-}
-
-export type { Application };

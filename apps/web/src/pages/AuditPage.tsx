@@ -7,8 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { describeAction, formatDateTime } from '../lib/format';
-import { fieldLabel, formatChangeValue } from '../lib/audit-fields';
-import { visibleChanges, truncatedFields, type AuditChanges } from '../types';
+import { ChangeList } from '../components/audit/ChangeList';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -161,7 +160,7 @@ export function AuditPage() {
                     {entry.ip ? ` · ${entry.ip}` : ''}
                   </p>
 
-                  {entry.changes && <Changes changes={entry.changes} />}
+                  {entry.changes && <ChangeList changes={entry.changes} />}
                 </li>
               ))}
             </ul>
@@ -213,44 +212,6 @@ function ActionTone({ action }: { action: string }) {
     <Badge tone={action.includes('failed') ? 'danger' : 'neutral'} dot={false}>
       {action.includes('failed') ? 'niepowodzenie' : 'sesje zamknięte'}
     </Badge>
-  );
-}
-
-function Changes({ changes }: { changes: AuditChanges }) {
-  const entries = visibleChanges(changes);
-  if (entries.length === 0) return null;
-
-  return (
-    <ul className="mt-1.5 space-y-0.5">
-      {entries.slice(0, 10).map(([field, change]) => (
-        <li key={field} className="meta-text">
-          <span className="font-medium text-fg">{fieldLabel(field)}</span>
-          {': '}
-          <span className="text-fg-muted line-through">
-            {formatChangeValue(change.from)}
-          </span>{' '}
-          → <span className="text-fg">{formatChangeValue(change.to)}</span>
-        </li>
-      ))}
-      {entries.length > 10 && (
-        <li className="text-xs text-fg-subtle">
-          …i {entries.length - 10} innych pól
-        </li>
-      )}
-      {changes._truncated && (
-        <li className="text-xs text-amber-800 dark:text-amber-300">
-          {truncatedFields(changes).length > 0 ? (
-            <>
-              Przycięto wartości pól:{' '}
-              {truncatedFields(changes).map(fieldLabel).join(', ')}
-              .
-            </>
-          ) : (
-            'Zmiana była zbyt duża, żeby pokazać jej treść.'
-          )}
-        </li>
-      )}
-    </ul>
   );
 }
 
