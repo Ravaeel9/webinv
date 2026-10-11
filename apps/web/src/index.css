@@ -71,6 +71,32 @@
   color-scheme: light;
 
   --c-page: oklch(0.977 0.003 254);
+
+  /* Gradient nałożony na `--c-page` przez `body`.
+   *
+   * Plamy są w tym samym bloku co kolor bazowy, a nie w klasach w JSX —
+   * gradient jest jedną decyzją motywu, więc zmiana barwy nie powinna
+   * dotykać komponentów. Ostatni stopień to `var(--c-page)`, więc gradient
+   * kończy się dokładnie kolorem bazowym: bez duplikatu wartości do
+   * aktualizowania i bez przezroczystości, którą przeglądarka mieszałaby
+   * z tłem po swojemu.
+   *
+   * Jasność plam trzymana przy `--c-page` (L 0.94 przy bazie 0.977) —
+   * `--c-fg-muted` leżący wprost na tle strony ma dzięki temu 6.5:1.
+   * Pilnuje tego `ui-contrast.test.ts`.
+   */
+  --c-page-gradient:
+    radial-gradient(
+      120% 85% at 10% -12%,
+      oklch(0.94 0.035 254) 0%,
+      var(--c-page) 62%
+    ),
+    radial-gradient(
+      110% 80% at 95% 4%,
+      oklch(0.945 0.035 155) 0%,
+      var(--c-page) 58%
+    );
+
   --c-surface: oklch(1 0 0);
   --c-surface-2: oklch(0.972 0.004 254);
   --c-surface-3: oklch(0.945 0.006 254);
@@ -88,6 +114,21 @@
   color-scheme: dark;
 
   --c-page: oklch(0.17 0.008 254);
+
+  /* Ta sama struktura co w jasnym motywie, przygaszona: plamy są tu
+     jaśniejsze od bazowego tła, nie ciemniejsze, i dlatego zostają
+     nisko — inaczej gradient rozświetliłby ciemny motyw. */
+  --c-page-gradient:
+    radial-gradient(
+      120% 85% at 10% -12%,
+      oklch(0.24 0.045 254) 0%,
+      var(--c-page) 62%
+    ),
+    radial-gradient(
+      110% 80% at 95% 4%,
+      oklch(0.235 0.035 155) 0%,
+      var(--c-page) 58%
+    );
   --c-surface: oklch(0.215 0.01 254);
   --c-surface-2: oklch(0.255 0.012 254);
   --c-surface-3: oklch(0.295 0.012 254);
@@ -108,6 +149,17 @@
   body {
     @apply bg-page text-fg antialiased;
     font-family: var(--font-sans);
+
+    /* Gradient tła strony, nałożony na kolor z `bg-page`.
+     *
+     * `fixed` trzyma go nieruchomo przy przewijaniu. iOS Safari tej
+     * właściwości nie obsługuje — gradient rysuje się wtedy w pierwszym
+     * widoku, a niżej zostaje bazowe `--c-page`; `no-repeat` pilnuje,
+     * żeby nie powtarzał się jak kafelek.
+     */
+    background-image: var(--c-page-gradient);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
   }
 
   /* Widoczny fokus klawiaturowy — nie usuwamy go nigdzie */
@@ -178,9 +230,20 @@
     @apply text-sm text-fg;
   }
 
-  /* Tekst opisowy w karcie — z luznym interlinią, bo bywa wieloliniowy. */
+  /* Tekst opisowy w karcie — proza, nie lista wartości.
+   *
+   * 15 px, a nie 14 jak `.field-value`: jedyny konsument to sekcja
+   * „Opis" na stronie aplikacji (`Prose`), gdzie akapit ma kilka zdań
+   * i przy 14 px zlewał się w ścianę tekstu. `.field-value` zostaje
+   * 14 px, bo tam są krótkie wartości, które mają się skanować.
+   *
+   * Szerokość strony szczegółów daje wspólny `max-w-7xl` (1240 px), więc
+   * przy 15 px wychodzi ~144 znaki w linii. Dawniej sekcja „Opis" stała
+   * w węższej kolumnie, ale strona wyglądała wtedy jak zawężona wersja
+   * reszty aplikacji — `/uzytkownicy` i `/pulpit` mają pełną szerokość,
+   * więc ta strona też. */
   .card-text {
-    @apply text-sm leading-relaxed text-fg;
+    @apply text-[15px] leading-relaxed text-fg;
   }
 
   /* Etykieta `<dt>` i `<h3>` opisującego pole. Wariant `.meta-text`,
@@ -332,6 +395,55 @@
   /* Karta treści */
   .card {
     @apply rounded-xl border border-line bg-surface shadow-xs;
+  }
+
+  /* ─── Sekcja na stronie szczegółów ────────────────────────────
+   *
+   * `.card` sam w sobie nie dzieli strony na sekcje — tytuł leży
+   * na tym samym tle co treść, więc przy kilku kartach obok siebie
+   * oko nie ma się czego złapać. Tu nagłówek dostaje pasmo `surface-2`
+   * i linię oddzielającą, a treść osobne wnętrze.
+   *
+   * Osobna klasa, a nie wariant `.card`, bo `.card` używa jeszcze
+   * sześciu plików (formularz, pulpit, tabela, login, itd.) i tam
+   * płynący tytuł jest poprawny — nie chcemy przebudowywać ich układu
+   * przy zmianie wyglądu kart szczegółów.
+   */
+  .card-section {
+    @apply overflow-hidden rounded-xl border border-line bg-surface shadow-xs;
+  }
+
+  /* Wnętrze karty poza pasmem nagłówka — odstęp od krawędzi należy
+     tu, bo nagłówek ma własny i sam się do niej nie liczy. */
+  .card-section-body {
+    @apply px-5 py-4;
+  }
+
+  .card-section-header {
+    @apply flex items-center gap-3 border-b border-line bg-surface-2 px-5 py-3;
+  }
+
+  /* Tytuł w paśmie nagłówka sam z siebie pyta o margines dolny —
+     linia pod nim już oddziela go od treści. Reguła potomna, a nie
+     `mb-0` w call-site'ie: dziewięć sekcji na jednej stronie to
+     dziewięć miejsc, w których ktoś o nim zapomni. */
+  .card-section-header .section-title {
+    @apply mb-0;
+  }
+
+  /* Ikona sekcji w kafelku 32 px. Sam rozmiar i kształt są tu; kolor
+     i kolor obramowania dokłada klasa tonu składana na miejscu
+     (`class="section-icon tone-info"`). `ring-1 ring-inset` musi być
+     tutaj, bo `.tone-*` ustawia tylko kolor obrysu — bez tej własności
+     kafelek dostałby domyślną, trzypikselową ramkę.
+     Para tekst-na-tło jest dokładnie tą z odznak, więc kontrast
+     pilnujący `ui-contrast.test.ts` obejmuje ją bez zmian. */
+  .section-icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-lg
+           ring-1 ring-inset;
+  }
+  .section-icon svg {
+    @apply size-4;
   }
 
   /* Etykieta pola formularza */

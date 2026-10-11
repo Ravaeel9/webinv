@@ -146,111 +146,103 @@ export function ApplicationDetailPage() {
         </div>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        {/* ─── Kolumna główna ─────────────────────────────────── */}
-        <div className="space-y-5 lg:col-span-2">
-          <section className="card px-5 py-4">
-            <h2 className="section-title">
+      {/*
+        Jedna kolumna, nie grid. Dawniej `lg:grid-cols-3` dawał kolumnę
+        treści 2/3 szerokości i boczną 1/3; przy pełnych 1240 px
+        sekcja „Opis" rozciągała się do ~150 znaków w linii.
+        Teraz sekcje idą jedna pod drugą na pełnej szerokości, tak
+        jak `/uzytkownicy` i `/pulpit` — bez własnego `max-w`, bo
+        szerokość daje wspólny `max-w-7xl` w `AppLayout`. Dzięki temu
+        strona nie wygląda jak zawężona wersja reszty aplikacji.
+        Kolejność sekcji: co to jest → czy mogę z tego korzystać →
+        fakty administracyjne → historia.
+      */}
+      <div className="space-y-5">
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
               <IconInfo />
-              Opis
-            </h2>
+            </span>
+            <h2 className="section-title">Opis</h2>
+          </div>
+          <div className="card-section-body">
             <Prose label="Czym to jest" text={app.description} />
             <Prose label="Do czego służy" text={app.purpose} />
             <Prose label="Integracje i API" text={app.integrations} />
-          </section>
+          </div>
+        </section>
 
-          {/* Właściciel i administratorzy — tylko dla zalogowanych.
-              API nie zwraca `ownerEmail`, więc u gościa sekcji nie ma wcale. */}
-          {app.ownerEmail !== undefined && (
-            <section className="card px-5 py-4">
-              <h2 className="section-title">
-                <IconUser />
-                Odpowiedzialni
-              </h2>
+        <section className="card-section">
+          <div className="card-section-header">
+            {/* Jedyna sekcja z własnym kolorem: to ona trzyma status,
+                bezpieczeństwo i krytyczność, więc fiolet niesie znaczenie.
+                Pozostałe mają wspólny `info`. */}
+            <span className="section-icon tone-violet">
+              <IconShield />
+            </span>
+            <h2 className="section-title">Klasyfikacja</h2>
+          </div>
 
-            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-              <div>
-                <dt className="field-label">
-                  Właściciel
-                </dt>
-                <dd className="text-sm">
-                  {app.ownerEmail ? (
-                    <a
-                      href={`mailto:${app.ownerEmail}`}
-                      className="text-brand-600 hover:underline"
-                    >
-                      {app.ownerEmail}
-                    </a>
-                  ) : (
-                    <span className="field-value text-amber-800 dark:text-amber-300">
-                      nieprzypisana — ktoś musi to uzupełnić
-                    </span>
-                  )}
-                </dd>
+          <div className="card-section-body">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-fg-muted">Status</span>
+                <Badge tone={STATUS_TONES[app.status]}>
+                  {STATUS_LABELS[app.status]}
+                </Badge>
               </div>
-
-              <div>
-                <dt className="field-label">
-                  Administratorzy
-                </dt>
-                <dd className="text-sm">
-                  {app.admins.length === 0 ? (
-                    <span className="text-fg-muted">brak</span>
-                  ) : (
-                    <ul className="space-y-0.5">
-                      {app.admins.map((admin) => (
-                        <li key={admin.id}>
-                          <span className="text-fg">{admin.fullName}</span>
-                          <a
-                            href={`mailto:${admin.email}`}
-                            className="ml-1.5 text-xs text-brand-600 hover:underline"
-                          >
-                            {admin.email}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </dd>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-fg-muted">Wniosek o dostęp</span>
+                <Badge
+                  dot={false}
+                  tone={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
+                >
+                  {app.accessRequestRequired ? 'Tak' : 'Nie'}
+                </Badge>
               </div>
-            </dl>
-            </section>
-          )}
-
-          <section className="card px-5 py-4">
-            <h2 className="section-title">
-              <IconBox />
-              Środowiska
-            </h2>
-              <div className="flex flex-wrap gap-1.5">
-                {app.environments.length === 0 ? (
-                  <span className="text-sm text-fg-muted">
-                    nie przypisano środowisk
-                  </span>
-                ) : (
-                  app.environments.map((env) => (
-                    <Link
-                      key={env.id}
-                      to={`/aplikacje?environmentId=${env.id}`}
-                      className="badge tone-neutral hover:bg-surface-3"
-                    >
-                      {env.name}
-                    </Link>
-                  ))
-                )}
+              {/* Typ dostarczenia widać także bez sesji — to informacja
+                  techniczna, a nie dana wewnętrzna. */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-fg-muted">Dostarczanie</span>
+                <Badge tone={DELIVERY_TYPE_TONES[app.deliveryType]}>
+                  {DELIVERY_TYPE_LABELS[app.deliveryType]}
+                </Badge>
+              </div>
+              {/* Gość nie widzi klasyfikacji ani krytyczności — API
+                  nie przesyła tych pól w odpowiedzi. */}
+              {app.securityClass && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-fg-muted">Bezpieczeństwo</span>
+                  <Badge tone={SECURITY_TONES[app.securityClass]}>
+                    {SECURITY_LABELS[app.securityClass]}
+                  </Badge>
+                </div>
+              )}
+              {app.criticality !== undefined && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-fg-muted">Krytyczność</span>
+                  <Badge tone={CRITICALITY_TONES[app.criticality]}>
+                    {CRITICALITY_LABELS[app.criticality]}
+                  </Badge>
+                </div>
+              )}
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Blok dla usług: gdzie działa i do kogo dzwonić.
-              Gość tego nie widzi — API nie wysyła mu tych pól, a
-              `user` pilnuje, żeby nie renderować pustej sekcji. */}
-          {user && app.deliveryType !== 'GENERAL_USE' && (
-            <section className="card px-5 py-4">
-              <h2 className="section-title">
+        {/* Blok dla usług: gdzie działa i do kogo dzwonić.
+            Gość tego nie widzi — API nie wysyła mu tych pól, a
+            `user` pilnuje, żeby nie renderować pustej sekcji. */}
+        {user && app.deliveryType !== 'GENERAL_USE' && (
+          <section className="card-section">
+            <div className="card-section-header">
+              <span className="section-icon tone-info">
                 <IconInfo />
-                Dostęp i wsparcie
-              </h2>
+              </span>
+              <h2 className="section-title">Dostęp i wsparcie</h2>
+            </div>
 
+            <div className="card-section-body">
               <dl className="space-y-3">
                 <DeliveryRow label="Adres bazowy">
                   {app.baseUrl ? (
@@ -328,71 +320,82 @@ export function ApplicationDetailPage() {
                   </div>
                 )}
               </dl>
-            </section>
-          )}
-
-          <ApplicationHistory id={app.id} viewerId={user?.id} />
-        </div>
-
-        {/* ─── Kolumna boczna ──────────────────────────────────── */}
-        <div className="space-y-5">
-          <section className="card px-5 py-4">
-            <h2 className="section-title">
-              <IconShield />
-              Klasyfikacja
-            </h2>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-fg-muted">Status</span>
-                <Badge tone={STATUS_TONES[app.status]}>
-                  {STATUS_LABELS[app.status]}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-fg-muted">Wniosek o dostęp</span>
-                <Badge
-                  dot={false}
-                  tone={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
-                >
-                  {app.accessRequestRequired ? 'Tak' : 'Nie'}
-                </Badge>
-              </div>
-              {/* Typ dostarczenia widać także bez sesji — to informacja
-                  techniczna, a nie dana wewnętrzna. */}
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-fg-muted">Dostarczanie</span>
-                <Badge tone={DELIVERY_TYPE_TONES[app.deliveryType]}>
-                  {DELIVERY_TYPE_LABELS[app.deliveryType]}
-                </Badge>
-              </div>
-              {/* Gość nie widzi klasyfikacji ani krytyczności — API
-                  nie przesyła tych pól w odpowiedzi. */}
-              {app.securityClass && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-fg-muted">Bezpieczeństwo</span>
-                  <Badge tone={SECURITY_TONES[app.securityClass]}>
-                    {SECURITY_LABELS[app.securityClass]}
-                  </Badge>
-                </div>
-              )}
-              {app.criticality !== undefined && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-fg-muted">Krytyczność</span>
-                  <Badge tone={CRITICALITY_TONES[app.criticality]}>
-                    {CRITICALITY_LABELS[app.criticality]}
-                  </Badge>
-                </div>
-              )}
             </div>
           </section>
+        )}
 
-          <section className="card px-5 py-4">
-            <h2 className="section-title">
+        {/* Właściciel i administratorzy — tylko dla zalogowanych.
+            API nie zwraca `ownerEmail`, więc u gościa sekcji nie ma wcale. */}
+        {app.ownerEmail !== undefined && (
+          <section className="card-section">
+            <div className="card-section-header">
+              <span className="section-icon tone-info">
+                <IconUser />
+              </span>
+              <h2 className="section-title">Odpowiedzialni</h2>
+            </div>
+            <div className="card-section-body">
+              {/* Dwie kolumny wciąż mają sens przy 896 px — to dwa pola,
+                  nie powrót do dawnego układu strony. */}
+              <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                <div>
+                  <dt className="field-label">
+                    Właściciel
+                  </dt>
+                  <dd className="text-sm">
+                    {app.ownerEmail ? (
+                      <a
+                        href={`mailto:${app.ownerEmail}`}
+                        className="text-brand-600 hover:underline"
+                      >
+                        {app.ownerEmail}
+                      </a>
+                    ) : (
+                      <span className="field-value text-amber-800 dark:text-amber-300">
+                        nieprzypisana — ktoś musi to uzupełnić
+                      </span>
+                    )}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="field-label">
+                    Administratorzy
+                  </dt>
+                  <dd className="text-sm">
+                    {app.admins.length === 0 ? (
+                      <span className="text-fg-muted">brak</span>
+                    ) : (
+                      <ul className="space-y-0.5">
+                        {app.admins.map((admin) => (
+                          <li key={admin.id}>
+                            <span className="text-fg">{admin.fullName}</span>
+                            <a
+                              href={`mailto:${admin.email}`}
+                              className="ml-1.5 text-xs text-brand-600 hover:underline"
+                            >
+                              {admin.email}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+        )}
+
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
               <IconCalendar />
-              Daty
-            </h2>
+            </span>
+            <h2 className="section-title">Daty</h2>
+          </div>
 
+          <div className="card-section-body">
             <dl className="space-y-3">
               <div>
                 <dt className="field-label">
@@ -433,14 +436,18 @@ export function ApplicationDetailPage() {
                 </div>
               )}
             </dl>
-          </section>
+          </div>
+        </section>
 
-          <section className="card px-5 py-4">
-            <h2 className="section-title">
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
               <IconTag />
-              Dostawca i licencja
-            </h2>
+            </span>
+            <h2 className="section-title">Dostawca i licencja</h2>
+          </div>
 
+          <div className="card-section-body">
             <dl className="space-y-3">
               <SimpleRow label="Dostawca" value={app.vendor} />
               <SimpleRow label="Licencja" value={app.license} />
@@ -461,14 +468,46 @@ export function ApplicationDetailPage() {
                 }
               />
             </dl>
-          </section>
+          </div>
+        </section>
 
-          <section className="card px-5 py-4">
-            <h2 className="section-title">
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
+              <IconBox />
+            </span>
+            <h2 className="section-title">Środowiska</h2>
+          </div>
+          <div className="card-section-body">
+            <div className="flex flex-wrap gap-1.5">
+              {app.environments.length === 0 ? (
+                <span className="text-sm text-fg-muted">
+                  nie przypisano środowisk
+                </span>
+              ) : (
+                app.environments.map((env) => (
+                  <Link
+                    key={env.id}
+                    to={`/aplikacje?environmentId=${env.id}`}
+                    className="badge tone-neutral hover:bg-surface-3"
+                  >
+                    {env.name}
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
               <IconExternalLink />
-              Linki
-            </h2>
+            </span>
+            <h2 className="section-title">Linki</h2>
+          </div>
 
+          <div className="card-section-body">
             <ul className="space-y-2">
               <ExtLink label="Strona WWW" href={app.websiteUrl} />
               <ExtLink label="Dokumentacja" href={app.docsUrl} />
@@ -481,8 +520,10 @@ export function ApplicationDetailPage() {
                   <li className="text-sm text-fg-muted">brak</li>
                 )}
             </ul>
-          </section>
-        </div>
+          </div>
+        </section>
+
+        <ApplicationHistory id={app.id} viewerId={user?.id} />
       </div>
 
       <Modal
@@ -577,12 +618,12 @@ function ApplicationHistory({
   if (!canAudit) return null;
 
   return (
-    <section className="card">
-      <div className="border-b border-line px-5 py-4">
-        <h2 className="section-title mb-0">
+    <section className="card-section">
+      <div className="card-section-header">
+        <span className="section-icon tone-info">
           <IconHistory />
-          Historia zmian
-        </h2>
+        </span>
+        <h2 className="section-title">Historia zmian</h2>
       </div>
 
       {isLoading ? (
