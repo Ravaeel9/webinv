@@ -62,6 +62,8 @@ services:
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@firma.local}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD jest wymagane w .env}
       SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME:-Administrator Systemu}
+      # Dane demonstracyjne — domyślnie wyłączone, patrz .env.example
+      SEED_DEMO_APPS: ${SEED_DEMO_APPS:-false}
     healthcheck:
       test:
         - CMD

@@ -93,6 +93,15 @@ export const appConfig = registerAs('app', () => {
       email: process.env.SEED_ADMIN_EMAIL ?? 'admin@firma.local',
       password: required('SEED_ADMIN_PASSWORD'),
       fullName: process.env.SEED_ADMIN_FULLNAME ?? 'Administrator Systemu',
+      /**
+       * Zestaw dwudziestu programów demonstracyjnych.
+       *
+       * Domyślnie wyłączony, bo `SeedService` startuje przy każdym
+       * uruchomieniu kontenera: bez tej bramki pierwszy start na pustej
+       * bazie wypełniłby ją danymi, których nikt nie zamawiał. Środowiska
+       * i konto administratora tego nie wymagają, bo są danymi startowymi.
+       */
+      demoApps: bool('SEED_DEMO_APPS', false),
     },
     loginRateLimit,
   };

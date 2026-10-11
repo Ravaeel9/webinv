@@ -199,6 +199,12 @@ model Application {
   // Środowiska
   environments ApplicationEnvironment[]
 
+  // Rekord demonstracyjny wstawiony przez seed, a nie przez człowieka.
+  // Oznaczenie, po którym panel super administratora kasuje dane próbne
+  // bez ryzyka trafienia w prawdziwy wpis — rozpoznawanie po nazwie
+  // psułoby się po jej zmianie w interfejsie.
+  isDemo Boolean @default(false) @map("is_demo")
+
   // Linki
   websiteUrl String? @map("website_url") @db.VarChar(500)
   docsUrl    String? @map("docs_url") @db.VarChar(500)
@@ -224,7 +230,23 @@ model Application {
   @@index([sunsetOn])
   @@index([deletedAt])
   @@index([deliveryType])
+  // Indeks częściowy `WHERE is_demo = true` — migracja go tworzy ręcznie,
+  // bo Prisma nie umie deklarować indeksu częściowego w `@@index`.
   @@map("applications")
+}
+
+// ─── Ustawienia systemowe ──────────────────────────────────────
+//
+// Klucz-wartość, bo ustawień jest mało i każde ma inną interpretację
+// wartości. Kolumna per ustawienie wymagałaby migracji przy każdym
+// nowym przełączniku, a to najczęstsza zmiana w tym zestawie.
+model Setting {
+  key   String @id
+  value String
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
 }
 
 // ─── Dziennik zdarzeń ─────────────────────────────────────────

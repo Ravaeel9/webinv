@@ -43,6 +43,9 @@ export const FIELD_LABELS: Record<string, string> = {
   repoUrl: 'repozytorium',
   runbookUrl: 'runbook',
   integrations: 'integracje',
+  // Pole techniczne: zmienia je wyłącznie seed, nie panel. Bez wpisu
+  // w dzienniku pokazałoby się jako surowy klucz `isDemo`.
+  isDemo: 'rekord demonstracyjny',
   // `createdById` PATCH nie zmienia (mapPatchDto bierze tylko pola DTO),
   // więc `diff` dziś go nie raportuje. Etykieta jest mimo to: wykluczanie
   // go w teście byłoby kruche — wystarczyłoby nowe pole w DTO, żeby

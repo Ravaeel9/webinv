@@ -408,6 +408,79 @@ describe('Tokeny tekstu — kontrast na karcie', () => {
   }
 });
 
+describe('Gradient tła strony — kontrast', () => {
+  /**
+   * Surowa wartość tokenu, bez parsowania na `oklch`.
+   *
+   * Osobna funkcja, bo `token()` czyta pojedynczą linię, a gradient
+   * jest wielolinijkowy — to druga linia `--c-page-gradient` nigdy by
+   * nie trafiła do wyniku.
+   */
+  function raw(name: string, dark: boolean): string {
+    const block = dark
+      ? /\.dark\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+      : /:root\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const start = block.indexOf(`--${name}:`);
+    assert.notEqual(
+      start,
+      -1,
+      `nie znaleziono tokenu --${name} w bloku ${dark ? '.dark' : ':root'}`,
+    );
+    return block.slice(start + name.length + 3, block.indexOf(';', start));
+  }
+
+  /**
+   * Kolory, przez które przechodzi gradient tła strony.
+   *
+   * Tylko jaśniejsze w obu motywach: w jasnym plama jest ciemniejsza od
+   * `--c-page`, w ciemnym jaśniejsza. Kontrast jest monotoniczny względem
+   * jasności, więc najgorszy przypadek to zawsze plama, a nie bazowe
+   * tło — wystarczy policzyć plamy.
+   *
+   * `var(--c-page)` na końcu gradientu nie jest łapane i nie musi być:
+   * to dosłownie kolor bazowy, liczony osobno niżej.
+   */
+  function glows(dark: boolean): string[] {
+    const stops = [...raw('c-page-gradient', dark).matchAll(/oklch\([^)]*\)/g)];
+    assert.ok(
+      stops.length > 0,
+      `--c-page-gradient (${dark ? 'ciemny' : 'jasny'}) nie zawiera żadnej ` +
+        'wartości oklch — gradient nie ma czym malować tła',
+    );
+    return stops.map((m) => m[0]);
+  }
+
+  for (const [label, dark] of [
+    ['jasnym', false],
+    ['ciemnym', true],
+  ] as const) {
+    it(`tło strony w trybie ${label} trzyma tekst czytelny`, () => {
+      // Najgorszy przypadek to plama, nie bazowe `--c-page`: w trybie
+      // jasnym plama jest ciemniejsza, w ciemnym jaśniejsza, a kontrast
+      // jest monotoniczny względem jasności. Bazowe tło dochodzi do
+      // gradientu jako ostatni stopień, więc liczymy je dla porządku.
+      const fills = [
+        ...glows(dark).map((value) => ({ label: `plama ${value}`, lin: oklch(value) })),
+        { label: 'bazowe --c-page', lin: token('c-page', dark) },
+      ];
+
+      for (const fg of ['c-fg', 'c-fg-muted']) {
+        const text = token(fg, dark);
+        for (const fill of fills) {
+          const ratio = contrast(text, fill.lin);
+
+          assert.ok(
+            ratio >= 4.5,
+            `--${fg} na ${fill.label} w trybie ${label}: ` +
+              `${ratio.toFixed(2)}:1 — plama nie może zejść poniżej progu ` +
+              'dla tekstu 12–14 px',
+          );
+        }
+      }
+    });
+  }
+});
+
 describe('Kolory palet Tailwinda używane jako tekst', () => {
   /**
    * Odcienie palet używane jako tekst w miejscach o rozmiarze „normalnym"
