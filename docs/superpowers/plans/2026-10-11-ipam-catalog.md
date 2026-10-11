@@ -289,8 +289,11 @@ describe('containsSubnet', () => {
 Osobno `rangesOverlap` — graniczne pół-sieci **nakładają się**, choć żadna nie zawiera drugiej:
 
 ```ts
-it('pół-sieci stykające się granicą nakładają się', () => {
-  assert.equal(rangesOverlap(c('10.20.0.0/17'), c('10.20.128.0/17')), true);
+it('pół-sieci stykające się granicą NIE nakładają się', () => {
+  // 10.20.0.0/17 kończy się na 10.20.127.255, druga zaczyna na 10.20.128.0 —
+  // stykają się, nie dzielą żadnego adresu. (Poprawka wdrożona w Task 2:
+  // wcześniejsza wersja tego przykładu twierdziła „true" i była błędna.)
+  assert.equal(rangesOverlap(c('10.20.0.0/17'), c('10.20.128.0/17')), false);
 });
 it('podsieci obok siebie nie nakładają się', () => {
   assert.equal(rangesOverlap(c('10.20.0.0/16'), c('10.21.0.0/16')), false);
