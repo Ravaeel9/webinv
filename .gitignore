@@ -52,3 +52,9 @@ scratch/
 # Kopie zapasowe bazy — dane produkcyjne, nigdy do repo
 backups/
 graphify-out/
+
+# Izolowane checkouty do pracy nad funkcjami
+.worktrees/
+
+# Zapiski postępu planowania — lokalne, nie do repo
+.superpowers/
