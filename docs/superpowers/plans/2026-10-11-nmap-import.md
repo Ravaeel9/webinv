@@ -142,6 +142,8 @@ describe('parseNmapXml', () => {
 
 Wzorzec czytania pliku: `read()` z `apps/api/test/helpers/repo.ts`.
 
+Test „odrzuca plik przekraczający limit hostów" jest celowo kosztowny (10 001 hostów w jednym napisie). Jeśli `npm test` zrobi się zbyt wolny, ogranicz wczytanie parsera — **nie** podnoś limitu, bo limit właśnie przed czymś chroni.
+
 - [ ] **Step 3: Dodaj zależność i podnieś limit**
 
 `npm install --workspace @webinv/api fast-xml-parser@5.2.5` (przepisze `package.json` i `package-lock.json`).
@@ -154,7 +156,9 @@ W `apps/api/src/main.ts` zmień `bodyLimit: 2 * 1024 * 1024` na `6 * 1024 * 1024
 
 `processEntities: false` jest **wymaganiem bezpieczeństwa**, nie konfiguracją smaku: bez niego plik z podstawionymi encjami rozrośnie się wykładniczo i wyciągnie proces. Dopisz to w komentarzu.
 
-Kolejność: sprawdź `MAX_XML_BYTES` na `Buffer.byteLength(xml, 'utf8')`, potem parsuj, potem `if (!parsed.nmaprun) throw new NmapXmlError('Plik nie jest wynikiem nmap (-oX).')`. Zbierz adresy z `host.address` tam, gdzie `@_addrtype === 'ipv4'` i `isValidIpv4('@_addr')` z `cidr.ts` — **to istniejąca funkcja z planu katalogu IPAM, nie pisz jej drugiej kopii**. Hosty bez poprawnego IPv4 zwiększają `skipped`. Posortuj wynik przez `sortByIp` (porównanie numeryczne `ipToNumber`).
+Kolejność: sprawdź `MAX_XML_BYTES` na `Buffer.byteLength(xml, 'utf8')`, potem parsuj, potem `if (!parsed.nmaprun) throw new NmapXmlError('Plik nie jest wynikiem nmap (-oX).')`. Zbierz adresy z `host.address` tam, gdzie `@_addrtype === 'ipv4'` i `isValidIpv4('@_addr')` z `cidr.ts` — **to istniejące funkcje z planu katalogu IPAM, nie pisz ich drugich kopii**. Hosty bez poprawnego IPv4 zwiększają `skipped`.
+
+Posortuj `hosts` rosnąco przez `ipToNumber(h.address)` z `cidr.ts` i `Array.prototype.sort`. Nie ma w `cidr.ts` funkcji sortującej adresy — `sortCidrs` sortuje podsieci po `network`, nie po adresie hosta.
 
 Sprawdź limit **przed** zwróceniem wyniku i rzuć `NmapXmlError` z komunikatem zawierającym liczbę `10 000`.
 
