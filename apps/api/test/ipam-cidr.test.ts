@@ -8,8 +8,11 @@
  * Te testy pilnują dwóch rzeczy, które łatwo zepsuć po cichu: odrzucania
  * adresów z ustawionymi bitami hosta (użytkownik pisze `10.20.1.5/24`, a my
  * zapisalibyśmy `10.20.0.0/24` i pokazali stan inny niż wpisany) oraz
- * rozróżniania *nakładania* się zakresów od *zawierania* — pół-sieci stykające
- * się granicą nakładają się, choć żadna nie zawiera drugiej.
+ * rozróżniania *nakładania* się zakresów od samego *sąsiedztwa* — pół-sieci
+ * stykające się granicą NIE nakładają się: 10.20.0.0/17 kończy się na
+ * 10.20.127.255, a 10.20.128.0/17 zaczyna dopiero od następnego adresu.
+ * Plan twierdził odwrotnie, ale arytmetyka jest jednoznaczna i testy trzymają
+ * się arytmetyki.
  */
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
@@ -47,6 +50,23 @@ describe('parseCidr', () => {
 
   it('odrzuca adres spoza zakresu oktetu', () => {
     assert.equal(parseCidr('999.1.1.1/8'), null);
+  });
+
+  it('odrzuca oktet z literą, bo samo parseInt połknąłby śmieci', () => {
+    // parseInt('0x0', 10) zwraca 0 — bez guarda regexem "10.20.0.0x/16"
+    // wszedłby do bazy jako inna sieć, niż wpisał użytkownik.
+    assert.equal(parseCidr('10.20.0.0x/16'), null);
+  });
+
+  it('odrzuca wiodącą spację, bo parseInt cicho ją pomija', () => {
+    assert.equal(parseCidr(' 10.20.0.0/16'), null);
+  });
+
+  it('odrzuca wiodące zera w oktetach, bo to notacja dwuznaczna', () => {
+    // "010" to nie to samo co "10" dla użytkownika (mogło znaczyć ósemkowe 8),
+    // a ten plik jest jedyną walidacją przed DTO — zgadywanie jest gorsze
+    // niż odmowa.
+    assert.equal(parseCidr('010.20.0.0/16'), null);
   });
 
   it('odrzuca zapis bez prefiksu', () => {
@@ -94,6 +114,25 @@ describe('isValidIpv4 i ipToNumber', () => {
 
   it('odrzuca oktety ze znakiem, bo wypadają poza zakres 0–255', () => {
     assert.equal(isValidIpv4('10.20.1.-1'), false);
+  });
+
+  it('odrzuca literę po oktecie i wiodącą spację, bo parseInt jest pobłażliwy', () => {
+    // parseInt('5x', 10) to 5, a parseInt(' 10', 10) to 10 — bez guarda
+    // regexem oba wpadłyby do bazy jako poprawne adresy.
+    assert.equal(isValidIpv4('10.20.1.5x'), false);
+    assert.equal(isValidIpv4(' 10.20.1.5'), false);
+  });
+
+  it('odrzuca jawnie dodatni adres, bo parseInt akceptuje "+"', () => {
+    // parseInt('+10', 10) zwraca 10 — "+10.20.1.5" to nie adres, tylko
+    // artefakt pobłażliwego parsera.
+    assert.equal(isValidIpv4('+10.20.1.5'), false);
+  });
+
+  it('odrzuca wiodące zera, ale gołe zero jest w porządku', () => {
+    // "010.20.1.5" jest dwuznaczne (ósemkowe?), "0.0.0.0" to zwykły adres.
+    assert.equal(isValidIpv4('010.20.1.5'), false);
+    assert.equal(isValidIpv4('0.0.0.0'), true);
   });
 
   it('zapętla liczby w całym zakresie 32-bitowym', () => {
@@ -153,7 +192,7 @@ describe('containsSubnet', () => {
 describe('rangesOverlap', () => {
   it('dwie połówki /16 rozchodzące się na granicy nie nakładają się', () => {
     // /17 rozcina trzeci oktet na jego najwyższym bicie: 10.20.0.0/17 kończy
-    // się na 10.20.127.255, a 10.20.128.0/128 zaczyna dopiero wtedy.
+    // się na 10.20.127.255, a 10.20.128.0/17 zaczyna dopiero wtedy.
     // To dwa kawałki rozcinające jedno /16, nie nakładanie.
     assert.equal(rangesOverlap(c('10.20.0.0/17'), c('10.20.128.0/17')), false);
   });
@@ -185,8 +224,10 @@ describe('findContainingSubnet', () => {
   });
 
   it('przy remisie prefiksów wygrywa pierwsza z kolejności', () => {
+    // Dwa obiekty o identycznym tekście — `.text` niczego nie rozstrzyga,
+    // więc sprawdzamy tożsamość: ścisłe `>` musi zostawić ten pierwszy.
     const same = [c('10.20.0.0/24'), c('10.20.0.0/24')];
-    assert.equal(findContainingSubnet('10.20.0.9', same)?.text, '10.20.0.0/24');
+    assert.strictEqual(findContainingSubnet('10.20.0.9', same), same[0]);
   });
 });
 

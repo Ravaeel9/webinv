@@ -29,10 +29,11 @@ export type Cidr = {
 
 /**
  * Zamienia zapis kropkowy na liczbę 32-bitową; `null` gdy nie ma
- * dokładnie czterech oktetów 0–255.
+ * dokładnie czterech oktetów 0–255 zapisanych samymi cyframi.
  *
- * `parseInt` z bazą 10 (nie 16) jest tu istotny: bez podanej bazy
- * oktety z literami byłyby odczytane jako szesnastkowe.
+ * Guard regexem przed `parseInt` jest tu kluczowy: samo `parseInt` połknęłoby
+ * "0x0", " 16" i "+16", a ten plik jest jedyną walidacją dla późniejszych
+ * DTO — śmieci muszą wypadać tutaj, nie przechodzić do bazy.
  */
 export function ipToNumber(text: string): number | null {
   const octets = text.split('.');
@@ -42,8 +43,15 @@ export function ipToNumber(text: string): number | null {
 
   let value = 0;
   for (const octet of octets) {
+    // Tylko cyfry, bez wiodących zer — ta sama logika co guard prefiksu
+    // w `splitCidr`. "010" odrzucamy celowo: to notacja dwuznaczna (użytkownik
+    // mógł myśleć po ósemkowemu o 8), a zgadywanie w walidacji jest gorsze
+    // niż odmowa.
+    if (!/^(0|[1-9]\d{0,2})$/.test(octet)) {
+      return null;
+    }
     const parsed = parseInt(octet, 10);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 255) {
+    if (parsed > 255) {
       return null;
     }
     value = value * 256 + parsed;
