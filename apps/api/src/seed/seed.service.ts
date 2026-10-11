@@ -4,6 +4,8 @@ import { Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { appConfig } from '../config/configuration';
 import { hashPassword, validatePasswordStrength } from '../auth/password';
+import { seedDemoApplications } from './demo-applications';
+import { SettingsService } from '../settings/settings.service';
 
 type AppCfg = ConfigType<typeof appConfig>;
 
@@ -58,11 +60,38 @@ export class SeedService implements OnApplicationBootstrap {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(appConfig.KEY) private readonly cfg: AppCfg,
+    private readonly settings: SettingsService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     await this.seedEnvironments();
     await this.seedSuperAdmin();
+    await this.seedDemoApplications();
+  }
+
+  /**
+   * Programy demonstracyjne — tylko gdy `SEED_DEMO_APPS=true`.
+   *
+   * Ostatni w kolejności, bo potrzebuje środowisk z pierwszego kroku.
+   * Domyślnie wyłączony: patrz `appConfig.seed.demoApps`.
+   */
+  private async seedDemoApplications(): Promise<void> {
+    // Nie czytamy tu `cfg.seed.demoApps`: decyzja administratora
+    // zapisana w panelu ma pierwszeństwo przed zmienną z `.env`.
+    // Bez tego wyłączenie trybu demo przestałoby działać po restarcie
+    // kontenera, bo `.env` wciąż miałby `SEED_DEMO_APPS=true`.
+    const wlaczony = await this.settings.shouldSeedDemo();
+    if (!wlaczony) {
+      this.logger.log('Tryb demo wyłączony — pomijam dane demonstracyjne.');
+      return;
+    }
+
+    const count = await seedDemoApplications(this.prisma);
+    this.logger.log(
+      `Dane demonstracyjne: ${count} rekordów (upsert). ` +
+        'Wyłącz tryb demo w Ustawieniach albo SEED_DEMO_APPS, ' +
+        'aby przestały wracać przy starcie.',
+    );
   }
 
   /** Środowiska — tworzone tylko te, których jeszcze nie ma. */

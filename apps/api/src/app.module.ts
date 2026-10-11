@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { HealthController } from './health.controller';
 import { SeedModule } from './seed/seed.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -38,6 +39,8 @@ import { SeedModule } from './seed/seed.module';
     AuthModule,
     UsersModule,
     ApplicationsModule,
+    // Przed `SeedModule` — seed pyta `SettingsService` o stan trybu demo.
+    SettingsModule,
     SeedModule,
   ],
   controllers: [HealthController],

@@ -297,6 +297,20 @@ export interface SessionInfo {
   expiresAt: string;
 }
 
+/**
+ * Stan trybu demonstracyjnego.
+ *
+ * `source` mówi, skąd wzięła się odpowiedź: `db` — z wpisu w panelu,
+ * `env` — z `SEED_DEMO_APPS`, bo nikt jeszcze w panelu nie decydował.
+ * Pokazujemy to w interfejsie, żeby administrator wiedział, że przełącznik
+ * podczas restartu kontenera zostanie zignorowany.
+ */
+export type DemoModeState = {
+  enabled: boolean;
+  source: 'db' | 'env';
+  recordCount: number;
+};
+
 /** Uprawnienia — lustrzane odbicie apps/api/src/auth/permissions.ts */
 export const PERMISSIONS = {
   VIEWER: ['app:read', 'user:read', 'audit:read'],
@@ -307,6 +321,10 @@ export const PERMISSIONS = {
     'user:read',
     'user:write',
     'audit:read',
+    // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo
+    // i skasować 30 przykładowych rekordów naraz. Lustrzane odbicie
+    // `apps/api/src/auth/permissions.ts`.
+    'settings:write',
   ],
 } as const satisfies Record<Role, readonly string[]>;
 

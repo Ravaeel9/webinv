@@ -17,6 +17,7 @@ import type {
   AuditListResponse,
   AuditMeta,
   AuthUser,
+  DemoModeState,
   Environment,
   SessionInfo,
   Stats,
@@ -41,6 +42,7 @@ export const qk = {
   audit: (params: Record<string, unknown>) => ['audit', params] as const,
   auditMeta: ['audit-meta'] as const,
   sessions: ['sessions'] as const,
+  demoMode: ['settings-demo'] as const,
 };
 
 // ─── Uwierzytelnienie ─────────────────────────────────────────
@@ -110,6 +112,49 @@ export function useRevokeSession() {
       api.post<{ ok: true }>('/auth/sessions/revoke', { sessionId }),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: qk.sessions }),
+  });
+}
+
+// ─── Ustawienia: tryb demonstracyjny ──────────────────────────
+
+export function useDemoMode() {
+  return useQuery({
+    queryKey: qk.demoMode,
+    queryFn: () => api.get<DemoModeState>('/settings/demo'),
+    staleTime: 10_000,
+  });
+}
+
+export function useSetDemoMode() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.put<DemoModeState>('/settings/demo', { enabled }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: qk.demoMode }),
+  });
+}
+
+/**
+ * Kasowanie danych demonstracyjnych.
+ *
+ * Unieważniamy **całą listę aplikacji i statystyki**, nie tylko stan
+ * trybu demo: rekordy znikają z bazy, więc lista, pulpit i liczniki
+ * pokazywałyby dane, których już nie ma, dopóki ktoś nie odświeży
+ * strony ręcznie.
+ */
+export function useDeleteDemoData() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.delete<{ deleted: number }>('/settings/demo/data'),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.demoMode });
+      void queryClient.invalidateQueries({ queryKey: ['applications'] });
+      void queryClient.invalidateQueries({ queryKey: qk.stats });
+      void queryClient.invalidateQueries({ queryKey: qk.auditMeta });
+    },
   });
 }
 

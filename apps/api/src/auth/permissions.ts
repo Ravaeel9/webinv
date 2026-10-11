@@ -19,6 +19,11 @@ export const PERMISSIONS = {
     'user:read',
     'user:write',
     'audit:read',
+    // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo
+    // i skasować 30 przykładowych rekordów naraz. `ADMIN` ma
+    // `app:write`, czyli może usunąć aplikację pojedynczo — to inna
+    // skala i inna odpowiedzialność.
+    'settings:write',
   ],
 } as const;
 
@@ -41,6 +46,7 @@ export const ALL_PERMISSIONS = [
   'user:read',
   'user:write',
   'audit:read',
+  'settings:write',
 ] as const satisfies readonly Permission[];
 
 /** Uprawnienia nadane roli, w kolejności z `PERMISSIONS`. */
