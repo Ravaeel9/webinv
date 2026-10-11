@@ -52,7 +52,9 @@ export function LoginPage() {
   const rateLimited = error?.isRateLimited ?? false;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-page px-4 py-10">
+    // `bg-transparent`, nie `bg-page`: jednolite tło na wierzchu gradientu
+    // z `body` ukryłoby go i strona logowania wyglądałaby inaczej niż reszta.
+    <div className="relative flex min-h-screen items-center justify-center bg-transparent px-4 py-10">
       {/* Miękka poświata za kartą — gradientowa identyfikacja motywu
           bez dotykania kontrastu tekstu (karta ma nieprzezroczyste tło). */}
       <div

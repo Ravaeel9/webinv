@@ -24,7 +24,9 @@ export function RouteErrorPage() {
   const isNotFound = isRouteErrorResponse(error) && error.status === 404;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-page px-4">
+    // `bg-transparent`, nie `bg-page` — patrz `LoginPage`: pełnoekranowe tło
+    // na wierzchu gradientu z `body` ukryłoby go.
+    <div className="flex min-h-screen items-center justify-center bg-transparent px-4">
       <div className="card w-full max-w-lg px-6 py-8">
         <EmptyState
           title={isNotFound ? 'Nie znaleziono strony' : title}

@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthProvider } from './lib/auth';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth, RequirePermission } from './components/layout/guards';
@@ -10,6 +10,7 @@ import { ApplicationFormPage } from './pages/ApplicationFormPage';
 import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { UsersPage } from './pages/UsersPage';
 import { AuditPage } from './pages/AuditPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { EmptyState } from './components/ui/Feedback';
 import { RouteErrorPage } from './components/layout/RouteErrorPage';
 
@@ -42,7 +43,9 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         errorElement: <RouteErrorPage />,
         children: [
-          { index: true, element: <ApplicationsListPage /> },
+          // Strona główna to `/aplikacje`; `/` tylko na nią wskazuje,
+          // żeby adres z paska adresu i linki w kodzie nie rozjeżdżały się.
+          { index: true, element: <Navigate to="/aplikacje" replace /> },
           { path: 'aplikacje', element: <ApplicationsListPage /> },
           { path: 'aplikacje/:id', element: <ApplicationDetailPage /> },
         ],
@@ -97,6 +100,19 @@ export const router = createBrowserRouter([
                 element: (
                   <RequirePermission permission="audit:read">
                     <AuditPage />
+                  </RequirePermission>
+                ),
+              },
+
+              {
+                // Bramka uprawnień, nie roli: `settings:write` ma dziś
+                // tylko `SUPER_ADMIN`, ale to decyzja o uprawnieniu,
+                // a nie o nazwie roli — zmiana roli nie powinna
+                // obchodzić trasy.
+                path: 'ustawienia',
+                element: (
+                  <RequirePermission permission="settings:write">
+                    <SettingsPage />
                   </RequirePermission>
                 ),
               },

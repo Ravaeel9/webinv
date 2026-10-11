@@ -65,7 +65,8 @@ export function AccountPage() {
               size="sm"
               onClick={async () => {
                 await logout();
-                navigate('/logowanie', { replace: true });
+                // Jak w menu — wylogowanie wraca na stronę główną.
+                navigate('/', { replace: true });
               }}
             >
               <IconLogout className="size-4" />

@@ -9,7 +9,7 @@ import { VersionBadge } from '../ui/VersionBadge';
 import {
   IconChevronLeft,
   IconGauge,
-  IconGrid,
+  IconGear,
   IconHistory,
   IconLogout,
   IconMenu,
@@ -17,12 +17,22 @@ import {
   IconX,
 } from '../ui/icons';
 
-/** Pozycje nawigacji — `permission` decyduje o widoczności. */
+/**
+ * Pozycje nawigacji — `permission` decyduje o widoczności.
+ *
+ * Rejestru (`/aplikacje`) tu nie ma: wejściem do niego jest logo w
+ * nagłówku, a `/` i tak przekierowuje na tę listę. Świadomie — pozycja
+ * znika z menu, nie z aplikacji, i z jej usunięciem znika też jedyny
+ * sygnał „jesteś w rejestrze", czyli `nav-item-active`. Dlatego zostawiamy
+ * link w logo.
+ */
 const NAV = [
-  { to: '/aplikacje', label: 'Aplikacje', icon: IconGrid },
   { to: '/pulpit', label: 'Pulpit', icon: IconGauge, requiresAuth: true },
   { to: '/uzytkownicy', label: 'Użytkownicy', icon: IconUsers, permission: 'user:read', requiresAuth: true },
   { to: '/audyt', label: 'Dziennik zdarzeń', icon: IconHistory, permission: 'audit:read', requiresAuth: true },
+  // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo
+  // i skasować 30 przykładowych rekordów naraz.
+  { to: '/ustawienia', label: 'Ustawienia', icon: IconGear, permission: 'settings:write', requiresAuth: true },
 ] as const;
 
 export function AppLayout() {
@@ -44,7 +54,9 @@ export function AppLayout() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/logowanie', { replace: true });
+    // `/` przekierowuje na `/aplikacje` — po wylogowaniu wracamy
+    // na stronę główną, nie na formularz logowania.
+    navigate('/', { replace: true });
   };
 
   const navLinks = (

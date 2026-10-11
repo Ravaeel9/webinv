@@ -172,7 +172,7 @@ skrótach.
 AuthProvider (korzeń, wczytuje /auth/me)
 ├── /logowanie
 ├── AppLayout                     ← widok publiczny, bez sesji
-│   ├── /                 → lista aplikacji (strona główna = rejestr)
+│   ├── /                 → przekierowanie na /aplikacje (strona główna = rejestr)
 │   ├── /aplikacje
 │   └── /aplikacje/:id
 ├── RequireAuth                  ← sesja + wymuszona zmiana hasła
