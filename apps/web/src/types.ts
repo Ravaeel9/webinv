@@ -313,8 +313,15 @@ export type DemoModeState = {
 
 /** Uprawnienia — lustrzane odbicie apps/api/src/auth/permissions.ts */
 export const PERMISSIONS = {
-  VIEWER: ['app:read', 'user:read', 'audit:read'],
-  ADMIN: ['app:read', 'app:write', 'user:read', 'audit:read'],
+  VIEWER: ['app:read', 'user:read', 'audit:read', 'ipam:read'],
+  ADMIN: [
+    'app:read',
+    'app:write',
+    'user:read',
+    'audit:read',
+    'ipam:read',
+    'ipam:write',
+  ],
   SUPER_ADMIN: [
     'app:read',
     'app:write',
@@ -325,6 +332,10 @@ export const PERMISSIONS = {
     // i skasować 30 przykładowych rekordów naraz. Lustrzane odbicie
     // `apps/api/src/auth/permissions.ts`.
     'settings:write',
+    // IPAM ma własne uprawnienia, a nie idzie pod `settings:write`:
+    // adresy i podsieci to dane operacyjne, nie konfiguracja systemu.
+    'ipam:read',
+    'ipam:write',
   ],
 } as const satisfies Record<Role, readonly string[]>;
 
