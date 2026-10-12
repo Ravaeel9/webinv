@@ -137,7 +137,7 @@ wpis istnieje, ale jest usunięty).
 | `color` | `varchar(30)` | `slate` | słowo kluczowe palety UI — kolor kafelka, nic więcej |
 | `vlan` | `smallint?` | `null` | 1–4094, pilnuje API |
 | `location` | `varchar(200)?` | `null` | |
-| `created_at` / `updated_at` | `timestamptz` | — | |
+| `created_at` / `updated_at` | `timestamp(3)` | — | |
 
 **Dlaczego brak soft-delete.** Aplikacja przeżywa w bazie po usunięciu,
 bo dziennik i historia przypisań muszą pozostać czytelne — podsieć takiego
@@ -160,8 +160,8 @@ a kasowanie idzie w jednej transakcji z **jednym** zbiorczym wpisem
 | `address` | `varchar(18)` | — | pojedynczy IPv4 bez maski, oktety bez zer wiodących |
 | `status` | `IpStatus` | `FREE` | patrz „dlaczego tu, a nie na relacji" poniżej |
 | `description` | `text?` | `null` | |
-| `last_seen_at` | `timestamptz?` | `null` | ostatnie potwierdzenie skanem; pole już w schemacie, wypełni je planowany import `nmap` |
-| `created_at` / `updated_at` | `timestamptz` | — | |
+| `last_seen_at` | `timestamp(3)?` | `null` | ostatnie potwierdzenie skanem; pole już w schemacie, wypełni je planowany import `nmap` |
+| `created_at` / `updated_at` | `timestamp(3)` | — | |
 
 Unikalność: `@@unique([subnet_id, address])` — ten sam adres nie może
 wystąpić dwukrotnie w jednej podsieci. W skali katalogu jest jednoznaczny
@@ -188,13 +188,17 @@ katalogu przez `PATCH /api/ipam/addresses/:id`.
 ### `application_ip_addresses`
 
 Tabela łącząca aplikację z adresami (m:n). Klucz główny złożony
-`(application_id, ip_address_id)`, indeks po `ip_address_id`, oba FK
+`(application_id, ip_address_id)`, indeks po `ip_address_id`, każdy wiersz
+ma `created_at` (`timestamp(3)`, domyślnie czas zapisu), oba FK
 z `onDelete: Cascade` — usunięcie podsieci (przez adresy) i twarde
 usunięcie definicji aplikacji nie mogą zostawić martwych wierszy. Soft
 delete aplikacji kaskada nie objęłaby (rekord żyje), dlatego przypisania
 zdejmuje jawnie `ApplicationsService.remove()` przez
 `IpamService.releaseIpAddressesForApplication()`; przywrócenie aplikacji
 ich **nie** odtwarza — administrator dopina adresy ponownie.
+`created_at` przeżywa wymianę zestawu przypisań, bo
+`setApplicationIpAddresses` zapisuje samą różnicę (`deleteMany` +
+`createMany` tylko na pozycjach, które odeszły lub doszły).
 
 ### `audit_logs`
 

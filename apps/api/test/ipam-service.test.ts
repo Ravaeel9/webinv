@@ -222,16 +222,23 @@ function port(stan: StanPortu = {}) {
     },
     ipAddress: {
       /**
-       * `include` udaje relację składaną przez Prisma — karta aplikacji ma
-       * pokazać, z jakiej sieci pochodzi adres, a wiersz `IpAddress` sam nie
-       * wie nic o swojej podsieci.
+       * `include` udaje relacje składane przez Prisma — karta aplikacji ma
+       * pokazać, z jakiej sieci pochodzi adres, a lista adresów ma pokazać
+       * przypisania, więc wiersz `IpAddress` sam nie wie nic o swojej
+       * podsieci ani o aplikacjach.
        */
       findMany: async ({
         where,
         include,
       }: {
         where?: { subnetId?: string; address?: string; id?: { in: string[] } };
-        include?: { subnet: { select: { id: true; name: true; cidr: true } } };
+        include?: {
+          subnet?: { select: { id: true; name: true; cidr: true } };
+          applications?: {
+            where: { application: { deletedAt: null } };
+            select: { application: { select: { id: true; name: true } } };
+          };
+        };
       } = {}) => {
         wywolania.kolejnosc.push('ipAddress.findMany');
         return adresy
@@ -239,16 +246,27 @@ function port(stan: StanPortu = {}) {
           .filter((a) => !where?.address || a.address === where.address)
           .filter((a) => !where?.id || where.id.in.includes(a.id))
           .map((a) => {
-            if (!include?.subnet) return { ...a };
-            const podsiec = podsieci.find((s) => s.id === a.subnetId);
-            // Podsieć bez adresów nie istnieje w bazie (kaskada), więc ten
-            // placeholder to tylko czytelny ślad przy uszkodzonych danych.
-            return {
-              ...a,
-              subnet: podsiec
+            const wiersz: Record<string, unknown> = { ...a };
+            if (include?.subnet) {
+              const podsiec = podsieci.find((s) => s.id === a.subnetId);
+              // Podsieć bez adresów nie istnieje w bazie (kaskada), więc ten
+              // placeholder to tylko czytelny ślad przy uszkodzonych danych.
+              wiersz.subnet = podsiec
                 ? { id: podsiec.id, name: podsiec.name, cidr: podsiec.cidr }
-                : { id: '', name: '(brak podsieci)', cidr: '' },
-            };
+                : { id: '', name: '(brak podsieci)', cidr: '' };
+            }
+            if (include?.applications) {
+              // Atrapa `where: { application: { deletedAt: null } }`:
+              // przypisanie z aplikacją usuniętą miękko nie dokleja się
+              // do wiersza, tak samo jak w SQL.
+              wiersz.applications = aplikacje
+                .filter((app) => app.deletedAt === null)
+                .filter((app) =>
+                  przypisania.some((x) => x.ipAddressId === a.id && x.applicationId === app.id),
+                )
+                .map((app) => ({ application: { id: app.id, name: app.name } }));
+            }
+            return wiersz;
           });
       },
       findUnique: async ({ where }: { where: { id: string } }) => {
@@ -637,6 +655,39 @@ describe('Pobieranie podsieci', () => {
       },
     );
   });
+
+  it('karta podsieci niesie żywe przypisania przy każdym adresie', async () => {
+    // Ten sam kontrakt co `listAddresses`: drill-down katalogu i karta
+    // podsieci czytają `addresses` z tej samej odpowiedzi, więc
+    // `getSubnet` też dokleja przypisania jednym `findMany`. Aplikacja
+    // usunięta miękko nie ma prawa wrócić — cały feature istnieje po to,
+    // żeby kasowane aplikacje nie trzymały adresów.
+    const { p, wywolania } = port({
+      podsieci: [PODNET],
+      adresy: [adres(PODNET.id, '10.20.1.5', 'IN_USE'), adres(PODNET.id, '10.20.1.6')],
+      aplikacje: [
+        aplikacja('app-1', 'Panel klienta'),
+        aplikacja('app-2', 'Wyrzucona', null, new Date('2026-02-01')),
+      ],
+      przypisania: [
+        { ipAddressId: 'ip-10.20.1.5', applicationId: 'app-1' },
+        { ipAddressId: 'ip-10.20.1.5', applicationId: 'app-2' },
+      ],
+    });
+    const detal = await serwis(p).getSubnet(PODNET.id);
+    assert.deepEqual(
+      detal.addresses.map((a) => [a.address, a.applications]),
+      [
+        ['10.20.1.5', [{ id: 'app-1', name: 'Panel klienta' }]],
+        ['10.20.1.6', []],
+      ],
+    );
+    assert.equal(
+      wywolania.kolejnosc.filter((x) => x === 'ipAddress.findMany').length,
+      1,
+      'przypisania w tym samym findMany co wiersze adresów',
+    );
+  });
 });
 
 describe('Aktualizacja podsieci', () => {
@@ -955,6 +1006,54 @@ describe('Lista adresów', () => {
     assert.deepEqual(
       wynik.addresses.map((a) => a.address),
       ['10.20.0.5'],
+    );
+  });
+
+  it('niesie żywe przypisania przy każdym adresie, jednym zapytaniem', async () => {
+    // Rejestr adresów pokazuje kolumnę „przypisane aplikacje", więc lista
+    // musi je nieść w wierszu. Osobne `GET /addresses/:id/applications`
+    // na każdy wiersz to N+1 — odrzucone przy projektowaniu. Jedno
+    // `findMany` z `include` pilnuje też kolejności wywołań w atrapie.
+    const { p, wywolania } = port({
+      podsieci: [PODNET],
+      adresy: [
+        adres(PODNET.id, '10.20.1.5', 'IN_USE'),
+        adres(PODNET.id, '10.20.1.6', 'IN_USE'),
+        adres(PODNET.id, '10.20.1.7'),
+      ],
+      aplikacje: [
+        aplikacja('app-1', 'Panel klienta'),
+        aplikacja('app-2', 'Grafana'),
+        aplikacja('app-3', 'Wyrzucona', null, new Date('2026-02-01')),
+      ],
+      // .5: dwie żywe aplikacje; .6: tylko aplikacja usunięta miękko;
+      // .7: brak przypisań.
+      przypisania: [
+        { ipAddressId: 'ip-10.20.1.5', applicationId: 'app-1' },
+        { ipAddressId: 'ip-10.20.1.5', applicationId: 'app-2' },
+        { ipAddressId: 'ip-10.20.1.6', applicationId: 'app-3' },
+      ],
+    });
+    const { addresses } = await serwis(p).listAddresses(PODNET.id);
+    assert.deepEqual(
+      addresses.map((a) => [a.address, a.applications]),
+      [
+        [
+          '10.20.1.5',
+          [
+            { id: 'app-1', name: 'Panel klienta' },
+            { id: 'app-2', name: 'Grafana' },
+          ],
+        ],
+        ['10.20.1.6', []],
+        ['10.20.1.7', []],
+      ],
+    );
+    // `findMany` na adresy dokładnie raz — przypisania są w nim, nie obok.
+    assert.equal(
+      wywolania.kolejnosc.filter((x) => x === 'ipAddress.findMany').length,
+      1,
+      'przypisania doklejone include w tym samym findMany, nie osobnym zapytaniem',
     );
   });
 });

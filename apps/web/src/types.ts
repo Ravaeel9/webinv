@@ -222,6 +222,13 @@ export interface IpAddress {
   description: string | null;
   /** Ostatnie potwierdzenie skanem; `null` dla adresu wpisanego ręcznie. */
   lastSeenAt: string | null;
+  /**
+   * Żywe przypisania aplikacji — lista adresów i karta podsieci niosą je
+   * w każdym wierszu (`include` w tym samym zapytaniu, bez N+1).
+   * Usunięta miękko aplikacja nigdy tu nie wraca: cały feature istnieje
+   * po to, żeby kasowane aplikacje nie trzymały adresów.
+   */
+  applications: { id: string; name: string }[];
 }
 
 /**

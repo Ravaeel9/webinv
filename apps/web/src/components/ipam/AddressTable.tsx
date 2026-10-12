@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Th } from '../ui/Table';
@@ -27,11 +28,11 @@ export interface AddressRow extends IpAddress {
  * tę samą tabelę bez kolumny akcji. Dzięki temu nie ma dwóch wersji
  * komponentu, które trzeba utrzymywać równolegle.
  *
- * Kolumny: adres, podsieć (opcjonalnie), status, opis, ostatni skan.
- * **Brakuje tu kolumny „przypisane aplikacje"** — świadomie: adres
- * zwracany przez API nie niesie listy przypisań, a pobranie jej
- * osobnym zapytaniem na każdy wiersz to jedna prośba o HTTP na adres.
- * Kto do jakiej aplikacji jest przypisany, widać na karcie aplikacji.
+ * Kolumny: adres, podsieć (opcjonalnie), status, opis, przypisane
+ * aplikacje, ostatni skan. Przypisania niesie sam wiersz `IpAddress`
+ * (`GET .../addresses` dokleja je `include` w tym samym zapytaniu) —
+ * osobna prośba HTTP per adres byłaby N+1, więc jej tu nie ma.
+ * Kto jest przypisany, widać jako link do karty aplikacji.
  */
 export function AddressTable({
   addresses,
@@ -60,13 +61,14 @@ export function AddressTable({
           Brak adresów.
         </p>
       ) : (
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="border-b border-line bg-page">
             <tr>
               <Th>Adres</Th>
               {showSubnet && <Th>Podsieć</Th>}
               <Th>Status</Th>
               <Th>Opis</Th>
+              <Th>Przypisane aplikacje</Th>
               <Th className="w-44">Ostatni skan</Th>
               {onDelete && (
                 <Th className="w-16">
@@ -94,6 +96,24 @@ export function AddressTable({
 
                 <td className="px-4 py-2.5 text-fg-muted">
                   {address.description ?? <span className="text-fg-subtle">—</span>}
+                </td>
+
+                <td className="px-4 py-2.5">
+                  {address.applications.length === 0 ? (
+                    <span className="text-fg-subtle">—</span>
+                  ) : (
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                      {address.applications.map((application) => (
+                        <Link
+                          key={application.id}
+                          to={`/aplikacje/${application.id}`}
+                          className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          {application.name}
+                        </Link>
+                      ))}
+                    </span>
+                  )}
                 </td>
 
                 <td className="px-4 py-2.5 meta-text">

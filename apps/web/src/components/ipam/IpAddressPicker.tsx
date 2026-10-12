@@ -29,9 +29,10 @@ import {
  * tylko załadowane dane — pokazywanie wyników „tylko z rozwiniętych
  * podsieci" byłoby udawaniem, że szukanie działa.
  *
- * Przy każdym adresie widać status i opis — administrator zaznacza
- * VIP-a świadomie i odróżni adres wolny od oznaczonego jako zajęty
- * przed zapisem, nie po nim.
+ * Przy każdym adresie widać status, opis i żywe przypisania —
+ * administrator zaznacza VIP-a świadomie: odróżni adres wolny od
+ * oznaczonego jako zajęty i zobaczy, czyje to już IP, przed zapisem,
+ * nie po nim.
  */
 export function IpAddressPicker({
   value,
@@ -212,6 +213,16 @@ function SubnetGroup({
                   >
                     {address.description ?? '—'}
                   </span>
+                  {/* Lista adresów niesie żywe przypisania w wierszu —
+                      widać więc, czyj to już adres, jeszcze przed zapisem. */}
+                  {address.applications.length > 0 && (
+                    <span
+                      className="max-w-40 shrink-0 truncate text-xs text-fg-subtle"
+                      title={address.applications.map((a) => a.name).join(', ')}
+                    >
+                      {address.applications.map((a) => a.name).join(', ')}
+                    </span>
+                  )}
                 </label>
               </li>
             ))}

@@ -42,6 +42,20 @@ export type IpAddressRow = {
 };
 
 /**
+ * Wiersz `IpAddress` z żywymi przypisaniami — kształt listy adresów
+ * (`listAddresses`) i karty podsieci (`getSubnet`).
+ *
+ * Relacja doklejana `include` w tym samym `findMany`: rejestr pokazuje
+ * „przypisane aplikacje" per wiersz, a osobne zapytanie na adres (N+1)
+ * zostało odrzucone przy projektowaniu Batch 10b. Filtrowane po
+ * `application.deletedAt: null` — usunięta miękko aplikacja nie trzyma
+ * adresu, cały feature istnieje po to, żeby tak było.
+ */
+export type IpAddressListRow = IpAddressRow & {
+  applications: { id: string; name: string }[];
+};
+
+/**
  * Wiersz `ApplicationIpAddress` — obie strony klucza złożonego.
  *
  * Serwis czyta przypisania w obie strony: po `ipAddressId` policzy
@@ -58,7 +72,7 @@ export type SubnetWithCounts = SubnetRow & {
 };
 
 /** Podsieć z pełną listą adresów — widok detalu. */
-export type SubnetDetail = SubnetRow & { addresses: IpAddressRow[] };
+export type SubnetDetail = SubnetRow & { addresses: IpAddressListRow[] };
 
 /** Dane tworzące podsieć — serwis wypełnia wszystkie pola jawnie. */
 export type SubnetCreateData = {
@@ -98,8 +112,9 @@ export type IpAddressUpdateData = Partial<
 /** Podsieć sprowadzona do obiektu — wystarczy nazwa i zakres. */
 export type SubnetRef = { id: string; name: string; cidr: string };
 
-/** Wiersz adresu z podpiętą podsiecią (odpowiedź karty aplikacji). */
-export type IpAddressWithSubnet = IpAddressRow & { subnet: SubnetRef };
+// `IpAddressWithSubnet` zniknął jako martwy eksport: `findMany` niżej opisuje
+// kształt zależny od `include` wprost (`subnet?`, `applications?`), a żadna
+// trasa nie zwraca wiersza, w którym `subnet` byłby wymagany.
 
 /**
  * Adres widziany z perspektywy aplikacji — podsieć jest tu obiektem.
@@ -137,13 +152,27 @@ export type IpamPort = {
     /**
      * `include.subnet` czytają wyłącznie odczyty przypisań aplikacji:
      * karta aplikacji musi pokazać, z jakiej sieci pochodzi adres, a wiersz
-     * `IpAddress` nie wie nic o swojej podsieci. Przy pozostałych wywołaniach
-     * `include` nie ma i relacji nie oczekujemy.
+     * `IpAddress` nie wie nic o swojej podsieci. `include.applications`
+     * czytają lista adresów i karta podsieci — żywe przypisania razem
+     * z wierszem, jednym `findMany`, żeby rejestr nie pytał o nie per
+     * adres. Przy pozostałych wywołaniach `include` nie ma i relacji
+     * nie oczekujemy.
      */
     findMany(args?: {
       where?: { subnetId?: string; address?: string; id?: { in: string[] } };
-      include?: { subnet: { select: { id: true; name: true; cidr: true } } };
-    }): Promise<IpAddressWithSubnet[]>;
+      include?: {
+        subnet?: { select: { id: true; name: true; cidr: true } };
+        applications?: {
+          where: { application: { deletedAt: null } };
+          select: { application: { select: { id: true; name: true } } };
+        };
+      };
+    }): Promise<
+      (IpAddressRow & {
+        subnet?: SubnetRef;
+        applications?: { application: { id: string; name: string } }[];
+      })[]
+    >;
     findUnique(args: { where: { id: string } }): Promise<IpAddressRow | null>;
     create(args: { data: IpAddressCreateData }): Promise<IpAddressRow>;
     update(args: { where: { id: string }; data: IpAddressUpdateData }): Promise<IpAddressRow>;

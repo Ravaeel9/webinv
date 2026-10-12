@@ -446,9 +446,12 @@ export function useApplicationIpAddresses(appId: string | undefined) {
 
 /**
  * Zestaw przypisań jest pełną listą, nie patchem, więc zapis obejmuje
- * również zdejmowanie starych. Serwer przy okazji przestawia statusy
- * adresów (`FREE` / `IN_USE`), więc poza kluczem katalogu IPAM
- * unieważniamy kartę aplikacji — zmieniła się jej sekcja z adresami.
+ * również zdejmowanie starych. Serwer NIE przestawia tu statusów adresów
+ * — `setApplicationIpAddresses` to sama wymiana zbioru wierszy relacji;
+ * statusy zmieniają CRUD adresu (`PATCH /ipam/addresses/:id`) i automat
+ * zwalniający je przy soft delete aplikacji. Unieważniamy katalog IPAM
+ * (licznik `applicationCount`) i kartę aplikacji — zmieniła się jej
+ * sekcja z adresami.
  */
 export function useSetApplicationIpAddresses(appId: string) {
   const queryClient = useQueryClient();

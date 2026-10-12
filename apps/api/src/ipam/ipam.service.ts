@@ -13,6 +13,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/decorators';
@@ -36,6 +37,7 @@ import type {
   ApplicationIpAddressRef,
   ApplicationRefRow,
   IpAddressCreateData,
+  IpAddressListRow,
   IpAddressRow,
   IpAddressUpdateData,
   SubnetCreateData,
@@ -51,6 +53,21 @@ import type {
  * serwisie — to serwis jest tym, co kontroler wystawia w trasie.
  */
 export type { ApplicationIpAddressRef } from './ipam.port';
+
+/**
+ * Include dla listy adresów i karty podsieci: żywe przypisania razem
+ * z wierszem, w TYM SAMYM `findMany`. Osobne zapytanie na adres (N+1)
+ * zostało odrzucone przy projektowaniu rejestru, a filtr
+ * `application.deletedAt: null` idzie do SQL — usunięta miękko aplikacja
+ * nie trzyma adresu i nie ma jej wracać na listę nawet doklejoną
+ * do wiersza.
+ */
+const ZYWE_PRZYPISANIA = {
+  applications: {
+    where: { application: { deletedAt: null } },
+    select: { application: { select: { id: true, name: true } } },
+  },
+} satisfies Prisma.IpAddressInclude;
 
 @Injectable()
 export class IpamService {
@@ -275,15 +292,25 @@ export class IpamService {
 
   // ── Adresy IP ───────────────────────────────────────────────
 
-  async listAddresses(subnetId: string): Promise<{ addresses: IpAddressRow[]; total: number }> {
+  async listAddresses(
+    subnetId: string,
+  ): Promise<{ addresses: IpAddressListRow[]; total: number }> {
     // `total` osobno od długości listy: to ten sam kontrakt, którego
     // pilnując `findMany` + `count`, katalog nie musi wymyślać paginacji
     // od zera przy pierwszej potrzebie nagłówka „znaleziono N".
+    // Przypisania aplikacji wchodzą w ten sam `findMany` — rejestr
+    // pokazuje je per wiersz, a osobne zapytanie na adres było N+1.
     const [adresy, total] = await Promise.all([
-      this.prisma.ipAddress.findMany({ where: { subnetId } }),
+      this.prisma.ipAddress.findMany({
+        where: { subnetId },
+        include: ZYWE_PRZYPISANIA,
+      }),
       this.prisma.ipAddress.count({ where: { subnetId } }),
     ]);
-    return { addresses: this.sortByAdres(adresy), total };
+    return {
+      addresses: this.sortByAdres(adresy).map((a) => this.zPrzypisaniami(a)),
+      total,
+    };
   }
 
   async createAddress(
@@ -755,20 +782,36 @@ export class IpamService {
     return { id: a.id, name: a.name, url: a.baseUrl ?? '' };
   }
 
+  /** Wiersz z `include.applications` → kontrakt listy: płaskie `{ id, name }`. */
+  private zPrzypisaniami(
+    adres: IpAddressRow & {
+      applications: { application: { id: string; name: string } }[];
+    },
+  ): IpAddressListRow {
+    // Prisma zwraca parę łączącą (`application` siedzi o poziom głębiej,
+    // bo wiersz relacji może kiedyś nieść więcej niż identyfikator);
+    // rejestr pokazuje aplikacje, nie pary — spłaszczamy na granicy.
+    return { ...adres, applications: adres.applications.map((p) => p.application) };
+  }
+
   /** Wiersz podsieci z adresami posortowanymi numerycznie. */
   private async toDetail(subnet: SubnetRow): Promise<SubnetDetail> {
     const adresy = await this.prisma.ipAddress.findMany({
       where: { subnetId: subnet.id },
+      include: ZYWE_PRZYPISANIA,
     });
-    return { ...subnet, addresses: this.sortByAdres(adresy) };
+    return {
+      ...subnet,
+      addresses: this.sortByAdres(adresy).map((a) => this.zPrzypisaniami(a)),
+    };
   }
 
   /**
    * Sortowanie numeryczne adresów.
    *
    * Generyczne, bo wiersze bywają szersze niż `IpAddressRow` — przy
-   * odczycie przypisań niesą podpiętą podsieć, a sortowanie nie może jej
-   * zgubić po drodze.
+   * odczycie przypisań niosą podpiętą podsieć albo relację aplikacji,
+   * a sortowanie nie może ich zgubić po drodze.
    */
   private sortByAdres<T extends IpAddressRow>(adresy: T[]): T[] {
     // Numerycznie, nie leksykograficznie: „10.20.0.40" < „10.20.0.5"

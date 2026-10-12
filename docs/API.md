@@ -227,17 +227,24 @@ sam katalog, a nie zasób `/api/applications`.
 | Metoda | Ścieżka | Uprawnienie | Opis |
 |---|---|---|---|
 | `GET` | `/ipam/subnets` | `ipam:read` | `{ subnets, total }` — lista z licznikami (`addressCount`, `freeCount`, `applicationCount`), sort po numerze sieci i prefiksie |
-| `GET` | `/ipam/subnets/:id` | `ipam:read` | `{ subnet }` — karta z pełną listą `addresses` |
+| `GET` | `/ipam/subnets/:id` | `ipam:read` | `{ subnet }` — karta z pełną listą `addresses`; każdy adres niesie `applications: [{ id, name }]` (tylko żywe przypisania) |
 | `POST` | `/ipam/subnets` | `ipam:write` | `{ subnet }` — `name`, `cidr` wymagane; `description`, `color` (małe litery), `vlan` 1–4094, `location` opcjonalne |
 | `PATCH` | `/ipam/subnets/:id` | `ipam:write` | `{ subnet }` — scalanie jak przy aplikacjach; pusty PATCH to no-op bez wpisu w dzienniku |
 | `DELETE` | `/ipam/subnets/:id` | `ipam:write` | `200 { ok: true }` — **kaskadowe usunięcie trwałe**: adresy i ich przypisania znikają razem z podsiecią |
-| `GET` | `/ipam/subnets/:id/addresses` | `ipam:read` | `{ addresses, total }` — posortowane numerycznie; `404` dla nieznanej podsieci, żeby literówka w linku nie wyglądała na „podsieć istnieje i jest pusta" |
+| `GET` | `/ipam/subnets/:id/addresses` | `ipam:read` | `{ addresses, total }` — posortowane numerycznie, każdy wiersz z `applications: [{ id, name }]` (tylko żywe przypisania, doklejone tym samym `findMany` — bez N+1); `404` dla nieznanej podsieci, żeby literówka w linku nie wyglądała na „podsieć istnieje i jest pusta" |
 | `POST` | `/ipam/subnets/:id/addresses` | `ipam:write` | `{ address }` — adres musi leżeć w zakresie podsieci i być adresem hosta; opcjonalnie `status`, `description` |
 | `PATCH` | `/ipam/addresses/:id` | `ipam:write` | `{ address }` — status, opis; zmiany statusu przestawiają liczniki katalogu |
 | `DELETE` | `/ipam/addresses/:id` | `ipam:write` | `200 { ok: true }`; `409`, gdy adres ma choć jedno żywe przypisanie — najpierw odpiąć go od aplikacji |
 | `GET` | `/ipam/addresses/:id/applications` | `ipam:read` | `{ applications: [{ id, name, url }] }` — tylko aplikacje żywe (`deletedAt IS NULL`) |
 | `GET` | `/ipam/applications/:appId/ip-addresses` | `app:read` | `{ addresses }` — adresy z `subnet { id, name, cidr }`; nieznany `appId` zwraca `200` z pustą listą (świadomie — patrz komentarz w kontrolerze) |
 | `PUT` | `/ipam/applications/:appId/ip-addresses` | `app:write` | `{ ipAddressIds }` — patrz semantyka poniżej |
+
+Lista adresów (`GET .../subnets/:id/addresses` i `addresses` w karcie
+`GET .../subnets/:id`) niesie w każdym wierszu `applications: [{ id, name }]`
+— żywe przypisania (`deletedAt IS NULL`), doklejone `include` w tym samym
+`findMany`, bez osobnego zapytania per adres. Trasa
+`GET /ipam/addresses/:id/applications` zostaje jako pełny widok z URL-em
+aplikacji.
 
 Semantyka `PUT /ipam/applications/:appId/ip-addresses`:
 
