@@ -99,6 +99,23 @@ export function pluralDays(n: number): string {
   return n === 1 ? 'dzień' : 'dni';
 }
 
+/**
+ * Liczba z polską odmianą jednostki: `1 {jeden}`, `2–4 {kilka}`,
+ * `5+ i zero {wiele}`. Reguła w jednym miejscu, bo dwuelementowe
+ * wersje rozmijały się z gramatyką: „2 adresów" (1/wiele),
+ * „5 aplikacje" (1/kilka) i „0 adresy są przypisane" to ta sama szkoda.
+ * Wyjątek 12–14: tam nawet końcówka 2–4 liczy się jako forma wielu
+ * („12 aplikacji", nie „12 aplikacje").
+ */
+export function liczba(n: number, jeden: string, kilka: string, wiele: string): string {
+  if (n === 1) return `1 ${jeden}`;
+  const jednosci = n % 10;
+  const dziesiatki = n % 100;
+  return `${n} ${
+    jednosci >= 2 && jednosci <= 4 && (dziesiatki < 12 || dziesiatki > 14) ? kilka : wiele
+  }`;
+}
+
 // `truncate` nie miał call-site'ów (pozostałe wystąpienia nazwy to klasa
 // Tailwind `.truncate` w JSX). Usunięty jako martwy eksport.
 

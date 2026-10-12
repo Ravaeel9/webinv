@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useDeleteAddress, useSubnets, useSubnetAddresses } from '../lib/queries';
+import { liczba } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
 import { Badge } from '../components/ui/Badge';
@@ -44,11 +45,13 @@ export function IpamListPage() {
       <PageHeader
         title="Adresy IP"
         description={
-          isLoading
+          // Przy błędzie liczniki liczone z pustej listy („0 podsieci ·
+          // 0 adresów") wyglądałyby jak fakty obok banera błędu — chowamy je.
+          isLoading || error
             ? undefined
-            : `${counts.subnets} ${counts.subnets === 1 ? 'podsieć' : 'podsieci'} · ` +
-              `${counts.addresses} ${counts.addresses === 1 ? 'adres' : 'adresów'}, ` +
-              `w tym ${counts.free} wolnych`
+            : `${liczba(counts.subnets, 'podsieć', 'podsieci', 'podsieci')} · ` +
+              `${liczba(counts.addresses, 'adres', 'adresy', 'adresów')}, ` +
+              `w tym ${liczba(counts.free, 'wolny', 'wolne', 'wolnych')}`
         }
         actions={
           can('ipam:write') && (
@@ -120,11 +123,6 @@ export function IpamListPage() {
   );
 }
 
-/** Liczba z jednostką — „12 adresów", „1 adres”. */
-function liczba(n: number, jeden: string, wiele: string): string {
-  return `${n} ${n === 1 ? jeden : wiele}`;
-}
-
 function SubnetRow({
   subnet,
   expanded,
@@ -148,23 +146,36 @@ function SubnetRow({
 
   return (
     <>
-      <tr
-        className="cursor-pointer align-middle hover:bg-page"
-        onClick={onToggle}
-        aria-expanded={expanded}
-      >
-        <td className="px-2 py-2.5 text-fg-subtle">
-          {/* Ikona dekoracyjna — stan niesie `aria-expanded` na wierszu. */}
-          <IconChevronRight
-            className={`size-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
-          />
+      <tr className="cursor-pointer align-middle hover:bg-page" onClick={onToggle}>
+        <td className="px-2 py-2.5">
+          {/* Prawdziwy przycisk, nie sam klik w wiersz: klawiatura i czytniki
+              ekranu dostają stan (`aria-expanded`) i wskazanie rozwijanego
+              rejonu (`aria-controls`); klik wiersza zostaje dla myszy. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            aria-expanded={expanded}
+            aria-controls={`adresy-${subnet.id}`}
+            aria-label={
+              expanded
+                ? `Ukryj adresy podsieci ${subnet.name}`
+                : `Pokaż adresy podsieci ${subnet.name}`
+            }
+            className="flex size-6 items-center justify-center rounded-md text-fg-subtle hover:bg-page"
+          >
+            <IconChevronRight
+              className={`size-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
+            />
+          </button>
         </td>
 
         <td className="px-4 py-2.5">
           <span
             className="mr-2 inline-block size-2.5 shrink-0 rounded-full align-middle"
             style={{ backgroundColor: color }}
-            title={`Kolor: ${subnet.color}`}
             aria-hidden="true"
           />
           <span className="font-medium text-fg">{subnet.name}</span>
@@ -180,12 +191,12 @@ function SubnetRow({
         </td>
 
         <td className="px-4 py-2.5">
-          <span className="tabular-nums text-fg">{liczba(zajete, 'zajęty', 'zajętych')}</span>
+          <span className="tabular-nums text-fg">{liczba(zajete, 'zajęty', 'zajęte', 'zajętych')}</span>
           <span className="mx-1 text-fg-subtle">/</span>
-          <span className="tabular-nums text-fg-muted">{liczba(subnet.addressCount, 'adres', 'adresów')}</span>
+          <span className="tabular-nums text-fg-muted">{liczba(subnet.addressCount, 'adres', 'adresy', 'adresów')}</span>
           {subnet.freeCount > 0 && (
             <Badge tone="neutral" dot={false} className="ml-2 text-[11px]">
-              {liczba(subnet.freeCount, 'wolny', 'wolnych')}
+              {liczba(subnet.freeCount, 'wolny', 'wolne', 'wolnych')}
             </Badge>
           )}
         </td>
@@ -193,7 +204,7 @@ function SubnetRow({
         <td className="px-4 py-2.5">
           {subnet.applicationCount > 0 ? (
             <Badge tone="info" dot={false}>
-              {liczba(subnet.applicationCount, 'aplikacja', 'aplikacje')}
+              {liczba(subnet.applicationCount, 'aplikacja', 'aplikacje', 'aplikacji')}
             </Badge>
           ) : (
             <span className="meta-text">brak przypisań</span>
@@ -214,7 +225,7 @@ function SubnetRow({
       </tr>
 
       {expanded && (
-        <tr>
+        <tr id={`adresy-${subnet.id}`}>
           <td colSpan={7} className="bg-page px-4 py-3">
             {isLoading ? (
               <Spinner label="Ładowanie adresów…" />
@@ -251,7 +262,12 @@ function SubnetRow({
         subnetName={subnet.name}
         pending={remove.isPending}
         error={remove.error}
-        onClose={() => setDoUsuniecia(null)}
+        // `reset()` w domykaniu: bez niego powtórne otwarcie pokazuje
+        // błąd poprzedniej próby, którego już dawno nie ma.
+        onClose={() => {
+          setDoUsuniecia(null);
+          remove.reset();
+        }}
         onConfirm={async () => {
           if (!doUsuniecia) return;
           await remove.mutateAsync(doUsuniecia.id);

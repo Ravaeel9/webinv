@@ -14,6 +14,7 @@ import {
   useUpdateApplication,
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
+import { ApiError } from '../lib/api';
 import { PageHeader } from '../components/layout/AppLayout';
 import { IpAddressPicker } from '../components/ipam/IpAddressPicker';
 import { Button, buttonClass } from '../components/ui/Button';
@@ -242,6 +243,9 @@ export function ApplicationFormPage() {
     attempt: number;
   } | null>(null);
   const [assignFailed, setAssignFailed] = useState(false);
+  // Powód porażki drugiego kroku — administrator musi odróżnić 404
+  // (adresy między czasem skasowane) od kiwnięcia sieci.
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const mutation = effectiveId ? update : create;
 
@@ -313,6 +317,7 @@ export function ApplicationFormPage() {
     // Przypisania z poprzedniej próby jeszcze leci — nie dublujemy.
     if (assignJob && !assignFailed) return;
     setAssignFailed(false);
+    setAssignError(null);
 
     if (!validate()) {
       // Przewijamy do pierwszego błędu, żeby formularz nie był „gubiony"
@@ -407,6 +412,9 @@ export function ApplicationFormPage() {
               się przy ponowieniu. Możesz poprawić zaznaczenie i zapisać
               jeszcze raz albo spróbować ponownie samych przypisań.
             </p>
+            {assignError && (
+              <p className="mt-1 text-fg-muted">Powód: {assignError}</p>
+            )}
           </div>
           <button
             type="button"
@@ -415,6 +423,7 @@ export function ApplicationFormPage() {
                 prev ? { ...prev, attempt: prev.attempt + 1 } : prev,
               );
               setAssignFailed(false);
+              setAssignError(null);
             }}
             className="shrink-0 rounded-md px-2 py-1 text-xs font-medium
                        underline-offset-2 hover:underline"
@@ -918,7 +927,16 @@ export function ApplicationFormPage() {
             onSaved={() =>
               navigate(`/aplikacje/${assignJob.appId}`, { replace: true })
             }
-            onFailed={() => setAssignFailed(true)}
+            onFailed={(error) => {
+              // Ta sama konwencja co w `ErrorMessage`: z API polski komunikat
+              // (np. 404 o skasowanym adresie), poza nim ogólne zdanie.
+              setAssignError(
+                error instanceof ApiError
+                  ? error.message
+                  : 'Coś poszło nie tak. Spróbuj ponownie.',
+              );
+              setAssignFailed(true);
+            }}
           />
         )}
 
@@ -975,7 +993,8 @@ function AddressAssignStep({
   appId: string;
   ids: string[];
   onSaved: () => void;
-  onFailed: () => void;
+  /** Dostaje błąd mutacji — rodzic pokazuje jego powód w banerze ostrzeżenia. */
+  onFailed: (error: unknown) => void;
 }) {
   const assign = useSetApplicationIpAddresses(appId);
   const started = useRef(false);

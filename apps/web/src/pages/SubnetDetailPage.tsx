@@ -8,6 +8,7 @@ import {
   useSubnets,
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
+import { liczba } from '../lib/format';
 import { PageHeader } from '../components/layout/AppLayout';
 import { Button } from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
@@ -73,7 +74,7 @@ export function SubnetDetailPage() {
   // `FREE`, a `IN_USE` bywa ręczną adnotacją bez żadnego właściciela.
   // `useSubnets` dzieli zapytanie z katalogiem (ten sam klucz, ten sam
   // cache), więc dla wejścia z listy nie ma tu dodatkowego ruchu sieci.
-  const { data: katalog } = useSubnets();
+  const { data: katalog, error: katalogError } = useSubnets();
   const podsumowanie = katalog?.subnets.find((s) => s.id === id);
   const znikaPrzypisania =
     addresses.length === 0 ? 0 : podsumowanie?.applicationCount;
@@ -82,6 +83,13 @@ export function SubnetDetailPage() {
     if (!id) return;
     await removeSubnet.mutateAsync(id);
     navigate('/ipam', { replace: true });
+  };
+
+  // Domykanie okna kasacji: `reset()` kasuje błąd minionej próby — bez niego
+  // ponowne otwarcie pokazywałoby komunikat, którego dawno nie ma.
+  const zamknijPotwierdzenie = () => {
+    setConfirmingDelete(false);
+    removeSubnet.reset();
   };
 
   const submitAddress = async (event: FormEvent) => {
@@ -115,7 +123,7 @@ export function SubnetDetailPage() {
         title={subnet.name}
         description={
           `${subnet.cidr} · VLAN ${subnet.vlan ?? '—'} · ` +
-          `${addresses.length} ${addresses.length === 1 ? 'adres' : 'adresów'}`
+          liczba(addresses.length, 'adres', 'adresy', 'adresów')
         }
         back={{ to: '/ipam', label: 'Wróć do katalogu' }}
         actions={
@@ -262,10 +270,10 @@ export function SubnetDetailPage() {
         size="sm"
         title="Usunąć podsieć?"
         description="Usunięcie jest trwałe — nie da się go cofnąć."
-        onClose={() => setConfirmingDelete(false)}
+        onClose={zamknijPotwierdzenie}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>
+            <Button variant="secondary" onClick={zamknijPotwierdzenie}>
               Anuluj
             </Button>
             <Button
@@ -288,27 +296,28 @@ export function SubnetDetailPage() {
         <ul className="mt-3 space-y-1.5 text-sm text-fg-muted">
           <li className="flex items-baseline gap-2">
             <span className="tabular-nums font-semibold text-fg">
-              {addresses.length}
+              {liczba(addresses.length, 'adres IP', 'adresy IP', 'adresów IP')}
             </span>
-            <span>
-              {addresses.length === 1 ? 'adres IP' : 'adresów IP'} wraz
-              z opisami
-            </span>
+            <span>wraz z opisami</span>
           </li>
           <li className="flex items-baseline gap-2">
             {znikaPrzypisania === undefined ? (
-              <span>Liczba adresów z przypisaniami właśnie się wczytuje…</span>
+              <span>
+                {katalogError
+                  ? '— (brak danych)'
+                  : 'Liczba adresów z przypisaniami właśnie się wczytuje…'}
+              </span>
+            ) : znikaPrzypisania === 0 ? (
+              <span>Żaden adres nie jest przypisany do aplikacji.</span>
             ) : (
-              <>
-                <span className="tabular-nums font-semibold text-fg">
-                  {znikaPrzypisania}
-                </span>
-                <span>
-                  {znikaPrzypisania === 1
-                    ? 'adres jest przypisany do aplikacji — przypisanie zniknie razem z nim'
-                    : 'adresy są przypisane do aplikacji — przypisania znikną razem z nimi'}
-                </span>
-              </>
+              <span>
+                {liczba(
+                  znikaPrzypisania,
+                  'adres jest przypisany do aplikacji — przypisanie zniknie razem z nim',
+                  'adresy są przypisane do aplikacji — przypisania znikną razem z nimi',
+                  'adresów jest przypisanych do aplikacji — przypisania znikną razem z nimi',
+                )}
+              </span>
             )}
           </li>
         </ul>
@@ -332,7 +341,12 @@ export function SubnetDetailPage() {
         subnetName={subnet.name}
         pending={removeAddress.isPending}
         error={removeAddress.error}
-        onClose={() => setAddressToDelete(null)}
+        // Jak przy oknie podsieci: błąd minionej próby nie może przeżyć
+        // ponownego otwarcia.
+        onClose={() => {
+          setAddressToDelete(null);
+          removeAddress.reset();
+        }}
         onConfirm={async () => {
           if (!addressToDelete) return;
           await removeAddress.mutateAsync(addressToDelete.id);

@@ -226,7 +226,7 @@ export function SubnetFormPage() {
               placeholder="10.20.0.0/16"
               // Podpowiedź, nie walidacja: serwer i tak odrzuci
               // zakres kolidujący z inną podsiecią.
-              hint="Adres SIEĆ, nie adres hosta — dla 10.20.1.0–10.20.255.255 wpisz 10.20.0.0/16."
+              hint="Adres sieci, nie adres hosta — dla 10.20.1.0–10.20.255.255 wpisz 10.20.0.0/16."
             />
             <TextInput
               label="VLAN"

@@ -163,7 +163,6 @@ function SubnetGroup({
         <span
           className="inline-block size-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
-          title={`Kolor: ${subnet.color}`}
           aria-hidden="true"
         />
         <span className="min-w-0 truncate font-medium text-fg">
