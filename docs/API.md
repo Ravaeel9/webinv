@@ -39,11 +39,11 @@ kilka powodów odrzucenia):
 
 | Kod | Znaczenie w tym API |
 |---|---|
-| `400` | niepoprawny ładunek, nieznane pole, zła data, wycofanie przed wprowadzeniem, zbyt słabe hasło |
+| `400` | niepoprawny ładunek, nieznane pole, zła data, wycofanie przed wprowadzeniem, zbyt słabe hasło; w IPAM także zły CIDR/IPv4 i adres poza podsiecią |
 | `401` | brak sesji lub sesja wygasła |
 | `403` | brak uprawnienia **albo** konto ma obowiązek zmiany hasła startowego |
 | `404` | nie ma takiego rekordu (aplikacja usunięta liczy się jako nieistniejąca) |
-| `409` | konflikt unikalności (nazwa aplikacji, nazwa użytkownika, e-mail) |
+| `409` | konflikt unikalności (nazwa aplikacji, nazwa użytkownika, e-mail); w IPAM nakładanie zakresów podsieci i duplikat adresu |
 | `429` | przekroczony limit zapytań (300/min na IP; logowanie: `LOGIN_RATE_LIMIT_MAX` w oknie `LOGIN_RATE_LIMIT_WINDOW`) |
 
 ## Health
@@ -212,6 +212,51 @@ Pola ukryte przed gościem (nieobecne w odpowiedzi): `securityClass`,
 zostają `deliveryType` i `baseUrl`, bo to informacja techniczna, a nie
 dana wewnętrzna.
 
+## Katalog IPAM `/api/ipam`
+
+Katalog podsieci, adresów i ich przypisań do aplikacji. **Żadna trasa nie
+jest `@Public()`** — mapa infrastruktury (adresy sieci wewnętrznych,
+VLAN-y, przypisania) wymaga sesji przed sprawdzeniem uprawnień.
+`ipam:read` ma każda rola zalogowana, zapisy wymagają `ipam:write`.
+
+Wyjątkiem są dwie trasy przypisań aplikacji: tam patrzy karta aplikacji,
+nie katalog, więc zamiast uprawnień IPAM wymagane jest `app:read` (odczyt)
+i `app:write` (zapis). Trasy mimo to mieszkają pod `/api/ipam` — to ten
+sam katalog, a nie zasób `/api/applications`.
+
+| Metoda | Ścieżka | Uprawnienie | Opis |
+|---|---|---|---|
+| `GET` | `/ipam/subnets` | `ipam:read` | `{ subnets, total }` — lista z licznikami (`addressCount`, `freeCount`, `applicationCount`), sort po numerze sieci i prefiksie |
+| `GET` | `/ipam/subnets/:id` | `ipam:read` | `{ subnet }` — karta z pełną listą `addresses` |
+| `POST` | `/ipam/subnets` | `ipam:write` | `{ subnet }` — `name`, `cidr` wymagane; `description`, `color` (małe litery), `vlan` 1–4094, `location` opcjonalne |
+| `PATCH` | `/ipam/subnets/:id` | `ipam:write` | `{ subnet }` — scalanie jak przy aplikacjach; pusty PATCH to no-op bez wpisu w dzienniku |
+| `DELETE` | `/ipam/subnets/:id` | `ipam:write` | `200 { ok: true }` — **kaskadowe usunięcie trwałe**: adresy i ich przypisania znikają razem z podsiecią |
+| `GET` | `/ipam/subnets/:id/addresses` | `ipam:read` | `{ addresses, total }` — posortowane numerycznie; `404` dla nieznanej podsieci, żeby literówka w linku nie wyglądała na „podsieć istnieje i jest pusta" |
+| `POST` | `/ipam/subnets/:id/addresses` | `ipam:write` | `{ address }` — adres musi leżeć w zakresie podsieci i być adresem hosta; opcjonalnie `status`, `description` |
+| `PATCH` | `/ipam/addresses/:id` | `ipam:write` | `{ address }` — status, opis; zmiany statusu przestawiają liczniki katalogu |
+| `DELETE` | `/ipam/addresses/:id` | `ipam:write` | `200 { ok: true }`; `409`, gdy adres ma choć jedno żywe przypisanie — najpierw odpiąć go od aplikacji |
+| `GET` | `/ipam/addresses/:id/applications` | `ipam:read` | `{ applications: [{ id, name, url }] }` — tylko aplikacje żywe (`deletedAt IS NULL`) |
+| `GET` | `/ipam/applications/:appId/ip-addresses` | `app:read` | `{ addresses }` — adresy z `subnet { id, name, cidr }`; nieznany `appId` zwraca `200` z pustą listą (świadomie — patrz komentarz w kontrolerze) |
+| `PUT` | `/ipam/applications/:appId/ip-addresses` | `app:write` | `{ ipAddressIds }` — patrz semantyka poniżej |
+
+Semantyka `PUT /ipam/applications/:appId/ip-addresses`:
+
+- **wymienia cały zestaw**, nie patchuje — pusta lista odpina wszystkie
+  adresy, maks. 100 identyfikatorów;
+- `404`, gdy aplikacja nie istnieje **albo jest usunięta** (soft delete
+  nie przyjmuje powiązań, których nikt nie zamawiał) oraz gdy któryś
+  `ipAddressId` nie istnieje — wtedy nic nie zostaje zapisane;
+- niezmieniony zestaw to no-op: brak transakcji, brak wpisu w dzienniku;
+- PUT **nie dotyka statusów adresów** — `status` jest właściwością adresu
+  i zmienia go `PATCH /ipam/addresses/:id`; jedyny wyjątek to automat
+  zwalniający adresy przy soft delete aplikacji (patrz
+  [BAZA-DANYCH.md](BAZA-DANYCH.md)).
+
+Błędy specyficzne dla katalogu: `400` za zły format CIDR/IPv4 (oktety bez
+zer wiodących), adres sieciowy/rozgłoszeniowy (wyjątek: `/31` i `/32`),
+adres poza zakres podsieci; `409` za nakładanie zakresów podsieci i za
+duplikat adresu w tej samej podsieci.
+
 ## Użytkownicy `/api/users`
 
 | Metoda | Ścieżka | Uprawnienie | Opis |
@@ -282,6 +327,9 @@ Zdarzenia występujące w systemie:
 | `auth.password_change_required` | `User` | wymuszenie zmiany hasła |
 | `auth.session_revoked` | `Session` | zakończenie sesji z panelu „Moje konto” |
 | `app.created` / `app.updated` / `app.deleted` / `app.restored` | `Application` | zapis rejestru |
+| `ip_addresses.update` | `Application` | wymiana zestawu przypisanych adresów (liczby dodanych i zdjętych, nie pozycje) |
+| `subnet.created` / `subnet.updated` / `subnet.deleted` | `Subnet` | zapis katalogu podsieci |
+| `address.created` / `address.updated` / `address.deleted` | `IpAddress` | zapis katalogu adresów |
 | `user.created` / `user.updated` / `user.deleted` | `User` | zarządzanie kontami |
 | `user.sessions_revoked` | `User` | unieważnienie sesji po zmianie roli lub wyłączeniu |
 

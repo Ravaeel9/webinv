@@ -86,8 +86,30 @@ AppModule
 ├── UsersModule          /api/users (konta)
 ├── AuditModule          /api/audit (dziennik) + AuditService dla pozostałych modułów
 ├── ApplicationsModule   /api/applications (rejestr)
+├── IpamModule           /api/ipam (katalog podsieci, adresów i przypisań)
 └── SeedModule           dane startowe po starcie aplikacji
 ```
+
+### Katalog IPAM obok rejestru
+
+`ipam/` stoi jako osobny moduł obok `applications/` i ma własny prefiks tras
+`/api/ipam`: podsieci i adresy to dane sieciowe, które przeżywają wpisy
+rejestru, więc mieszanie obu drzew w jednym prefiksie zrobiłoby z niego
+worek. Jedyne sprzężenie idzie w jednym kierunku — `ApplicationsService.remove()`
+pyta `IpamService` o zdjęcie przypisań przy soft delete (stąd eksport
+`IpamService` z modułu i rejestracja `IpamModule` zaraz po
+`ApplicationsModule`). Dwie trasy przypisań aplikacji rezydują w IPAM, ale
+badają `app:read`/`app:write` — to widok karty aplikacji, nie katalogu.
+
+We wnętrzu modułu dwa rozdzielenia są celowe. `cidr.ts` to osobna warstwa
+czysta — bez Prisma i bez NestJS — bo rachunek na bitach (format CIDR,
+nakładanie zakresów, zawieranie adresu) jest najłatwiejszym miejscem IPAM
+na pomyłkę i musi dać się przetestować bez kontenera z bazą. Serwis z kolei
+rozmawia z bazą przez `IpamPort` — wąski typ wyliczający dokładnie te
+delegaty i metody, których serwis używa: runtime dostaje `PrismaService`
+(spełnia port strukturalnie), ale testy budują serwis na atrapie rzuconej
+na port, bez bazy, a rozjazd kontraktu jest błędem kompilacji, nie
+runtime'u.
 
 ### Warstwy w kontrolerach i serwisach
 
@@ -181,6 +203,10 @@ AuthProvider (korzeń, wczytuje /auth/me)
 │       ├── /konto
 │       ├── /aplikacje/nowa        (app:write)
 │       ├── /aplikacje/:id/edycja  (app:write)
+│       ├── /ipam                  (sesja — cała gałąź IPAM jest za `RequireAuth`)
+│       ├── /ipam/nowa             (ipam:write)
+│       ├── /ipam/:id              (sesja)
+│       ├── /ipam/:id/edycja       (ipam:write)
 │       ├── /uzytkownicy           (user:read)
 │       └── /audyt                 (audit:read)
 └── AppLayout → 404
