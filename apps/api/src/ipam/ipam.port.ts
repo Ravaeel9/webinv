@@ -67,6 +67,36 @@ export type SubnetCreateData = {
 /** Patch podsieci — `undefined` to „nie ruszaj pola", semantyka Prisma. */
 export type SubnetUpdateData = Partial<SubnetCreateData>;
 
+/**
+ * Dane tworzące adres — `lastSeenAt` jest tu polem wymaganym, nie
+ * domyślnym. Serwis ustawia je jawnie na `null`, bo adres wpisany ręcznie
+ * nie był potwierdzony skanem, a domyślnie brakujące pole wyglądałoby
+ * w dzienniku tak samo jak skasowane.
+ */
+export type IpAddressCreateData = {
+  subnetId: string;
+  address: string;
+  status: IpAddressStatus;
+  description: string | null;
+  lastSeenAt: Date | null;
+};
+
+/**
+ * Patch adresu. `lastSeenAt` celowo nieobecne: to wynik skanu, nie pole
+ * do edycji ręcznej (skan przywróci je, import zadania 10).
+ */
+export type IpAddressUpdateData = Partial<
+  Pick<IpAddressCreateData, 'address' | 'status' | 'description'>
+>;
+
+/** Wiersz aplikacji w odpowiedzi na „kto używa tego adresu". */
+export type ApplicationRefRow = {
+  id: string;
+  name: string;
+  /** Kolumna `baseUrl` — nullable, a sygnatura metody obiecuje `string`. */
+  baseUrl: string | null;
+};
+
 export type IpamPort = {
   subnet: {
     findMany(): Promise<SubnetRow[]>;
@@ -76,18 +106,34 @@ export type IpamPort = {
     delete(args: { where: { id: string } }): Promise<SubnetRow>;
   };
   ipAddress: {
-    findMany(args?: { where?: { subnetId?: string } }): Promise<IpAddressRow[]>;
+    findMany(args?: { where?: { subnetId?: string; address?: string } }): Promise<IpAddressRow[]>;
+    findUnique(args: { where: { id: string } }): Promise<IpAddressRow | null>;
+    create(args: { data: IpAddressCreateData }): Promise<IpAddressRow>;
+    update(args: { where: { id: string }; data: IpAddressUpdateData }): Promise<IpAddressRow>;
+    delete(args: { where: { id: string } }): Promise<IpAddressRow>;
     count(args: { where: { subnetId: string } }): Promise<number>;
   };
   applicationIpAddress: {
-    findMany(): Promise<AssignmentRow[]>;
+    /**
+     * Bez argumentów — czytają liczniki katalogu (przypisania ze WSZYSTKICH
+     * aplikacji, również usuniętych miękko; właścicielem tej semantyki jest
+     * Task 7). Z `where.ipAddressId` czyta `removeAddress`.
+     */
+    findMany(args?: { where?: { ipAddressId?: string } }): Promise<AssignmentRow[]>;
+    count(args: { where: { ipAddressId: string } }): Promise<number>;
   };
   /**
-   * Tylko `findFirst` — służy walidacji istnienia aplikacji przy
-   * przypisywaniu adresów (metody adresów dochodzą w Task 6–7).
+   * `findFirst` służy walidacji istnienia aplikacji przy przypisywaniu
+   * adresów, `findMany` — odczytowi „kto używa tego adresu" z filtrem
+   * `deletedAt: null` w SQL (usunięta aplikacja to śmieć, nie powód, by
+   * pokazywać ją na karcie adresu).
    */
   application: {
     findFirst(args: { where: { id: string } }): Promise<{ id: string } | null>;
+    findMany(args: {
+      where: { deletedAt: null; ipAddresses: { some: { ipAddressId: string } } };
+      select: { id: true; name: true; baseUrl: true };
+    }): Promise<ApplicationRefRow[]>;
   };
   audit: {
     record(entry: {
