@@ -175,6 +175,73 @@ export interface ApplicationFilters {
   sort?: string;
 }
 
+// ─── IPAM ─────────────────────────────────────────────────────
+//
+// UWAGA: `Subnet` to **podsieć sieciowa** z katalogu IPAM, a `Environment`
+// (wyżej) to **środowisko aplikacji** (`prod`/`test`/`dev`). Nazwy brzmią
+// podobnie, ale to dwa różne byty z różnych drzew: środowisko opisuje,
+// gdzie aplikacja działa, podsieć — jaki blok adresów zajmuje w sieci.
+// Katalog podsieci ma własne trasy `/api/ipam` i własne uprawnienia
+// (`ipam:read` / `ipam:write`), więc nie miesza się z `/api/applications`.
+
+/** Status pojedynczego adresu — enum `IpStatus` ze schematu Prisma. */
+export type IpStatus = 'FREE' | 'IN_USE' | 'DEPRECATED';
+
+export interface Subnet {
+  id: string;
+  name: string;
+  /** Zakres w zapisie CIDR, np. `10.20.0.0/16`. */
+  cidr: string;
+  description: string | null;
+  /** Nazwa tonu w stylu `slate` — kolor kafelka, nie znacznik. */
+  color: string;
+  vlan: number | null;
+  location: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Podsieć z podsumowaniem — wariant listy katalogu (`GET /subnets`). */
+export interface SubnetWithCounts extends Subnet {
+  addressCount: number;
+  applicationCount: number;
+  freeCount: number;
+}
+
+/** Podsieć z pełną listą adresów — wariant detalu (`GET /subnets/:id`). */
+export interface SubnetDetail extends Subnet {
+  addresses: IpAddress[];
+}
+
+/** Pojedynczy adres IPv4 w podsieci — bez maski, wraz z podsieć. */
+export interface IpAddress {
+  id: string;
+  subnetId: string;
+  address: string;
+  status: IpStatus;
+  description: string | null;
+  /** Ostatnie potwierdzenie skanem; `null` dla adresu wpisanego ręcznie. */
+  lastSeenAt: string | null;
+}
+
+/**
+ * Adres widziany z perspektywy aplikacji (`GET
+ * /applications/:appId/ip-addresses`).
+ *
+ * Druga strona jest obiektem, a nie identyfikatorem: na karcie aplikacji
+ * administrator przypisuje VIP-a „do bramy w danej podsieci”, więc musi
+ * widzieć jej nazwę i zakres. Odwrotna strona (`GET
+ * /addresses/:id/applications`) zwraca aplikacje, nie adresy — to osobny
+ * katalog, którego zadanie 10 nie potrzebuje.
+ */
+export interface ApplicationIpAddressRef {
+  id: string;
+  address: string;
+  status: IpStatus;
+  description: string | null;
+  subnet: { id: string; name: string; cidr: string };
+}
+
 export interface Stats {
   total: number;
   byStatus: Array<{ key: AppStatus; count: number }>;

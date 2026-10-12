@@ -13,14 +13,19 @@ import {
 import type {
   Application,
   ApplicationFilters,
+  ApplicationIpAddressRef,
   ApplicationListResponse,
   AuditListResponse,
   AuditMeta,
   AuthUser,
   DemoModeState,
   Environment,
+  IpAddress,
   SessionInfo,
   Stats,
+  Subnet,
+  SubnetDetail,
+  SubnetWithCounts,
   UserListItem,
   UserOption,
 } from '../types';
@@ -43,6 +48,14 @@ export const qk = {
   auditMeta: ['audit-meta'] as const,
   sessions: ['sessions'] as const,
   demoMode: ['settings-demo'] as const,
+  // Katalog IPAM ma wspólny prefiks `ipam`, żeby jedno kasowanie podsieci
+  // (kaskadowe wobec adresów i przypisań) dało się unieważnić en masse:
+  // `invalidateQueries({ queryKey: ['ipam'] })` trafia w każdy klucz poniżej.
+  subnets: ['ipam', 'subnets'] as const,
+  subnet: (id: string) => ['ipam', 'subnet', id] as const,
+  subnetAddresses: (id: string) => ['ipam', 'subnet-addresses', id] as const,
+  applicationIpAddresses: (appId: string) =>
+    ['ipam', 'application-ip-addresses', appId] as const,
 };
 
 // ─── Uwierzytelnienie ─────────────────────────────────────────
@@ -294,6 +307,160 @@ export function useRestoreApplication() {
       // karta po przywróceniu dalej pokazywała banner „usunięta" —
       // refetch wymuszają dopiero upływ `staleTime`.
       void queryClient.invalidateQueries({ queryKey: ['application'] });
+    },
+  });
+}
+
+// ─── IPAM: podsieci i adresy ──────────────────────────────────
+
+export function useSubnets() {
+  return useQuery({
+    queryKey: qk.subnets,
+    queryFn: () =>
+      api.get<{ subnets: SubnetWithCounts[]; total: number }>('/ipam/subnets'),
+    staleTime: 30_000,
+  });
+}
+
+export function useSubnet(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.subnet(id ?? ''),
+    queryFn: () => api.get<{ subnet: SubnetDetail }>(`/ipam/subnets/${id}`),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+export function useSubnetAddresses(subnetId: string | undefined) {
+  return useQuery({
+    queryKey: qk.subnetAddresses(subnetId ?? ''),
+    queryFn: () =>
+      api.get<{ addresses: IpAddress[]; total: number }>(
+        `/ipam/subnets/${subnetId}/addresses`,
+      ),
+    enabled: Boolean(subnetId),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateSubnet() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api.post<{ subnet: Subnet }>('/ipam/subnets', body),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: qk.subnets }),
+  });
+}
+
+export function useUpdateSubnet(id: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api.patch<{ subnet: Subnet }>(`/ipam/subnets/${id}`, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.subnets });
+      void queryClient.invalidateQueries({ queryKey: qk.subnet(id) });
+    },
+  });
+}
+
+/**
+ * Kasowanie podsieci jest kaskadowe: giną jej adresy, a wraz z nimi
+ * przypisania aplikacji i ich statusy. Nie znamy z góry, które klucze
+ * `ipam` dotyczy, więc unieważniamy cały prefiks.
+ */
+export function useDeleteSubnet() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<{ ok: true }>(`/ipam/subnets/${id}`),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['ipam'] }),
+  });
+}
+
+export function useCreateAddress(subnetId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api.post<{ address: IpAddress }>(
+        `/ipam/subnets/${subnetId}/addresses`,
+        body,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: qk.subnetAddresses(subnetId),
+      });
+      // Nowy adres zmienia liczniki podsieci (również w liście katalogu),
+      // a nie samą listę adresów.
+      void queryClient.invalidateQueries({ queryKey: qk.subnet(subnetId) });
+      void queryClient.invalidateQueries({ queryKey: qk.subnets });
+    },
+  });
+}
+
+/**
+ * Zmiana statusu adresu przesuwa liczniki podsieci, więc klucza listy
+ * adresów nie da się wyliczyć z samego identyfikatora — pobieramy cały
+ * prefiks `ipam`.
+ */
+export function useUpdateAddress() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) =>
+      api.patch<{ address: IpAddress }>(`/ipam/addresses/${id}`, body),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['ipam'] }),
+  });
+}
+
+/** Jak wyżej: kasowanie adresu zdejmuje jego przypisania aplikacji. */
+export function useDeleteAddress() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<{ ok: true }>(`/ipam/addresses/${id}`),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['ipam'] }),
+  });
+}
+
+export function useApplicationIpAddresses(appId: string | undefined) {
+  return useQuery({
+    queryKey: qk.applicationIpAddresses(appId ?? ''),
+    queryFn: () =>
+      api.get<{ addresses: ApplicationIpAddressRef[] }>(
+        `/ipam/applications/${appId}/ip-addresses`,
+      ),
+    enabled: Boolean(appId),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Zestaw przypisań jest pełną listą, nie patchem, więc zapis obejmuje
+ * również zdejmowanie starych. Serwer przy okazji przestawia statusy
+ * adresów (`FREE` / `IN_USE`), więc poza kluczem katalogu IPAM
+ * unieważniamy kartę aplikacji — zmieniła się jej sekcja z adresami.
+ */
+export function useSetApplicationIpAddresses(appId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ipAddressIds: string[]) =>
+      api.put<{ ok: true }>(`/ipam/applications/${appId}/ip-addresses`, {
+        ipAddressIds,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ipam'] });
+      void queryClient.invalidateQueries({ queryKey: qk.application(appId) });
     },
   });
 }
