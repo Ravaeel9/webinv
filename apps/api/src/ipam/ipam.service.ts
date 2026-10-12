@@ -7,7 +7,12 @@
  * idzie do dziennika. Dialogi z bazą idą przez port (`ipam.port.ts`),
  * dzięki czemu testy nie podnoszą Postgresa.
  */
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/decorators';
@@ -273,7 +278,10 @@ export class IpamService {
       if (rangesOverlap(cidr, inny)) {
         // Nazwa kolidującej podsieci w komunikacie: administrator musi
         // wiedzieć, którą podsieć powiększyć albo zmienić.
-        throw new BadRequestException(
+        // 409, nie 400 — nakładanie zakresu to konflikt STANU z istniejącym
+        // zasobem (spec §3 „Błędy"), tak samo jak zajęta nazwa w
+        // `UsersService` czy kolizja właściciela w `ApplicationsService`.
+        throw new ConflictException(
           `Zakres koliduje z podsiecią „${other.name}” (${other.cidr}).`,
         );
       }

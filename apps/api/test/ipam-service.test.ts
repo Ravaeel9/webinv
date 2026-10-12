@@ -25,7 +25,7 @@
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { IpamService } from '../src/ipam/ipam.service';
 import { cidrErrorMessage } from '../src/ipam/cidr';
 import type {
@@ -222,7 +222,9 @@ describe('Tworzenie podsieci', () => {
         const komunikat = e.response?.message ?? '';
         assert.match(komunikat, /Produkcja/);
         assert.match(komunikat, /\(10\.20\.0\.0\/16\)/);
-        assert.ok(e instanceof BadRequestException);
+        // Nakładanie zakresu to konflikt stanu z istniejącym zasobem —
+        // spec §3 „Błędy" wymaga 409, nie 400.
+        assert.ok(e instanceof ConflictException);
         return true;
       },
     );
@@ -405,6 +407,8 @@ describe('Aktualizacja podsieci', () => {
         serwis(p).updateSubnet('id-Biuro', { cidr: '10.20.0.0/16' } as never, AKTOR),
       (e: Error & { response?: { message: string } }) => {
         assert.match(e.response?.message ?? '', /Produkcja/);
+        // Ścieżka PATCH sygnalizuje kolizję tak samo jak create: 409.
+        assert.ok(e instanceof ConflictException);
         return true;
       },
     );
