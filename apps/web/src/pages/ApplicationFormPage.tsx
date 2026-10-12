@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   type FormEvent,
 } from 'react';
@@ -7,15 +8,18 @@ import { Link, useNavigate, useParams } from 'react-router';
 import {
   useApplication,
   useApplicationFormOptions,
+  useApplicationIpAddresses,
   useCreateApplication,
+  useSetApplicationIpAddresses,
   useUpdateApplication,
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
+import { IpAddressPicker } from '../components/ipam/IpAddressPicker';
 import { Button, buttonClass } from '../components/ui/Button';
 import { Checkbox, Select, Textarea, TextInput } from '../components/ui/Field';
 import { ErrorMessage, Spinner } from '../components/ui/Feedback';
-import { IconCheck } from '../components/ui/icons';
+import { IconAlert, IconCheck } from '../components/ui/icons';
 import { toDateInput } from '../lib/format';
 import {
   DELIVERY_TYPE_DESCS,
@@ -74,6 +78,9 @@ const EMPTY = {
   runbookUrl: '',
   integrations: '',
   environmentIds: [] as string[],
+  // Poza `toPayload`: przypisania nie lecą w DTO aplikacji, a osobnym
+  // `PUT` po udanym zapisie — patrz `handleSubmit`.
+  ipAddressIds: [] as string[],
 };
 
 type FormState = typeof EMPTY;
@@ -115,6 +122,9 @@ function fromApp(app: Application): FormState {
     runbookUrl: app.runbookUrl ?? '',
     integrations: app.integrations ?? '',
     environmentIds: app.environments.map((e) => e.id),
+    // Karta aplikacji nie niesie adresów — to osobne zapytanie IPAM,
+    // więc tu zostaje pusto, a efekt niżej zasieje prawdziwy zestaw.
+    ipAddressIds: [],
   };
 }
 
@@ -181,7 +191,19 @@ export function ApplicationFormPage() {
   // teraz zwykły adres, więc formularz nie potrzebuje słownika kont.
 
   const create = useCreateApplication();
-  const update = useUpdateApplication(id ?? '');
+  // Id aplikacji zapisanej w tej sesji, której przypisań nie udało się
+  // dopiąć (drugi krok poniżej). Od tamtej chwili formularz edytuje
+  // ten wpis przez PATCH — drugie kliknięcie „Zapisz" nie może POST-ować
+  // duplikatu aplikacji, która już w bazie leży.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const effectiveId = id ?? createdId ?? '';
+  const update = useUpdateApplication(effectiveId);
+
+  // Zestaw przypisany w bazie — punkt odniesienia drugiego kroku:
+  // niezmienione zaznaczenie nie wysyłamy w ogóle (backend zrobiłby
+  // z niego no-op, ale po co rundy sieciowe i zbędny audyt).
+  const { data: assigned } = useApplicationIpAddresses(id);
+  const [assignedLoaded, setAssignedLoaded] = useState(!isEdit);
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -191,12 +213,37 @@ export function ApplicationFormPage() {
   // użytkownik edytuje lokalny stan, a nie ten z serwera.
   useEffect(() => {
     if (data?.application && !loaded) {
-      setForm(fromApp(data.application));
+      // `ipAddressIds` zostawiamy nietknięte: zapytanie IPAM ma własny
+      // cache i może opaść szybciej niż karta aplikacji.
+      setForm((prev) => ({
+        ...fromApp(data.application),
+        ipAddressIds: prev.ipAddressIds,
+      }));
       setLoaded(true);
     }
   }, [data, loaded]);
 
-  const mutation = isEdit ? update : create;
+  useEffect(() => {
+    if (assigned && !assignedLoaded) {
+      setForm((prev) => ({
+        ...prev,
+        ipAddressIds: assigned.addresses.map((a) => a.id),
+      }));
+      setAssignedLoaded(true);
+    }
+  }, [assigned, assignedLoaded]);
+
+  // Drugi krok zapisu: żyje jako osobny komponent z własnym hookiem —
+  // patrz komentarz przy `AddressAssignStep`. `attempt` wymusza
+  // re-montaż przy ponowieniu (klucz w JSX).
+  const [assignJob, setAssignJob] = useState<{
+    appId: string;
+    ids: string[];
+    attempt: number;
+  } | null>(null);
+  const [assignFailed, setAssignFailed] = useState(false);
+
+  const mutation = effectiveId ? update : create;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -254,8 +301,19 @@ export function ApplicationFormPage() {
     return Object.keys(next).length === 0;
   };
 
+  const sameAsAssigned = (ids: string[]) => {
+    const baseline = assigned?.addresses.map((a) => a.id) ?? [];
+    if (ids.length !== baseline.length) return false;
+    const set = new Set(baseline);
+    return ids.every((x) => set.has(x));
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    // Przypisania z poprzedniej próby jeszcze leci — nie dublujemy.
+    if (assignJob && !assignFailed) return;
+    setAssignFailed(false);
+
     if (!validate()) {
       // Przewijamy do pierwszego błędu, żeby formularz nie był „gubiony"
       const first = document.querySelector('[aria-invalid="true"]');
@@ -266,11 +324,26 @@ export function ApplicationFormPage() {
     const payload = toPayload(form);
 
     try {
-      const result = isEdit
+      const result = effectiveId
         ? await update.mutateAsync(payload)
         : await create.mutateAsync(payload);
 
-      navigate(`/aplikacje/${result.application.id}`, { replace: true });
+      const appId = result.application.id;
+      setCreatedId(appId);
+
+      // Drugi krok dopiero teraz: do czasu tej odpowiedzi aplikacja
+      // mogła nie istnieć w bazie, a klucz obcy przypisań odrzuciłby
+      // PUT. Niezmienione zaznaczenie odpuszczamy całkiem.
+      if (sameAsAssigned(form.ipAddressIds)) {
+        navigate(`/aplikacje/${appId}`, { replace: true });
+        return;
+      }
+
+      setAssignJob((prev) => ({
+        appId,
+        ids: [...form.ipAddressIds],
+        attempt: (prev?.attempt ?? 0) + 1,
+      }));
     } catch (err) {
       // Błędy walidacji z serwera trafiają do error message;
       // scroll do góry, bo komunikat jest nad formularzem.
@@ -311,10 +384,45 @@ export function ApplicationFormPage() {
             ? 'Zmiany trafią do dziennika zdarzeń.'
             : 'Pola oznaczone * są wymagane. Resztę możesz uzupełnić później.'
         }
-        back={{ to: isEdit ? `/aplikacje/${id}` : '/aplikacje', label: 'Anuluj' }}
+        back={{
+          to: effectiveId ? `/aplikacje/${effectiveId}` : '/aplikacje',
+          label: 'Anuluj',
+        }}
       />
 
       <ErrorMessage error={mutation.error} className="mb-5" />
+
+      {/* Zapis częściowy: aplikacja poszła do bazy, PUT przypisań
+          nie. Nie wykasowujemy wpisu — usunięcie zaraz po udanym
+          zapisie byłoby gorsze niż brak adresów. */}
+      {assignFailed && assignJob && (
+        <div role="alert" className="alert alert-warn mb-5">
+          <IconAlert className="mt-0.5 size-4 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Aplikacja została zapisana, ale adresy IP już nie.
+            </p>
+            <p className="mt-1">
+              Zapis danych aplikacji jest bezpieczny w bazie — nie powtórzy
+              się przy ponowieniu. Możesz poprawić zaznaczenie i zapisać
+              jeszcze raz albo spróbować ponownie samych przypisań.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setAssignJob((prev) =>
+                prev ? { ...prev, attempt: prev.attempt + 1 } : prev,
+              );
+              setAssignFailed(false);
+            }}
+            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium
+                       underline-offset-2 hover:underline"
+          >
+            Ponów przypisanie
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {/* ─── Identyfikacja ─────────────────────────────────── */}
@@ -408,6 +516,28 @@ export function ApplicationFormPage() {
                   hint="Kto technicznie zarządza — nie helpdesk."
                 />
               </div>
+
+              {/* Adresy IP — wyłącznie dla `SELF_HOSTED`, czyli gdy
+                  aplikacja stoi na naszym sprzęcie i adres w ogóle
+                  istnieje. Bez dodatkowej checki uprawnień: formularz
+                  siedzi za `app:write`, a każda rola z `app:write` ma
+                  też `ipam:write` (patrz `PERMISSIONS`). Ukrycie pola
+                  nie zeruje zaznaczenia — ta sama reguła co przy bloku
+                  wsparcia: zmiana typu tam i z powrotem niczego nie gubi. */}
+              {form.deliveryType === 'SELF_HOSTED' && (
+                <fieldset className="mt-4 border-t border-line pt-4">
+                  <legend className="label">Adresy IP</legend>
+                  <p className="mb-3 meta-text">
+                    Adresy z katalogu IPAM przypisane do tej aplikacji.
+                    Zapis trafi do niej osobnym żądaniem po zachowaniu
+                    pozostałych pól.
+                  </p>
+                  <IpAddressPicker
+                    value={form.ipAddressIds}
+                    onChange={(ids) => set('ipAddressIds', ids)}
+                  />
+                </fieldset>
+              )}
             </fieldset>
 
             <fieldset className="card px-5 py-4">
@@ -778,18 +908,41 @@ export function ApplicationFormPage() {
         </fieldset>
 
         {/* ─── Akcje ────────────────────────────────────────── */}
+        {/* Drugi krok zapisu — widoczny tylko gdy trwa; jego porażka
+            nie jest kasowana, bo rodzic trzyma `assignJob` do ponowienia. */}
+        {assignJob && (
+          <AddressAssignStep
+            key={assignJob.attempt}
+            appId={assignJob.appId}
+            ids={assignJob.ids}
+            onSaved={() =>
+              navigate(`/aplikacje/${assignJob.appId}`, { replace: true })
+            }
+            onFailed={() => setAssignFailed(true)}
+          />
+        )}
+
         <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-line bg-surface/95 py-3 backdrop-blur">
           {/* Link, nie `Button` — `<Link><Button/></Link>` to `<a><button>`,
               czyli HTML, którego nie da się dobrze obsłużyć klawiaturą.
               Wygląd bierze z `buttonClass`, żeby nie powtarzać wariantu
               `secondary` ręcznie. */}
           <Link
-            to={isEdit ? `/aplikacje/${id}` : '/aplikacje'}
+            to={effectiveId ? `/aplikacje/${effectiveId}` : '/aplikacje'}
             className={buttonClass('secondary')}
           >
             Anuluj
           </Link>
-          <Button type="submit" loading={mutation.isPending}>
+          {/* `assignJob && !assignFailed` — podczas drugiego kroku nie
+              pozwalamy wysłać formularza ponownie; po porażce krok
+              stoi w miejscu, a przycisk wraca do życia, bo następny
+              submit rusza i PATCH, i nowe przypisanie. */}
+          <Button
+            type="submit"
+            loading={
+              mutation.isPending || (Boolean(assignJob) && !assignFailed)
+            }
+          >
             <IconCheck className="size-4" />
             {isEdit ? 'Zapisz zmiany' : 'Dodaj do rejestru'}
           </Button>
@@ -797,4 +950,46 @@ export function ApplicationFormPage() {
       </form>
     </>
   );
+}
+
+/**
+ * Drugi krok zapisu — `PUT` przypisujący adresy już zapisanej aplikacji.
+ *
+ * Osobny komponent, bo `useSetApplicationIpAddresses` zamyka identyfikator
+ * aplikacji w chwili tworzenia hooka: przy edycji znamy go z routingu,
+ * ale przy tworzeniu — dopiero z odpowiedzi POST. Hook renderowany
+ * w rodzicu zamknąłby wtedy pusty string. Montowany z gotowym `appId`,
+ * komponent domyka lukę bez kombinowania ze stanem.
+ *
+ * Efekt wystrzeliwuje dokładnie raz na montaż (straż `started` blokuje
+ * drugi przebieg StrictMode w dev; produkcyjnie i tak idzie raz).
+ * `key={attempt}` u rodzica to całe ponowienie. Porażka nie cofa nic:
+ * aplikacja jest w bazie i zostaje w bazie — rodzic pokazuje ostrzeżenie.
+ */
+function AddressAssignStep({
+  appId,
+  ids,
+  onSaved,
+  onFailed,
+}: {
+  appId: string;
+  ids: string[];
+  onSaved: () => void;
+  onFailed: () => void;
+}) {
+  const assign = useSetApplicationIpAddresses(appId);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    assign.mutateAsync(ids).then(onSaved, onFailed);
+    // Puste zależności celowe: jedna próba na montaż. `assign`, `ids`,
+    // `onSaved` i `onFailed` są zamknięte z rendera montującego — rodzic
+    // nie zmienia `appId`/`ids` w trakcie życia tego egzemplarza.
+  }, []);
+
+  return assign.isPending ? (
+    <Spinner label="Przypisywanie adresów IP…" />
+  ) : null;
 }
