@@ -77,6 +77,19 @@ export function IconUsers(props: IconProps) {
   );
 }
 
+export function IconNetwork(props: IconProps) {
+  return (
+    <Icon {...props}>
+      {/* Węzeł nadrzędny i dwa podrzędne — rysunek sieci, nie routera:
+          to katalog podsieci, a nie konfiguracja połączeń. */}
+      <rect x="8.5" y="2.5" width="7" height="6" rx="1.5" />
+      <rect x="2" y="15.5" width="7" height="6" rx="1.5" />
+      <rect x="15" y="15.5" width="7" height="6" rx="1.5" />
+      <path d="M12 8.5v3.5M5.5 15.5V13h13v2.5" />
+    </Icon>
+  );
+}
+
 export function IconHistory(props: IconProps) {
   return (
     <Icon {...props}>

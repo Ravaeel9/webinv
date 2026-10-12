@@ -10,6 +10,9 @@ import { ApplicationFormPage } from './pages/ApplicationFormPage';
 import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { UsersPage } from './pages/UsersPage';
 import { AuditPage } from './pages/AuditPage';
+import { IpamListPage } from './pages/IpamListPage';
+import { SubnetDetailPage } from './pages/SubnetDetailPage';
+import { SubnetFormPage } from './pages/SubnetFormPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { EmptyState } from './components/ui/Feedback';
 import { RouteErrorPage } from './components/layout/RouteErrorPage';
@@ -83,6 +86,39 @@ export const router = createBrowserRouter([
                       </RequirePermission>
                     ),
                   },
+                ],
+              },
+
+              // ─── Katalog podsieci i adresów IP ────────────────
+              //
+              // Cały blok stoi w gałęzi `RequireAuth`: IPAM nie jest
+              // treścią publiczną. To mapa infrastruktury — adresy
+              // sieci wewnętrznych, VLAN-y i przypisania aplikacji —
+              // i ani jedna trasa `/api/ipam` nie jest `@Public()`.
+              // Gość nie ma w niej czego szukać.
+              {
+                path: 'ipam',
+                children: [
+                  { index: true, element: <IpamListPage /> },
+                  {
+                    // Ścieżka „/ipam/:id" łapie również „nowa",
+                    // więc kolejność ma znaczenie — nowa jest wyżej.
+                    path: 'nowa',
+                    element: (
+                      <RequirePermission permission="ipam:write">
+                        <SubnetFormPage />
+                      </RequirePermission>
+                    ),
+                  },
+                  {
+                    path: ':id/edycja',
+                    element: (
+                      <RequirePermission permission="ipam:write">
+                        <SubnetFormPage />
+                      </RequirePermission>
+                    ),
+                  },
+                  { path: ':id', element: <SubnetDetailPage /> },
                 ],
               },
 

@@ -527,6 +527,49 @@ export const CRITICALITY_TONES: Record<number, Tone> = {
 export const ACCESS_REQUEST_YES: Tone = 'ok';
 export const ACCESS_REQUEST_NO: Tone = 'neutral';
 
+// ─── IPAM: etykiety i kolory do UI ────────────────────────────
+//
+// Tak jak pozostałe `*_LABELS` / `*_TONES` wyżej: nazwy klas z
+// `index.css` i polskie napisy, a nie surowe enuma z API.
+
+export const IP_STATUS_LABELS: Record<IpStatus, string> = {
+  FREE: 'Wolny',
+  IN_USE: 'Zajęty',
+  DEPRECATED: 'Wycofany',
+};
+
+/**
+ * Ton dobierany tak samo jak przy statusach aplikacji: `FREE` się odsuwa,
+ * `IN_USE` niesie „to jest zajęte", `DEPRECATED` prosi o uwagi.
+ */
+export const IP_STATUS_TONES: Record<IpStatus, Tone> = {
+  FREE: 'neutral',
+  IN_USE: 'ok',
+  DEPRECATED: 'warn',
+};
+
+/**
+ * Paleta kolorów podsieci.
+ *
+ * API waliduje `color` tylko jako małe litery (`/^[a-z]+$/`) — to kolor
+ * kafelka, a nie znacznik, więc dobór z listy jest zamierzony: bez niej
+ * pole przyjęłoby „cokolwiek”, a tak wartość zawsze ma odpowiednik
+ * w interfejsie. Sworzek rysujemy inline (`style`), nie klasą Tailwinda
+ * złożoną z danych — budowanie nazwy klasy z danych nie trafia do
+ * wynikowego CSS, a `ui-state-colors.test.ts` pilnuje pary motywów
+ * tylko dla klas pisanych wprost.
+ */
+export const SUBNET_COLORS: Record<string, string> = {
+  slate: '#64748b',
+  sky: '#0284c7',
+  violet: '#7c3aed',
+  emerald: '#059669',
+  amber: '#d97706',
+  rose: '#e11d48',
+};
+
+export const SUBNET_COLOR_NAMES = Object.keys(SUBNET_COLORS);
+
 // `ENV_COLORS` (karta nazwy środowiska) nie było nigdzie używane —
 // odznaki środowisk mają własne klasy w komponentach. Usunięte jako martwy
 // eksport; jeśli wróci potrzeba, odtworzyć razem z call-site'em.
