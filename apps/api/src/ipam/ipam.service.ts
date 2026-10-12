@@ -529,7 +529,7 @@ export class IpamService {
 
   /** Polska liczba mnoga dla „aplikacja" przy komunikacie o przypisaniach. */
   private aplikacje(n: number): string {
-    if (n === 1) return '1 aplikacji';
+    if (n === 1) return '1 aplikacja';
     const ostatnia = n % 10;
     const dziesiatki = n % 100;
     if (ostatnia >= 2 && ostatnia <= 4 && (dziesiatki < 12 || dziesiatki > 14)) {

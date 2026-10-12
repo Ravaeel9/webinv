@@ -106,6 +106,12 @@ type StanPortu = {
    * „Unique constraint failed on the fields: (`subnetId`,`address`)".
    */
   kolizjaWbazie?: boolean;
+  /**
+   * Kod błędu rzucanego zamiast P2002 przy zapisie adresu. Pozwala udawać
+   * INNY błąd bazy niż kolizja, żeby sprawdzić, że serwis nie etykietuje
+   * go komunikatem o duplikacie.
+   */
+  kodBleduPrzyZapisie?: string;
 };
 
 /**
@@ -210,6 +216,13 @@ function port(stan: StanPortu = {}) {
       },
       create: async ({ data }: { data: Record<string, unknown> }) => {
         wywolania.utworzoneAdresy.push(data);
+        if (stan.kodBleduPrzyZapisie) {
+          // Błąd inny niż kolizja (np. `P2025`) ma dotrzeć do użytkownika
+          // w oryginalnej postaci, a nie jako „adres już zarejestrowany”.
+          throw Object.assign(new Error('Record not found'), {
+            code: stan.kodBleduPrzyZapisie,
+          });
+        }
         if (stan.kolizjaWbazie) {
           // Kształt zgłoszony przez Prisma dla `@@unique([subnetId, address])`.
           throw Object.assign(
@@ -747,6 +760,21 @@ describe('Tworzenie adresów', () => {
     );
   });
 
+  it('nie nazywa błędu bazy duplikatem, gdy to nie jest P2002', async () => {
+    // Jedna nieostrożna zmiana w `isP2002` zamieniłaby KAŻDY błąd bazy
+    // (przerwane połączenie, P2025, cokolwiek) w „adres już zarejestrowany"
+    // — użytkownik dostałby 409 z mylącym zdaniem zamiast awarii do zbadania.
+    const { p } = port({ podsieci: [PODNET], kodBleduPrzyZapisie: 'P2025' });
+    await assert.rejects(
+      () => serwis(p).createAddress(PODNET.id, { address: '10.20.1.5' }, AKTOR),
+      (e: Error) => {
+        assert.ok(!(e instanceof ConflictException));
+        assert.equal(e.message, 'Record not found');
+        return true;
+      },
+    );
+  });
+
   it('rzuca NotFound na nieistniejącej podsieci', async () => {
     const { p, wywolania } = port({ podsieci: [PODNET] });
     await assert.rejects(
@@ -935,7 +963,9 @@ describe('Usuwanie adresu', () => {
       (e: Error & { response?: { message: string } }) => {
         const komunikat = e.response?.message ?? '';
         assert.ok(e instanceof ConflictException);
-        assert.match(komunikat, /2/);
+        // Sama liczba z kropki nie wystarczy: „2" jest też w adresie `10.20.1.5`,
+        // więc samo `/2/` przeszłoby nawet po usunięciu liczby z komunikatu.
+        assert.match(komunikat, /2 aplikacje/);
         assert.match(komunikat, /10\.20\.1\.5/);
         assert.match(komunikat, /aplikacj/i);
         return true;
@@ -943,6 +973,24 @@ describe('Usuwanie adresu', () => {
     );
     assert.deepEqual(wywolania.usunieteAdresy, [], 'adres musi zostać w bazie');
     assert.equal(wywolania.zdarzenia.length, 0);
+  });
+
+  it('mówi „1 aplikacja" dla pojedynczego przypisania', async () => {
+    // Polska liczba pojedyncza to „aplikacja", nie „aplikacji" — komunikat
+    // o jednym przypisaniu brzmiałby wtedy jak maszynowy.
+    const a = adres(PODNET.id, '10.20.1.5', 'IN_USE');
+    const { p } = port({
+      podsieci: [PODNET],
+      adresy: [a],
+      przypisania: [{ ipAddressId: a.id, applicationId: 'app-1' }],
+    });
+    await assert.rejects(
+      () => serwis(p).removeAddress(a.id, AKTOR),
+      (e: Error & { response?: { message: string } }) => {
+        assert.match(e.response?.message ?? '', /1 aplikacja\./);
+        return true;
+      },
+    );
   });
 
   it('liczy przypisania z uwzględnieniem adresu, nie całej tabeli', async () => {
