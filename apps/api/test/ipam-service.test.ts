@@ -137,6 +137,24 @@ function port(stan: StanPortu = {}) {
     usunieteAdresy: [] as { where: { id: string } }[],
     /** Argumenty `applicationIpAddress.count` — na nich widać brak filtra. */
     liczbyPrzypisan: [] as { ipAddressId: string }[],
+    /** Wiersze przekazane do `applicationIpAddress.createMany`. */
+    utworzonePrzypisania: [] as { applicationId: string; ipAddressId: string }[][],
+    /** Filtry `applicationIpAddress.deleteMany` — widać, które wiersze znikają. */
+    usunietePrzypisania: [] as {
+      applicationId?: string;
+      ipAddressId?: { in: string[] };
+    }[],
+    /** Wywołania `ipAddress.updateMany` — odblokowywanie statusów. */
+    odblokowaneAdresy: [] as { where: { id: { in: string[] } }; data: { status: string } }[],
+    /** Filtry `application.findFirst` — na nich widać warunek `deletedAt`. */
+    szukaneAplikacje: [] as { id: string; deletedAt?: null }[],
+    /**
+     * Kolejność operacji na przypisaniach, po nazwie metody. Kolejność jest
+     * tu częścią kontraktu: `updateMany` na adresach musi być PRZED
+     * `deleteMany` na przypisaniach, bo identyfikatory adresów czytamy
+     * z wierszy, które zaraz znikają.
+     */
+    kolejnosc: [] as string[],
     transakcje: 0,
     zdarzenia: [] as {
       action: string;
@@ -203,13 +221,34 @@ function port(stan: StanPortu = {}) {
       },
     },
     ipAddress: {
+      /**
+       * `include` udaje relację składaną przez Prisma — karta aplikacji ma
+       * pokazać, z jakiej sieci pochodzi adres, a wiersz `IpAddress` sam nie
+       * wie nic o swojej podsieci.
+       */
       findMany: async ({
         where,
-      }: { where?: { subnetId?: string; address?: string } } = {}) =>
+        include,
+      }: {
+        where?: { subnetId?: string; address?: string; id?: { in: string[] } };
+        include?: { subnet: { select: { id: true; name: true; cidr: true } } };
+      } = {}) =>
         adresy
           .filter((a) => !where?.subnetId || a.subnetId === where.subnetId)
           .filter((a) => !where?.address || a.address === where.address)
-          .map((a) => ({ ...a })),
+          .filter((a) => !where?.id || where.id.in.includes(a.id))
+          .map((a) => {
+            if (!include?.subnet) return { ...a };
+            const podsiec = podsieci.find((s) => s.id === a.subnetId);
+            // Podsieć bez adresów nie istnieje w bazie (kaskada), więc ten
+            // placeholder to tylko czytelny ślad przy uszkodzonych danych.
+            return {
+              ...a,
+              subnet: podsiec
+                ? { id: podsiec.id, name: podsiec.name, cidr: podsiec.cidr }
+                : { id: '', name: '(brak podsieci)', cidr: '' },
+            };
+          }),
       findUnique: async ({ where }: { where: { id: string } }) => {
         const a = adresy.find((x) => x.id === where.id);
         return a ? { ...a } : null;
@@ -280,19 +319,87 @@ function port(stan: StanPortu = {}) {
       },
       count: async ({ where }: { where: { subnetId: string } }) =>
         adresy.filter((a) => a.subnetId === where.subnetId).length,
+      /**
+       * Odblokowanie zbiorcze (`status: FREE` po zdjęciu przypisań).
+       * Zwracamy liczbę zmienionych wierszy, jak Prisma, ale pilnujemy
+       * też kolejności względem `deleteMany` na przypisaniach.
+       */
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: { in: string[] } };
+        data: { status: IpAddressStatus };
+      }) => {
+        wywolania.odblokowaneAdresy.push({ where, data: { status: data.status } });
+        wywolania.kolejnosc.push('ipAddress.updateMany');
+        let zmienione = 0;
+        for (const a of adresy) {
+          if (!where.id.in.includes(a.id)) continue;
+          if (a.status === data.status) continue;
+          a.status = data.status;
+          zmienione += 1;
+        }
+        return zmienione;
+      },
     },
     applicationIpAddress: {
-      findMany: async ({ where }: { where?: { ipAddressId?: string } } = {}) =>
+      findMany: async ({
+        where,
+      }: { where?: { ipAddressId?: string; applicationId?: string } } = {}) =>
         przypisania
           .filter((x) => !where?.ipAddressId || x.ipAddressId === where.ipAddressId)
+          .filter((x) => !where?.applicationId || x.applicationId === where.applicationId)
           .map((x) => ({ ...x })),
       count: async ({ where }: { where: { ipAddressId: string } }) => {
         wywolania.liczbyPrzypisan.push(where);
         return przypisania.filter((x) => x.ipAddressId === where.ipAddressId).length;
       },
+      createMany: async ({
+        data,
+      }: {
+        data: { applicationId: string; ipAddressId: string }[];
+      }) => {
+        wywolania.utworzonePrzypisania.push(data);
+        wywolania.kolejnosc.push('applicationIpAddress.createMany');
+        for (const wiersz of data) przypisania.push({ ...wiersz });
+        return data.length;
+      },
+      deleteMany: async ({
+        where,
+      }: {
+        where: { applicationId?: string; ipAddressId?: { in: string[] } };
+      }) => {
+        wywolania.usunietePrzypisania.push(where);
+        wywolania.kolejnosc.push('applicationIpAddress.deleteMany');
+        const idy = where.ipAddressId?.in;
+        let usuniete = 0;
+        for (let i = przypisania.length - 1; i >= 0; i -= 1) {
+          const wiersz = przypisania[i];
+          if (!wiersz) continue;
+          if (where.applicationId !== undefined && wiersz.applicationId !== where.applicationId) {
+            continue;
+          }
+          if (idy && !idy.includes(wiersz.ipAddressId)) continue;
+          przypisania.splice(i, 1);
+          usuniete += 1;
+        }
+        return usuniete;
+      },
     },
     application: {
-      findFirst: async () => null,
+      /**
+       * Walidacja istnienia aplikacji przy przypisywaniu adresów. `deletedAt`
+       * w filtrze to nie ozdoba — usunięta miękko aplikacja ma dostać 404,
+       * a nie przyjąć powiązania z katalogu.
+       */
+      findFirst: async ({ where }: { where: { id: string; deletedAt: null } }) => {
+        wywolania.szukaneAplikacje.push(where);
+        const znaleziona = aplikacje.find((a) => a.id === where.id);
+        if (!znaleziona) return null;
+        if (where.deletedAt === null && znaleziona.deletedAt !== null) return null;
+        return { id: znaleziona.id };
+      },
       /**
        * Atrapa relacji: `ipAddresses.some` przekładamy na tablicę przypisań,
        * a `deletedAt: null` na pole w wierszu aplikacji. Dzięki temu test
@@ -1077,5 +1184,328 @@ describe('Aplikacje przypisane do adresu', () => {
       przypisania: [{ ipAddressId: b.id, applicationId: 'app-1' }],
     });
     assert.deepEqual(await serwis(p).applicationsForAddress(a.id), []);
+  });
+});
+
+// ─── Przypisania aplikacja ↔ adres ─────────────────────────────
+
+/** Aplikacja testowa — to do niej przypisujemy adresy. */
+const APP = 'app-1';
+
+/**
+ * Stan do testów przypisań: żywa aplikacja i trzy adresy.
+ *
+ * Adresy są `IN_USE`, bo tak wygląda katalog po przypisaniu — status
+ * pokazywany na karcie aplikacji musi zgadzać się z tym, co admin ustawił.
+ *
+ * `przygotuj` dostaje identyfikatory świeżo utworzonych adresów, bo
+ * przypisania w stanie początkowym trzeba nazwać tymi samymi wierszami,
+ * które serwis zobaczy w bazie.
+ */
+function przypisaniaStan(
+  przygotuj?: (ids: { a: IpAddressRow; b: IpAddressRow; c: IpAddressRow }) => Partial<StanPortu>,
+) {
+  const a = adres(PODNET.id, '10.20.1.5', 'IN_USE');
+  const b = adres(PODNET.id, '10.20.1.6', 'IN_USE');
+  const c = adres(PODNET.id, '10.20.1.7', 'IN_USE');
+  const atrapa = port({
+    podsieci: [PODNET],
+    adresy: [a, b, c],
+    aplikacje: [aplikacja(APP, 'Panel klienta')],
+    ...(przygotuj?.({ a, b, c }) ?? {}),
+  });
+  return { a, b, c, ...atrapa };
+}
+
+describe('Przypisania adresów do aplikacji', () => {
+  it('tworzy po jednym wpisie dla każdego nowego adresu', async () => {
+    const { a, b, p, wywolania } = przypisaniaStan();
+    await serwis(p).setApplicationIpAddresses(
+      APP,
+      { ipAddressIds: [a.id, b.id] } as never,
+      AKTOR,
+    );
+    assert.equal(wywolania.utworzonePrzypisania.length, 1);
+    assert.deepEqual(wywolania.utworzonePrzypisania[0], [
+      { applicationId: APP, ipAddressId: a.id },
+      { applicationId: APP, ipAddressId: b.id },
+    ]);
+    assert.deepEqual(wywolania.usunietePrzypisania, [], 'dodanie niczego nie usuwa');
+  });
+
+  it('loguje JEDEN wpis do dziennika na całą wymianę', async () => {
+    // Formularz wysyła pełny zestaw przy każdym zapisie, więc osobny wpis
+    // na każdy odhaczony checkbox zaśmiecałby dziennik informacją, której
+    // nikt nie czyta — „co się stało" to jedno zdarzenie: zmiana zestawu.
+    const { a, b, p, wywolania, dziennik } = przypisaniaStan(({ a }) => ({
+      przypisania: [{ ipAddressId: a.id, applicationId: APP }],
+    }));
+    await serwis(p, dziennik).setApplicationIpAddresses(
+      APP,
+      { ipAddressIds: [a.id, b.id] } as never,
+      AKTOR,
+    );
+    assert.equal(wywolania.zdarzenia.length, 1);
+    const zdarzenie = wywolania.zdarzenia[0];
+    assert.equal(zdarzenie.action, 'ip_addresses.update');
+    assert.equal(zdarzenie.entity, 'Application');
+    assert.equal(zdarzenie.entityId, APP);
+    assert.equal(zdarzenie.actorId, 'u-1');
+    assert.equal(wywolania.transakcje, 1, 'deleteMany i createMany w jednej transakcji');
+  });
+
+  it('pusta lista kasuje wszystkie przypisania', async () => {
+    const { a, b, p, wywolania, dziennik } = przypisaniaStan(({ a, b }) => ({
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: b.id, applicationId: APP },
+      ],
+    }));
+    await serwis(p, dziennik).setApplicationIpAddresses(APP, { ipAddressIds: [] } as never, AKTOR);
+    assert.equal(wywolania.utworzonePrzypisania.length, 0);
+    assert.equal(wywolania.usunietePrzypisania.length, 1);
+    assert.deepEqual(wywolania.usunietePrzypisania[0], {
+      applicationId: APP,
+      ipAddressId: { in: [a.id, b.id] },
+    });
+    assert.equal(wywolania.zdarzenia.length, 1);
+  });
+
+  it('zestaw niezmieniony nie zapisuje nic', async () => {
+    // Formularz wysyła listę taką, jaka jest w bazie, nawet bez zmian.
+    // Bez tego warunku każde otwarcie i zapis karty aplikacji pchałoby do
+    // bazy pustą transakcję i śmieciowy wpis w dzienniku.
+    const { a, b, p, wywolania, dziennik } = przypisaniaStan(({ a, b }) => ({
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: b.id, applicationId: APP },
+      ],
+    }));
+    await serwis(p, dziennik).setApplicationIpAddresses(
+      APP,
+      { ipAddressIds: [a.id, b.id] } as never,
+      AKTOR,
+    );
+    assert.equal(wywolania.usunietePrzypisania.length, 0);
+    assert.equal(wywolania.utworzonePrzypisania.length, 0);
+    assert.equal(wywolania.transakcje, 0);
+    assert.equal(wywolania.zdarzenia.length, 0);
+  });
+
+  it('wymienia tylko różnicę, nie cały zestaw', async () => {
+    // `deleteMany` po `applicationId` + `createMany` całej listy kasowałby
+    // i odtwarzał wiersze, które niczego nie zmieniły — m.in. gubiłby daty
+    // utworzenia przypisania widoczne w kartach administracyjnych.
+    const { a, b, c, p, wywolania } = przypisaniaStan(({ a, b }) => ({
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: b.id, applicationId: APP },
+      ],
+    }));
+    await serwis(p).setApplicationIpAddresses(
+      APP,
+      { ipAddressIds: [a.id, c.id] } as never,
+      AKTOR,
+    );
+    assert.deepEqual(wywolania.usunietePrzypisania, [
+      { applicationId: APP, ipAddressId: { in: [b.id] } },
+    ]);
+    assert.deepEqual(wywolania.utworzonePrzypisania, [
+      [{ applicationId: APP, ipAddressId: c.id }],
+    ]);
+  });
+
+  it('duplikat identyfikatora w liście nie tworzy drugiego wiersza', async () => {
+    // Klucz złożony `[applicationId, ipAddressId]` zamieniłby powtórzony
+    // identyfikator w 500 z P2002 zamiast w zapisaną zmianę.
+    const { a, p, wywolania } = przypisaniaStan();
+    await serwis(p).setApplicationIpAddresses(
+      APP,
+      { ipAddressIds: [a.id, a.id] } as never,
+      AKTOR,
+    );
+    assert.deepEqual(wywolania.utworzonePrzypisania, [
+      [{ applicationId: APP, ipAddressId: a.id }],
+    ]);
+  });
+
+  it('odrzuca nieznany identyfikator adresu i wskazuje go w komunikacie', async () => {
+    // Formularz dostał adres z katalogu, którego ktoś w międzyczasie
+    // usunął. Bez sprawdzenia `deleteMany` + `createMany` skończyłoby się
+    // 500 z obcą nazwą kolumny w komunikacie.
+    const { a, p, wywolania, dziennik } = przypisaniaStan();
+    await assert.rejects(
+      () =>
+        serwis(p, dziennik).setApplicationIpAddresses(
+          APP,
+          { ipAddressIds: [a.id, 'adres-nieistniejacy'] } as never,
+          AKTOR,
+        ),
+      (e: Error) => {
+        assert.ok(e instanceof NotFoundException);
+        assert.match((e as NotFoundException).message, /adres-nieistniejacy/);
+        return true;
+      },
+    );
+    assert.equal(wywolania.usunietePrzypisania.length, 0, 'nic nie usuwamy');
+    assert.equal(wywolania.utworzonePrzypisania.length, 0, 'nic nie tworzymy');
+    assert.equal(wywolania.zdarzenia.length, 0);
+  });
+
+  it('odrzuca przypisanie do aplikacji, która nie istnieje', async () => {
+    const { a, p, wywolania, dziennik } = przypisaniaStan();
+    await assert.rejects(
+      () =>
+        serwis(p, dziennik).setApplicationIpAddresses(
+          'app-nieistniejaca',
+          { ipAddressIds: [a.id] } as never,
+          AKTOR,
+        ),
+      NotFoundException,
+    );
+    assert.equal(wywolania.utworzonePrzypisania.length, 0);
+  });
+
+  it('nie przywraca powiązań aplikacji usuniętej miękko', async () => {
+    // Usunięta aplikacja to śmieć w katalogu. Przypisanie do niej wyglądałoby
+    // w UI jak skuteczny zapis, a adres zostałby zablokowany na rzecz
+    // aplikacji, której już nie ma.
+    const { a, p, wywolania, dziennik } = przypisaniaStan(() => ({
+      aplikacje: [aplikacja(APP, 'Panel klienta', null, new Date('2026-02-01'))],
+    }));
+    await assert.rejects(
+      () =>
+        serwis(p, dziennik).setApplicationIpAddresses(
+          APP,
+          { ipAddressIds: [a.id] } as never,
+          AKTOR,
+        ),
+      NotFoundException,
+    );
+    // Sam filtr `deletedAt: null` musi trafić do zapytania — aplikacja
+    // usunięta miękko istnieje w bazie.
+    assert.deepEqual(wywolania.szukaneAplikacje[0], { id: APP, deletedAt: null });
+    assert.equal(wywolania.utworzonePrzypisania.length, 0);
+  });
+
+  it('nie rusza adresów innych aplikacji', async () => {
+    const { a, b, p, wywolania } = przypisaniaStan(({ b }) => ({
+      aplikacje: [aplikacja(APP, 'Panel klienta'), aplikacja('app-2', 'Inna aplikacja')],
+      przypisania: [{ ipAddressId: b.id, applicationId: 'app-2' }],
+    }));
+    await serwis(p).setApplicationIpAddresses(APP, { ipAddressIds: [a.id] } as never, AKTOR);
+    assert.equal(wywolania.usunietePrzypisania.length, 0);
+    // Cudze przypisanie przeżywa wymianę zestawu w innej aplikacji.
+    assert.deepEqual(await serwis(p).applicationsForAddress(b.id), [
+      { id: 'app-2', name: 'Inna aplikacja', url: '' },
+    ]);
+  });
+});
+
+describe('Czytanie przypisań aplikacji', () => {
+  it('zwraca adresy z podsiecią, posortowane numerycznie', async () => {
+    // Karta aplikacji ma pokazać, z jakiej sieci pochodzi adres — sam
+    // wiersz `IpAddress` nie wie nic o swojej podsieci.
+    const { a, b, p } = przypisaniaStan(({ a, b }) => ({
+      przypisania: [
+        { ipAddressId: b.id, applicationId: APP },
+        { ipAddressId: a.id, applicationId: APP },
+      ],
+    }));
+    const lista = await serwis(p).getApplicationIpAddresses(APP);
+    assert.deepEqual(
+      lista.map((r) => [r.id, r.address, r.status, r.subnet.cidr]),
+      [
+        [a.id, '10.20.1.5', 'IN_USE', '10.20.0.0/16'],
+        [b.id, '10.20.1.6', 'IN_USE', '10.20.0.0/16'],
+      ],
+    );
+  });
+
+  it('aplikacja bez przypisań ma pustą listę', async () => {
+    const { p, wywolania } = przypisaniaStan();
+    assert.deepEqual(await serwis(p).getApplicationIpAddresses(APP), []);
+    assert.equal(wywolania.transakcje, 0);
+  });
+
+  it('nie miesza adresów przypisanych do innej aplikacji', async () => {
+    const { p } = przypisaniaStan(({ b }) => ({
+      przypisania: [{ ipAddressId: b.id, applicationId: 'app-2' }],
+    }));
+    assert.deepEqual(await serwis(p).getApplicationIpAddresses(APP), []);
+  });
+});
+
+describe('Zwalnianie przypisań aplikacji', () => {
+  it('odblokowuje adresy PRZED skasowaniem przypisań', async () => {
+    // Kolejność jest tu zgubiona celowo: identyfikatory adresów czytamy
+    // z wierszy przypisań, które zaraz znikają. Po `deleteMany` nie ma
+    // skąd wziąć `ipAddressId`, a adres zostałby zablokowany na zawsze.
+    const { a, b, p, wywolania } = przypisaniaStan(({ a, b }) => ({
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: b.id, applicationId: APP },
+      ],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.deepEqual(wywolania.kolejnosc, [
+      'ipAddress.updateMany',
+      'applicationIpAddress.deleteMany',
+    ]);
+    assert.deepEqual(wywolania.odblokowaneAdresy, [
+      { where: { id: { in: [a.id, b.id] } }, data: { status: 'FREE' } },
+    ]);
+    assert.deepEqual(wywolania.usunietePrzypisania, [{ applicationId: APP }]);
+  });
+
+  it('adres współdzielony z inną aplikacją wraca do FREE', async () => {
+    // Zliczanie „co zostało po skasowaniu" pominęłoby ten adres: zostałby
+    // `IN_USE` z jednym przypisaniem, którego nikt nie zamierza zdejmować.
+    // Zbiór `ipAddressId` bierzemy przed skasowaniem wierszy.
+    const { a, p, wywolania } = przypisaniaStan(({ a }) => ({
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: a.id, applicationId: 'app-2' },
+      ],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.deepEqual(wywolania.odblokowaneAdresy[0]?.where, { id: { in: [a.id] } });
+    assert.equal(wywolania.odblokowaneAdresy[0]?.data.status, 'FREE');
+  });
+
+  it('zdejmuje przypisania aplikacji, nie cudze', async () => {
+    const { a, p, wywolania } = przypisaniaStan(({ a, b }) => ({
+      aplikacje: [aplikacja(APP, 'Panel klienta'), aplikacja('app-2', 'Inna aplikacja')],
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: b.id, applicationId: 'app-2' },
+      ],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.equal(wywolania.usunietePrzypisania.length, 1);
+    assert.equal(wywolania.usunietePrzypisania[0]?.applicationId, APP);
+    // Drugi adres wciąż przypisany do `app-2` — statusu nie ruszamy.
+    assert.deepEqual(wywolania.odblokowaneAdresy[0]?.where, { id: { in: [a.id] } });
+  });
+
+  it('aplikacja bez przypisań nie woła żadnego zapisu', async () => {
+    // Pusty `updateMany` z `in: []` to zapytanie bez sensu, które w logach
+    // bazy wygliada jak normalna operacja.
+    const { p, wywolania } = przypisaniaStan();
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.equal(wywolania.odblokowaneAdresy.length, 0);
+    assert.equal(wywolania.usunietePrzypisania.length, 0);
+  });
+
+  it('odblokowuje każdy adres przypisany aplikacji, także ten już wolny', async () => {
+    // `status` i przypisania żyją swoim życiem (decyzja 9 ze specyfikacji),
+    // więc serwis nie zgaduje warunkiem — przywraca `FREE` wszystkim
+    // adresom, z których zdejmuje przypisanie. Wiersze, których status
+    // już był `FREE`, `updateMany` w bazie przepisuje bez zmiany wyniku.
+    const { p, wywolania } = przypisaniaStan(({ a }) => ({
+      przypisania: [{ ipAddressId: a.id, applicationId: APP }],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.equal(wywolania.odblokowaneAdresy[0]?.data.status, 'FREE');
   });
 });

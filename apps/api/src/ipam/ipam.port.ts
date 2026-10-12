@@ -41,8 +41,14 @@ export type IpAddressRow = {
   updatedAt: Date;
 };
 
-/** Wiersz `ApplicationIpAddress` — serwis czyta tylko stronę adresu. */
-export type AssignmentRow = { ipAddressId: string };
+/**
+ * Wiersz `ApplicationIpAddress` — obie strony klucza złożonego.
+ *
+ * Serwis czyta przypisania w obie strony: po `ipAddressId` policzy
+ * blokadę kasowania adresu, po `applicationId` odczyta i zdejmie zestaw
+ * przypisań aplikacji.
+ */
+export type AssignmentRow = { ipAddressId: string; applicationId: string };
 
 /** Podsieć z podsumowaniem do listy katalogu. */
 export type SubnetWithCounts = SubnetRow & {
@@ -89,6 +95,28 @@ export type IpAddressUpdateData = Partial<
   Pick<IpAddressCreateData, 'address' | 'status' | 'description'>
 >;
 
+/** Podsieć sprowadzona do obiektu — wystarczy nazwa i zakres. */
+export type SubnetRef = { id: string; name: string; cidr: string };
+
+/** Wiersz adresu z podpiętą podsiecią (odpowiedź karty aplikacji). */
+export type IpAddressWithSubnet = IpAddressRow & { subnet: SubnetRef };
+
+/**
+ * Adres widziany z perspektywy aplikacji — podsieć jest tu obiektem.
+ *
+ * Inaczej niż w `applicationsForAddress`, gdzie drugą stroną jest aplikacja:
+ * na karcie aplikacji adres musi pokazać swoją sieć, bo administrator
+ * przypisuje VIP-a „do bramy w danej podsieci", a nie „do czegoś, co ma
+ * nazwę i kolor".
+ */
+export type ApplicationIpAddressRef = {
+  id: string;
+  address: string;
+  status: IpAddressStatus;
+  description: string | null;
+  subnet: SubnetRef;
+};
+
 /** Wiersz aplikacji w odpowiedzi na „kto używa tego adresu". */
 export type ApplicationRefRow = {
   id: string;
@@ -106,30 +134,63 @@ export type IpamPort = {
     delete(args: { where: { id: string } }): Promise<SubnetRow>;
   };
   ipAddress: {
-    findMany(args?: { where?: { subnetId?: string; address?: string } }): Promise<IpAddressRow[]>;
+    /**
+     * `include.subnet` czytają wyłącznie odczyty przypisań aplikacji:
+     * karta aplikacji musi pokazać, z jakiej sieci pochodzi adres, a wiersz
+     * `IpAddress` nie wie nic o swojej podsieci. Przy pozostałych wywołaniach
+     * `include` nie ma i relacji nie oczekujemy.
+     */
+    findMany(args?: {
+      where?: { subnetId?: string; address?: string; id?: { in: string[] } };
+      include?: { subnet: { select: { id: true; name: true; cidr: true } } };
+    }): Promise<IpAddressWithSubnet[]>;
     findUnique(args: { where: { id: string } }): Promise<IpAddressRow | null>;
     create(args: { data: IpAddressCreateData }): Promise<IpAddressRow>;
     update(args: { where: { id: string }; data: IpAddressUpdateData }): Promise<IpAddressRow>;
     delete(args: { where: { id: string } }): Promise<IpAddressRow>;
+    /**
+     * Zbiorcze przestawienie statusu. Bezwarunkowe `status: 'FREE'` przy
+     * zwalnianiu przypisań: `status` żyje własnym życiem (adres bywa
+     * rezerwowany bez aplikacji), więc serwis przywraca wolność wszystkim
+     * adresom, z których zdejmuje przypisanie, zamiast zgadywać, które
+     * z nich blokowało powiązanie.
+     */
+    updateMany(args: {
+      where: { id: { in: string[] } };
+      data: { status: IpAddressStatus };
+    }): Promise<number>;
     count(args: { where: { subnetId: string } }): Promise<number>;
   };
   applicationIpAddress: {
     /**
      * Bez argumentów — czytają liczniki katalogu (przypisania ze WSZYSTKICH
      * aplikacji, również usuniętych miękko; właścicielem tej semantyki jest
-     * Task 7). Z `where.ipAddressId` czyta `removeAddress`.
+     * Task 7). Z `where.ipAddressId` czyta `removeAddress`, z
+     * `where.applicationId` — zestaw przypisań aplikacji.
      */
-    findMany(args?: { where?: { ipAddressId?: string } }): Promise<AssignmentRow[]>;
+    findMany(args?: { where?: { ipAddressId?: string; applicationId?: string } }): Promise<
+      AssignmentRow[]
+    >;
     count(args: { where: { ipAddressId: string } }): Promise<number>;
+    /**
+     * Wymiana zestawu idzie różnicą, nie pełnym przebudowaniem: `deleteMany`
+     * tylko tego, co odpadło, `createMany` tylko tego, co doszło. Dzięki
+     * temu przypisania, których nie ruszano, zachowują datę utworzenia.
+     */
+    createMany(args: { data: { applicationId: string; ipAddressId: string }[] }): Promise<number>;
+    deleteMany(args: {
+      where: { applicationId?: string; ipAddressId?: { in: string[] } };
+    }): Promise<number>;
   };
   /**
    * `findFirst` służy walidacji istnienia aplikacji przy przypisywaniu
-   * adresów, `findMany` — odczytowi „kto używa tego adresu" z filtrem
-   * `deletedAt: null` w SQL (usunięta aplikacja to śmieć, nie powód, by
-   * pokazywać ją na karcie adresu).
+   * adresów — z filtrem `deletedAt: null`, bo usunięta miękko aplikacja to
+   * śmieć w katalogu i nie ma do czego przypisywać adresów.
+   * `findMany` — odczytowi „kto używa tego adresu" z tym samym filtrem
+   * (usunięta aplikacja nie wraca na kartę adresu).
    */
   application: {
-    findFirst(args: { where: { id: string } }): Promise<{ id: string } | null>;
+    findFirst(args: { where: { id: string; deletedAt: null } }): Promise<{ id: string } | null>;
     findMany(args: {
       where: { deletedAt: null; ipAddresses: { some: { ipAddressId: string } } };
       select: { id: true; name: true; baseUrl: true };

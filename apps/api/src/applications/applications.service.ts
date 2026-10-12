@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { IpamService } from '../ipam/ipam.service';
 import type { AuthUser } from '../auth/decorators';
 import {
   CREATE_FIELDS,
@@ -202,6 +203,10 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    // Właścicielem logiki przypisań IP jest `IpamService` — druga kopia
+    // „zdejmij przypisania i odblokuj adresy" w tym serwisie rozjechałaby
+    // się z pierwszą przy pierwszej zmianie zachowania.
+    private readonly ipam: IpamService,
   ) {}
 
   // ── Odczyt ─────────────────────────────────────────────────
@@ -523,23 +528,37 @@ export class ApplicationsService {
     });
     if (!app) throw new NotFoundException('Aplikacja nie istnieje.');
 
-    await this.prisma.application.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    // Soft delete, zdejmowanie przypisań IP i wpis do dziennika w jednej
+    // transakcji. Osobne kroki zostawiłyby stan, którego nikt nie zgłasza:
+    // aplikacja znika z listy, a jej adresy zostają `IN_USE` bez właściciela,
+    // a `removeAddress` odmawia ich skasowania. Wyjście z blokady tylko
+    // przez ręczną edycję bazy.
+    await this.prisma.$transaction(async () => {
+      await this.prisma.application.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
 
-    await this.audit.record({
-      action: 'app.deleted',
-      entity: 'Application',
-      entityId: id,
-      actorId: actor.id,
-      actorName: actor.username,
-      changes: { name: { from: app.name, to: null } },
-      ip,
+      await this.ipam.releaseIpAddressesForApplication(id);
+
+      await this.audit.record({
+        action: 'app.deleted',
+        entity: 'Application',
+        entityId: id,
+        actorId: actor.id,
+        actorName: actor.username,
+        changes: { name: { from: app.name, to: null } },
+        ip,
+      });
     });
   }
 
-  /** Przywrócenie usuniętej aplikacji. */
+  /** Przywrócenie usuniętej aplikacji.
+   *
+   * Przywrócenie NIE przywraca przypisań IP — `remove()` skasował je
+   * fizycznie, żeby odblokować adresy. Administrator przypisuje je
+   * ponownie z karty aplikacji, świadomie, a nie automatycznie.
+   */
   async restore(id: string, actor: AuthUser, ip?: string) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException('Aplikacja nie istnieje.');

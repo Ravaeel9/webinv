@@ -25,8 +25,15 @@ import {
   rangesOverlap,
   type Cidr,
 } from './cidr';
-import type { CreateAddressDto, CreateSubnetDto, UpdateAddressDto, UpdateSubnetDto } from './dto/ipam.dto';
 import type {
+  CreateAddressDto,
+  CreateSubnetDto,
+  SetApplicationIpAddressesDto,
+  UpdateAddressDto,
+  UpdateSubnetDto,
+} from './dto/ipam.dto';
+import type {
+  ApplicationIpAddressRef,
   ApplicationRefRow,
   IpAddressCreateData,
   IpAddressRow,
@@ -37,6 +44,13 @@ import type {
   SubnetUpdateData,
   SubnetWithCounts,
 } from './ipam.port';
+
+/**
+ * Typ odpowiedzi karty aplikacji jest zdefiniowany przy porcie (tam leżą
+ * pozostałe kontrakty odpowiedzi), a wystawiamy go jeszcze raz przy
+ * serwisie — to serwis jest tym, co kontroler wystawia w trasie.
+ */
+export type { ApplicationIpAddressRef } from './ipam.port';
 
 @Injectable()
 export class IpamService {
@@ -424,6 +438,163 @@ export class IpamService {
     return aplikacje.map((a) => this.toApplicationRef(a));
   }
 
+  // ── Przypisania aplikacja ↔ adres ───────────────────────────
+
+  /**
+   * Adresy przypisane do aplikacji, z danymi swojej podsieci.
+   *
+   * Czytamy przypisania, a nie relację z aplikacji: klucz złożony
+   * `[applicationId, ipAddressId]` jest jedynym miejscem, gdzie wiadomo,
+   * co jest przypisane — i pozwala odciąć cudze wiersze w zapytaniu,
+   * zamiast odfiltrowywać je w pamięci.
+   *
+   * Adresy przychodzą gotowe: nie dopasowujemy ich do podsieci po CIDR,
+   * bo to zadanie skanera (import zadania 10), a tu tylko prezentacja.
+   */
+  async getApplicationIpAddresses(appId: string): Promise<ApplicationIpAddressRef[]> {
+    const przypisania = await this.prisma.applicationIpAddress.findMany({
+      where: { applicationId: appId },
+    });
+    if (przypisania.length === 0) return [];
+
+    const adresy = await this.prisma.ipAddress.findMany({
+      where: { id: { in: przypisania.map((p) => p.ipAddressId) } },
+      include: { subnet: { select: { id: true, name: true, cidr: true } } },
+    });
+
+    return this.sortByAdres(adresy).map((a) => ({
+      id: a.id,
+      address: a.address,
+      status: a.status,
+      description: a.description,
+      subnet: a.subnet,
+    }));
+  }
+
+  /**
+   * Wymiana pełnego zestawu przypisań aplikacji.
+   *
+   * Formularz wysyła całą listę, więc porównujemy ją z tym, co jest
+   * w bazie, i zapisujemy różnicę. Kasowanie całego zestawu i tworzenie
+   * go od nowa zgubiłoby daty utworzenia przypisań, których nie ruszano,
+   * a przy 100 pozycjach oznaczałoby 200 zapisów przy jednym kliknięciu.
+   *
+   * Kolejność walidacji: aplikacja (istnieje? nie usunięta miękko?),
+   * potem identyfikatory adresów. Wszystko przed pierwszym zapisem —
+   * częściowo zastosowana wymiana zostawiłaby aplikację w stanie, o którym
+   * nikt nie prosił.
+   */
+  async setApplicationIpAddresses(
+    appId: string,
+    dto: SetApplicationIpAddressesDto,
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<void> {
+    const aplikacja = await this.prisma.application.findFirst({
+      where: { id: appId, deletedAt: null },
+    });
+    // `deletedAt: null` w filtrze, nie w pamięci: usunięta aplikacja
+    // istnieje w bazie i przyjęłaby powiązania, których nikt nie zamawiał.
+    if (!aplikacja) throw new NotFoundException('Aplikacja nie istnieje.');
+
+    const obecne = await this.prisma.applicationIpAddress.findMany({
+      where: { applicationId: appId },
+    });
+    const obecneIds = new Set(obecne.map((p) => p.ipAddressId));
+    // `Set` zamiast tablicy: powtórzony identyfikator w formularzu trafiłby
+    // do `createMany` dwa razy i klucz złożony zamieniłby to w 500 z P2002.
+    const zadaneIds = new Set(dto.ipAddressIds);
+
+    const doDodania = [...zadaneIds].filter((id) => !obecneIds.has(id));
+    const doUsuniecia = [...obecneIds].filter((id) => !zadaneIds.has(id));
+
+    // Niezmieniony zestaw nie jest zapisem. Bez tego warunku każde
+    // otwarcie karty aplikacji i zapis bez zmian pchałby do bazy pustą
+    // transakcję i śmieciowy wpis w dzienniku.
+    if (doDodania.length === 0 && doUsuniecia.length === 0) return;
+
+    if (doDodania.length > 0) {
+      const znalezione = await this.prisma.ipAddress.findMany({
+        where: { id: { in: doDodania } },
+      });
+      const istniejaceIds = new Set(znalezione.map((a) => a.id));
+      const brak = doDodania.find((id) => !istniejaceIds.has(id));
+      // Sam identyfikator w komunikacie: administrator ma wskazać, który
+      // wpis z formularza przestał istnieć, a nie zgadywać po pozycji.
+      if (brak) throw new NotFoundException(`Adres ${brak} nie istnieje.`);
+    }
+
+    await this.prisma.$transaction(async () => {
+      if (doUsuniecia.length > 0) {
+        await this.prisma.applicationIpAddress.deleteMany({
+          where: { applicationId: appId, ipAddressId: { in: doUsuniecia } },
+        });
+      }
+      if (doDodania.length > 0) {
+        await this.prisma.applicationIpAddress.createMany({
+          data: doDodania.map((ipAddressId) => ({ applicationId: appId, ipAddressId })),
+        });
+      }
+
+      // JEDEN wpis na całą wymianę, nie osobny na każdy adres: formularz
+      // wysyła pełny zestaw przy każdym zapisie, więc wpisy per pozycja
+      // zaśmiecałyby dziennik informacją, której nikt nie czyta. Dziennik
+      // odpowiada na pytanie „co się stało" — tu: zmienił się zestaw o N
+      // dodanych i M zdjętych adresów.
+      await this.audit.record({
+        action: 'ip_addresses.update',
+        entity: 'Application',
+        entityId: appId,
+        actorId: actor.id,
+        actorName: actor.username,
+        changes: {
+          addedCount: { from: 0, to: doDodania.length },
+          removedCount: { from: doUsuniecia.length, to: 0 },
+        },
+        ip,
+      });
+    });
+  }
+
+  /**
+   * Zdejmuje przypisania aplikacji i odblokowuje ich adresy.
+   *
+   * Wywoływane przez `ApplicationsService.remove()` — soft delete aplikacji
+   * musi zdejmować jej przypisania, bo `onDelete: Cascade` zadziałałby
+   * dopiero przy kasowaniu definicji, której soft delete nie robi. Bez tego
+   * adres zostałby `IN_USE` bez właściciela, a `removeAddress` odmawiałby
+   * jego skasowania — wyjście z blokady tylko przez ręczną edycję bazy.
+   *
+   * Kolejność operacji jest zgubiona celowo:
+   *
+   *  1. `findMany` po `applicationId` — zbiór identyfikatorów adresów
+   *     czytamy PRZED skasowaniem wierszy, które zaraz znikają. Liczenie
+   *     „co zostało" po `deleteMany` pominęłoby adresy współdzielone
+   *     z inną aplikacją, a te mają wrócić do `FREE` tak samo.
+   *  2. `updateMany` na `ipAddress` z `status: 'FREE'` — PRZED
+   *     `deleteMany` na przypisaniach, bo odwrotna kolejność zostawiłaby
+   *     adresy zablokowane na zawsze.
+   *
+   * Transakcję z soft delete'em zakłada wołający (`ApplicationsService`),
+   * żeby aplikacja znikała razem ze zdejmowaniem przypisań, a nie obok.
+   */
+  async releaseIpAddressesForApplication(appId: string): Promise<void> {
+    const przypisania = await this.prisma.applicationIpAddress.findMany({
+      where: { applicationId: appId },
+    });
+    if (przypisania.length === 0) return;
+
+    const adresy = [...new Set(przypisania.map((p) => p.ipAddressId))];
+
+    await this.prisma.ipAddress.updateMany({
+      where: { id: { in: adresy } },
+      data: { status: 'FREE' },
+    });
+    await this.prisma.applicationIpAddress.deleteMany({
+      where: { applicationId: appId },
+    });
+  }
+
   // ── Pomocnicze ──────────────────────────────────────────────
 
   /**
@@ -553,8 +724,15 @@ export class IpamService {
     return { ...subnet, addresses: this.sortByAdres(adresy) };
   }
 
-  private sortByAdres(adresy: IpAddressRow[]): IpAddressRow[] {
-    // Numerycznie, nie leksykograficznie: „10.20.0.40” < „10.20.0.5”
+  /**
+   * Sortowanie numeryczne adresów.
+   *
+   * Generyczne, bo wiersze bywają szersze niż `IpAddressRow` — przy
+   * odczycie przypisań niesą podpiętą podsieć, a sortowanie nie może jej
+   * zgubić po drodze.
+   */
+  private sortByAdres<T extends IpAddressRow>(adresy: T[]): T[] {
+    // Numerycznie, nie leksykograficznie: „10.20.0.40" < „10.20.0.5"
     // to porządek, który w katalogu wygląda na błąd.
     return [...adresy].sort(
       (a, b) => (ipToNumber(a.address) ?? 0) - (ipToNumber(b.address) ?? 0),
