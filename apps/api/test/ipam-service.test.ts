@@ -1570,4 +1570,33 @@ describe('Zwalnianie przypisań aplikacji', () => {
     await serwis(p).releaseIpAddressesForApplication(APP);
     assert.equal(wywolania.odblokowaneAdresy[0]?.data.status, 'FREE');
   });
+
+  it('mieszany zestaw w jednym remove(): współdzielony IN_USE i wyłączny FREE', async () => {
+    // Każdy z dotychczasowych testów zwalniał ALBO adres współdzielony,
+    // ALBO wyłączny — czyli zawsze jeden `updateMany`. Usunięcie aplikacji
+    // z dwoma różnymi adresami idzie jednak jednym wywołaniem serwisu
+    // i wymaga DWÓCH partii naraz: `IN_USE` tam, gdzie została żywa
+    // aplikacja, i `FREE` tam, gdzie nie. Gdyby druga partia ginęła
+    // (albo odwrotnie), skasowana aplikacja zostawiłaby po sobie adres
+    // zablokowany bez właściciela albo adres wolny mimo żywego
+    // przypisania — oba stany są trwałe, bo nic w systemie ich nie poprawia.
+    const { a, b, p, wywolania } = przypisaniaStan(({ a, b }) => ({
+      aplikacje: [aplikacja(APP, 'Panel klienta'), aplikacja('app-2', 'Inna aplikacja')],
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: a.id, applicationId: 'app-2' },
+        { ipAddressId: b.id, applicationId: APP },
+      ],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.deepEqual(wywolania.odblokowaneAdresy, [
+      { where: { id: { in: [b.id] } }, data: { status: 'FREE' } },
+      { where: { id: { in: [a.id] } }, data: { status: 'IN_USE' } },
+    ]);
+    assert.deepEqual(
+      wywolania.usunietePrzypisania,
+      [{ applicationId: APP }],
+      'obie partie statusów dotyczą jednego skasowania aplikacji',
+    );
+  });
 });

@@ -584,9 +584,10 @@ export class IpamService {
    * zmienia w statusie), więc błąd byłby trwały i naprawialny tylko przez
    * ręczną edycję bazy.
    *
-   * `DEPRECATED` („wycofywany, czeka na zwolnienie") zostaje, jak był:
-   * to decyzja katalogu, a nie skutek przypisania, więc zdjęcie
-   * przypisania jej nie cofa.
+   * `DEPRECATED` („wycofywany, czeka na zwolnienie") przetrwa tylko tam,
+   * gdzie nie zostało już żadne żywe przypisanie — wtedy zdjęcie
+   * przypisania nie cofa decyzji katalogu. Adres współdzielony z żywą
+   * aplikacją dostaje `IN_USE` niezależnie od tego, był `DEPRECATED`, czy nie.
    *
    * Transakcję z soft delete zakłada wołający (`ApplicationsService`), ale
    * to tylko kolejność wywołań: zapytania idą bazowym klientem Prisma,
