@@ -15,14 +15,15 @@
  *    żadnej aplikacji. Katalog pokazałby zajęty adres bez właściciela,
  *    a `removeAddress` odmawiałby jego skasowania — wyjście z blokady
  *    tylko przez ręczną edycję bazy.
- *  - **Kolejność operacji jest kontraktem.** `findMany` po `applicationId`
- *    musi być przed `deleteMany`, a `updateMany` na `ipAddress` przed
- *    `deleteMany` na przypisaniach — inaczej identyfikatorów adresów nie
- *    da się już odblokować.
- *  - **Wszystko w jednej transakcji z soft delete'em.** Osobne transakcje
- *    zostawiłyby scenariusz „aplikacja usunięta, przypisania zostały",
- *    którego nikt nie zgłasza, dopóki ktoś nie spróbuje przypisać adresu
- *    do nowej aplikacji.
+ *  - **Kolejność operacji jest kontraktem.** Statusy adresów czytamy przed
+ *    `deleteMany` na przypisaniach, a przestawiamy po nim — dopiero wtedy
+ *    wiadomo, czy adres ma jeszcze żywego właściciela.
+ *  - **Adres współdzielony musi zostać `IN_USE`, a `DEPRECATED` — nietknięty.**
+ *    Nic w systemie nie przywraca `IN_USE` przy przypisaniu, a `DEPRECATED`
+ *    jest decyzją katalogu, nie skutkiem przypisania.
+ *  - **Transakcja tu nie jest atomowością.** Zapytania idą bazowym klientem
+ *    Prisma, którego Prisma nie włącza w `$transaction(fn)`; test pilnuje
+ *    kolejności, nie gwarancji „wszystko albo nic”.
  */
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
@@ -56,10 +57,10 @@ type Stan = {
 /**
  * Atrapa na potrzeby obu serwisów naraz.
  *
- * `$transaction` naprawdę wycofuje zmiany po błędzie (kopia tablic
- * sprzed transakcji). Bez tego test „awaria nie usuwa aplikacji" byłby
- * bezsilny: atrapa bez wycofania zachowywałaby się jak transakcja, której
- * w kodzie w ogóle nie ma.
+ * `$transaction` wycofuje zmiany po błędzie (kopia tablic sprzed
+ * transakcji), bo chcemy widzieć, co zostaje po nieudanym `remove()`.
+ * To mocniejsze niż brak transakcji w kodzie, więc test opisuje wyraźnie,
+ * że chodzi o wycofanie atrapy, a nie o obietnicę atomowości Prisma.
  */
 function atrapa(stan: Stan = {}) {
   const aplikacje = [...(stan.aplikacje ?? [])];
@@ -126,11 +127,32 @@ function atrapa(stan: Stan = {}) {
     applicationIpAddress: {
       findMany: async ({
         where,
-      }: { where?: { applicationId?: string; ipAddressId?: string } } = {}) =>
-        przypisania
+      }: {
+        where?: {
+          applicationId?: string;
+          ipAddressId?: string | { in: string[] };
+          application?: { deletedAt: null };
+        };
+      } = {}) => {
+        wywolania.kolejnosc.push('applicationIpAddress.findMany');
+        return przypisania
           .filter((x) => !where?.applicationId || x.applicationId === where.applicationId)
-          .filter((x) => !where?.ipAddressId || x.ipAddressId === where.ipAddressId)
-          .map((x) => ({ ...x })),
+          .filter((x) =>
+            where?.ipAddressId === undefined
+              ? true
+              : typeof where.ipAddressId === 'string'
+                ? x.ipAddressId === where.ipAddressId
+                : where.ipAddressId.in.includes(x.ipAddressId),
+          )
+          // `application: { deletedAt: null }` to w SQL filtr po żywej
+          // aplikacji — tu sprawdzamy go po wierszu aplikacji.
+          .filter(
+            (x) =>
+              where?.application === undefined ||
+              aplikacje.some((a) => a.id === x.applicationId && a.deletedAt === null),
+          )
+          .map((x) => ({ ...x }));
+      },
       count: async ({ where }: { where: { ipAddressId: string } }) =>
         przypisania.filter((x) => x.ipAddressId === where.ipAddressId).length,
       deleteMany: async ({ where }: { where: { applicationId?: string } }) => {
@@ -153,6 +175,12 @@ function atrapa(stan: Stan = {}) {
       findUnique: async ({ where }: { where: { id: string } }) => {
         const wiersz = adresy.find((a) => a.id === where.id);
         return wiersz ? { ...wiersz } : null;
+      },
+      // Statusy czytane PRZED skasowaniem przypisań — z nich widać, czy
+      // adres był świadomie `DEPRECATED`.
+      findMany: async ({ where }: { where?: { id?: { in: string[] } } } = {}) => {
+        wywolania.kolejnosc.push('ipAddress.findMany');
+        return adresy.filter((a) => !where?.id || where.id.in.includes(a.id)).map((a) => ({ ...a }));
       },
       delete: async ({ where }: { where: { id: string } }) => {
         wywolania.kolejnosc.push('ipAddress.delete');
@@ -220,7 +248,7 @@ function atrapa(stan: Stan = {}) {
 }
 
 describe('Soft delete aplikacji zwalnia przypisane adresy', () => {
-  it('zdejmuje przypisania i odblokowuje statusy w tej samej transakcji', async () => {
+  it('zdejmuje przypisania i odblokowuje statusy w jednym wywołaniu transakcji', async () => {
     const { apps, wywolania, przypisania, adresy } = atrapa({
       aplikacje: [{ id: 'app-1', name: 'Panel klienta', deletedAt: null }],
       adresy: [
@@ -235,12 +263,16 @@ describe('Soft delete aplikacji zwalnia przypisane adresy', () => {
 
     await apps.remove('app-1', AKTOR);
 
-    // Kolejność, nie tylko stan końcowy: `updateMany` PRZED `deleteMany`,
-    // bo identyfikatory adresów czytamy z wierszy, które zaraz znikają.
+    // Kolejność, nie tylko stan końcowy: statusy czytamy PRZED
+    // `deleteMany` (potem nie ma skąd), a przestawiamy PO nim — dopiero
+    // wtedy wiadomo, czy adres ma jeszcze żywego właściciela.
     assert.deepEqual(wywolania.kolejnosc, [
       'application.update',
-      'ipAddress.updateMany',
+      'applicationIpAddress.findMany',
+      'ipAddress.findMany',
       'applicationIpAddress.deleteMany',
+      'applicationIpAddress.findMany',
+      'ipAddress.updateMany',
     ]);
     assert.deepEqual(wywolania.odblokowaneAdresy, [
       { where: { id: { in: ['ip-a', 'ip-b'] } }, data: { status: 'FREE' } },
@@ -250,16 +282,20 @@ describe('Soft delete aplikacji zwalnia przypisane adresy', () => {
       adresy.map((a) => a.status),
       ['FREE', 'FREE'],
     );
-    // Soft delete, zrzucanie przypisań i wpis do dziennika — jeden krok.
     assert.equal(wywolania.transakcje, 1);
     assert.equal(wywolania.zdarzenia.filter((z) => z.action === 'app.deleted').length, 1);
   });
 
-  it('odblokowuje adres współdzielony z drugą aplikacją', async () => {
-    // Zliczanie „co zostało po skasowaniu" pominęłoby ten adres: zostałby
-    // `IN_USE` przy jednym przypisaniu, którego nikt nie zamierza zdejmować.
-    const { apps, wywolania } = atrapa({
-      aplikacje: [{ id: 'app-1', name: 'Panel klienta', deletedAt: null }],
+  it('adres współdzielony z żywą aplikacją zostaje IN_USE', async () => {
+    // Bezwarunkowe `FREE` po zdejmowaniu jednego przypisania ustawiłoby ten
+    // adres jako wolny mimo żywego przypisania — i nic w systemie nie
+    // wróciłoby mu `IN_USE` (przypisanie statusu nie zmienia), więc błąd
+    // zostawałby do poprawki ręcznej w bazie.
+    const { apps, wywolania, adresy } = atrapa({
+      aplikacje: [
+        { id: 'app-1', name: 'Panel klienta', deletedAt: null },
+        { id: 'app-2', name: 'Inna aplikacja', deletedAt: null },
+      ],
       adresy: [{ id: 'ip-a', address: '10.20.1.5', status: 'IN_USE' }],
       przypisania: [
         { applicationId: 'app-1', ipAddressId: 'ip-a' },
@@ -269,7 +305,27 @@ describe('Soft delete aplikacji zwalnia przypisane adresy', () => {
 
     await apps.remove('app-1', AKTOR);
 
-    assert.deepEqual(wywolania.odblokowaneAdresy[0]?.where, { id: { in: ['ip-a'] } });
+    assert.deepEqual(wywolania.odblokowaneAdresy, [
+      { where: { id: { in: ['ip-a'] } }, data: { status: 'IN_USE' } },
+    ]);
+    assert.equal(adresy[0]?.status, 'IN_USE');
+    assert.deepEqual(wywolania.usunietePrzypisania, [{ applicationId: 'app-1' }]);
+  });
+
+  it('nie cofa świadomie DEPRECATED przy zdejmowaniu przypisania', async () => {
+    // `DEPRECATED` znaczy „wycofywany, czeka na zwolnienie" — decyzja
+    // katalogu, a nie skutek przypisania. Zdjęcie przypisania nie ma jej
+    // cofać, bo administrator kazał czekać.
+    const { apps, wywolania, adresy } = atrapa({
+      aplikacje: [{ id: 'app-1', name: 'Panel klienta', deletedAt: null }],
+      adresy: [{ id: 'ip-a', address: '10.20.1.5', status: 'DEPRECATED' }],
+      przypisania: [{ applicationId: 'app-1', ipAddressId: 'ip-a' }],
+    });
+
+    await apps.remove('app-1', AKTOR);
+
+    assert.deepEqual(wywolania.odblokowaneAdresy, []);
+    assert.equal(adresy[0]?.status, 'DEPRECATED');
     assert.deepEqual(wywolania.usunietePrzypisania, [{ applicationId: 'app-1' }]);
   });
 
@@ -305,10 +361,12 @@ describe('Soft delete aplikacji zwalnia przypisane adresy', () => {
     assert.equal(wywolania.transakcje, 0);
   });
 
-  it('awaria przy zdejmowaniu przypisań nie zostawia usuniętej aplikacji', async () => {
-    // Osobne transakcje dałyby tu stan, którego nikt nie zgłasza: aplikacja
-    // znika z listy, a adresy zostają `IN_USE` bez właściciela. Transakcja
-    // obejmuje całość, więc błąd wycofuje soft delete razem z resztą.
+  it('awaria przy przestawianiu statusów nie zostawia usuniętej aplikacji', async () => {
+    // Atrapa wycofuje stan przy błędzie, emulując transakcję jednego
+    // klienta. W produkcji zapytania idą bazowym klientem, którego Prisma
+    // nie włącza w `$transaction(fn)` — atomowości nie ma, a to test
+    // pilnuje tylko kolejności i tego, że wyjątek nie zostawia w dzienniku
+    // zdarzenia o usunięciu, które się nie odbyło.
     const { apps, wywolania, aplikacje, przypisania, adresy } = atrapa({
       aplikacje: [{ id: 'app-1', name: 'Panel klienta', deletedAt: null }],
       adresy: [{ id: 'ip-a', address: '10.20.1.5', status: 'IN_USE' }],

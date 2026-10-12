@@ -528,11 +528,17 @@ export class ApplicationsService {
     });
     if (!app) throw new NotFoundException('Aplikacja nie istnieje.');
 
-    // Soft delete, zdejmowanie przypisań IP i wpis do dziennika w jednej
-    // transakcji. Osobne kroki zostawiłyby stan, którego nikt nie zgłasza:
-    // aplikacja znika z listy, a jej adresy zostają `IN_USE` bez właściciela,
-    // a `removeAddress` odmawia ich skasowania. Wyjście z blokady tylko
-    // przez ręczną edycję bazy.
+    // Kolejność, nie atomowość. Zapytania poniżej (i w `IpamService`, i w
+    // dzienniku) idą bazowym klientem Prisma, którego Prisma NIE włącza w
+    // `$transaction(fn)` — wycofanie transakcji ich nie obejmuje. Transakcja
+    // daje więc gwarancję tylko wtedy, gdy wszystko się uda, a wyjątek jest
+    // mniej prawdopodobny niż przerwanie procesu.
+    //
+    // Dlaczego w ogóle: kolejność „zdejmij przypisania → przestaw status”
+    // sprawia, że niespójny stan (aplikacja usunięta, adres jeszcze `IN_USE`)
+    // jest krótkotrwały i naprawialny przez ponowne zapisanie adresu, a nie
+    // stanem, w którym adres jest `FREE` mimo żywego przypisania — ten
+    // zostawiłby blokadę, której żaden kod już nie zdejmie.
     await this.prisma.$transaction(async () => {
       await this.prisma.application.update({
         where: { id },

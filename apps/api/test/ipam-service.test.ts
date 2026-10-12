@@ -232,8 +232,9 @@ function port(stan: StanPortu = {}) {
       }: {
         where?: { subnetId?: string; address?: string; id?: { in: string[] } };
         include?: { subnet: { select: { id: true; name: true; cidr: true } } };
-      } = {}) =>
-        adresy
+      } = {}) => {
+        wywolania.kolejnosc.push('ipAddress.findMany');
+        return adresy
           .filter((a) => !where?.subnetId || a.subnetId === where.subnetId)
           .filter((a) => !where?.address || a.address === where.address)
           .filter((a) => !where?.id || where.id.in.includes(a.id))
@@ -248,7 +249,8 @@ function port(stan: StanPortu = {}) {
                 ? { id: podsiec.id, name: podsiec.name, cidr: podsiec.cidr }
                 : { id: '', name: '(brak podsieci)', cidr: '' },
             };
-          }),
+          });
+      },
       findUnique: async ({ where }: { where: { id: string } }) => {
         const a = adresy.find((x) => x.id === where.id);
         return a ? { ...a } : null;
@@ -346,11 +348,33 @@ function port(stan: StanPortu = {}) {
     applicationIpAddress: {
       findMany: async ({
         where,
-      }: { where?: { ipAddressId?: string; applicationId?: string } } = {}) =>
-        przypisania
-          .filter((x) => !where?.ipAddressId || x.ipAddressId === where.ipAddressId)
+      }: {
+        where?: {
+          ipAddressId?: string | { in: string[] };
+          applicationId?: string;
+          application?: { deletedAt: null };
+        };
+      } = {}) => {
+        wywolania.kolejnosc.push('applicationIpAddress.findMany');
+        return przypisania
+          .filter((x) =>
+            where?.ipAddressId === undefined
+              ? true
+              : typeof where.ipAddressId === 'string'
+                ? x.ipAddressId === where.ipAddressId
+                : where.ipAddressId.in.includes(x.ipAddressId),
+          )
           .filter((x) => !where?.applicationId || x.applicationId === where.applicationId)
-          .map((x) => ({ ...x })),
+          // Atrapa relacji: `application: { deletedAt: null }` znaczy
+          // „tylko żywe aplikacje" — bez tego zwalnianie adresu
+          // współdzielonego ustawiłoby `FREE` mimo trwającego przypisania.
+          .filter(
+            (x) =>
+              where?.application === undefined ||
+              aplikacje.some((a) => a.id === x.applicationId && a.deletedAt === null),
+          )
+          .map((x) => ({ ...x }));
+      },
       count: async ({ where }: { where: { ipAddressId: string } }) => {
         wywolania.liczbyPrzypisan.push(where);
         return przypisania.filter((x) => x.ipAddressId === where.ipAddressId).length;
@@ -1437,10 +1461,11 @@ describe('Czytanie przypisań aplikacji', () => {
 });
 
 describe('Zwalnianie przypisań aplikacji', () => {
-  it('odblokowuje adresy PRZED skasowaniem przypisań', async () => {
-    // Kolejność jest tu zgubiona celowo: identyfikatory adresów czytamy
-    // z wierszy przypisań, które zaraz znikają. Po `deleteMany` nie ma
-    // skąd wziąć `ipAddressId`, a adres zostałby zablokowany na zawsze.
+  it('odblokowuje dopiero PO sprawdzeniu, co zostało po skasowaniu', async () => {
+    // Kolejność jest tu zgubiona celowo i obie jej części są niezbędne:
+    // identyfikatory adresów i ich statusy czytamy PRZED `deleteMany`
+    // (potem nie ma skąd), a statusy przestawiamy PO nim — inaczej nie
+    // wiadomo, czy adres ma jeszcze żywego właściciela.
     const { a, b, p, wywolania } = przypisaniaStan(({ a, b }) => ({
       przypisania: [
         { ipAddressId: a.id, applicationId: APP },
@@ -1449,8 +1474,11 @@ describe('Zwalnianie przypisań aplikacji', () => {
     }));
     await serwis(p).releaseIpAddressesForApplication(APP);
     assert.deepEqual(wywolania.kolejnosc, [
-      'ipAddress.updateMany',
+      'applicationIpAddress.findMany',
+      'ipAddress.findMany',
       'applicationIpAddress.deleteMany',
+      'applicationIpAddress.findMany',
+      'ipAddress.updateMany',
     ]);
     assert.deepEqual(wywolania.odblokowaneAdresy, [
       { where: { id: { in: [a.id, b.id] } }, data: { status: 'FREE' } },
@@ -1458,19 +1486,54 @@ describe('Zwalnianie przypisań aplikacji', () => {
     assert.deepEqual(wywolania.usunietePrzypisania, [{ applicationId: APP }]);
   });
 
-  it('adres współdzielony z inną aplikacją wraca do FREE', async () => {
-    // Zliczanie „co zostało po skasowaniu" pominęłoby ten adres: zostałby
-    // `IN_USE` z jednym przypisaniem, którego nikt nie zamierza zdejmować.
-    // Zbiór `ipAddressId` bierzemy przed skasowaniem wierszy.
+  it('adres współdzielony z żywą aplikacją zostaje IN_USE', async () => {
+    // Bezwarunkowe `FREE` po zdejmowaniu jednego przypisania ustawiłoby
+    // ten adres jako wolny mimo żywego przypisania — i nic w systemie
+    // nie wróciłby mu `IN_USE` (przypisanie statusu nie zmienia), więc
+    // błąd zostawałby do poprawki ręcznej w bazie.
     const { a, p, wywolania } = przypisaniaStan(({ a }) => ({
+      aplikacje: [aplikacja(APP, 'Panel klienta'), aplikacja('app-2', 'Inna aplikacja')],
       przypisania: [
         { ipAddressId: a.id, applicationId: APP },
         { ipAddressId: a.id, applicationId: 'app-2' },
       ],
     }));
     await serwis(p).releaseIpAddressesForApplication(APP);
-    assert.deepEqual(wywolania.odblokowaneAdresy[0]?.where, { id: { in: [a.id] } });
-    assert.equal(wywolania.odblokowaneAdresy[0]?.data.status, 'FREE');
+    assert.deepEqual(wywolania.odblokowaneAdresy, [
+      { where: { id: { in: [a.id] } }, data: { status: 'IN_USE' } },
+    ]);
+  });
+
+  it('adres przypisany tylko do aplikacji usuniętej wraca do FREE', async () => {
+    // Drugi przypis istnieje, ale jego aplikacja jest usunięta miękko —
+    // nie trzyma adresu. Gdyby liczyć go bez filtra `deletedAt: null`,
+    // adres zostałby `IN_USE` bez właściciela i zablokowany na zawsze.
+    const { a, p, wywolania } = przypisaniaStan(({ a }) => ({
+      aplikacje: [
+        aplikacja(APP, 'Panel klienta'),
+        aplikacja('app-2', 'Wyrzucona', null, new Date('2026-02-01')),
+      ],
+      przypisania: [
+        { ipAddressId: a.id, applicationId: APP },
+        { ipAddressId: a.id, applicationId: 'app-2' },
+      ],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.deepEqual(wywolania.odblokowaneAdresy, [
+      { where: { id: { in: [a.id] } }, data: { status: 'FREE' } },
+    ]);
+  });
+
+  it('nie cofa świadomie DEPRECATED przy zdejmowaniu przypisania', async () => {
+    // `DEPRECATED` to decyzja katalogu („wycofywany, czeka na zwolnienie"),
+    // a nie skutek przypisania — zdjęcie przypisania nie ma jej cofać
+    // ani do `FREE`, ani tym bardziej do `IN_USE`.
+    const { p, wywolania } = przypisaniaStan(({ a }) => ({
+      adresy: [adres(PODNET.id, '10.20.1.5', 'DEPRECATED')],
+      przypisania: [{ ipAddressId: a.id, applicationId: APP }],
+    }));
+    await serwis(p).releaseIpAddressesForApplication(APP);
+    assert.deepEqual(wywolania.odblokowaneAdresy, []);
   });
 
   it('zdejmuje przypisania aplikacji, nie cudze', async () => {
@@ -1484,7 +1547,8 @@ describe('Zwalnianie przypisań aplikacji', () => {
     await serwis(p).releaseIpAddressesForApplication(APP);
     assert.equal(wywolania.usunietePrzypisania.length, 1);
     assert.equal(wywolania.usunietePrzypisania[0]?.applicationId, APP);
-    // Drugi adres wciąż przypisany do `app-2` — statusu nie ruszamy.
+    // Adres `app-2` w ogóle nie wchodzi w przeliczanie — nie był
+    // przypisany do usuwanej aplikacji, więc jego statusu nie ruszamy.
     assert.deepEqual(wywolania.odblokowaneAdresy[0]?.where, { id: { in: [a.id] } });
   });
 
@@ -1497,11 +1561,9 @@ describe('Zwalnianie przypisań aplikacji', () => {
     assert.equal(wywolania.usunietePrzypisania.length, 0);
   });
 
-  it('odblokowuje każdy adres przypisany aplikacji, także ten już wolny', async () => {
-    // `status` i przypisania żyją swoim życiem (decyzja 9 ze specyfikacji),
-    // więc serwis nie zgaduje warunkiem — przywraca `FREE` wszystkim
-    // adresom, z których zdejmuje przypisanie. Wiersze, których status
-    // już był `FREE`, `updateMany` w bazie przepisuje bez zmiany wyniku.
+  it('adres IN_USE bez pozostałych przypisań wraca do FREE', async () => {
+    // Nie ma warunku w stylu `status: 'IN_USE'` w `where` — wystarczy, że
+    // zdjęliśmy ostatnie żywe przypisanie, a adres ma być wolny.
     const { p, wywolania } = przypisaniaStan(({ a }) => ({
       przypisania: [{ ipAddressId: a.id, applicationId: APP }],
     }));

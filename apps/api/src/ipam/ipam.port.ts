@@ -149,11 +149,11 @@ export type IpamPort = {
     update(args: { where: { id: string }; data: IpAddressUpdateData }): Promise<IpAddressRow>;
     delete(args: { where: { id: string } }): Promise<IpAddressRow>;
     /**
-     * Zbiorcze przestawienie statusu. Bezwarunkowe `status: 'FREE'` przy
-     * zwalnianiu przypisań: `status` żyje własnym życiem (adres bywa
-     * rezerwowany bez aplikacji), więc serwis przywraca wolność wszystkim
-     * adresom, z których zdejmuje przypisanie, zamiast zgadywać, które
-     * z nich blokowało powiązanie.
+     * Zbiorcze przestawienie statusu. Przy zwalnianiu przypisań wołane
+     * dwukrotnie: `FREE` dla adresów bez żywych przypisań i `IN_USE` dla
+     * tych, które zostały przypisane do innej, żywej aplikacji. `DEPRECATED`
+     * nigdy nie jest zapisywany tą drogą — status katalogu zostaje decyzją
+     * administratora (albo skanera z zadania 10).
      */
     updateMany(args: {
       where: { id: { in: string[] } };
@@ -167,10 +167,19 @@ export type IpamPort = {
      * aplikacji, również usuniętych miękko; właścicielem tej semantyki jest
      * Task 7). Z `where.ipAddressId` czyta `removeAddress`, z
      * `where.applicationId` — zestaw przypisań aplikacji.
+     *
+     * `ipAddressId.in` z `application: { deletedAt: null }` to pytanie
+     * „co z tych adresów jest jeszcze przypisane do żywej aplikacji" —
+     * bez niego zwolnienie adresu współdzielonego ustawiłoby `FREE`
+     * mimo trwającego przypisania.
      */
-    findMany(args?: { where?: { ipAddressId?: string; applicationId?: string } }): Promise<
-      AssignmentRow[]
-    >;
+    findMany(args?: {
+      where?: {
+        ipAddressId?: string | { in: string[] };
+        applicationId?: string;
+        application?: { deletedAt: null };
+      };
+    }): Promise<AssignmentRow[]>;
     count(args: { where: { ipAddressId: string } }): Promise<number>;
     /**
      * Wymiana zestawu idzie różnicą, nie pełnym przebudowaniem: `deleteMany`

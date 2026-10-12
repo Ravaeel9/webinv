@@ -39,10 +39,10 @@ import { SettingsModule } from './settings/settings.module';
     AuditModule,
     AuthModule,
     UsersModule,
+    ApplicationsModule,
     // Po `ApplicationsModule` — `remove()` aplikacji woła serwis IPAM,
     // a ten import jest tu, żeby moduł był widoczny w `AppModule` zanim
     // dojdą do niego trasy katalogu (Task 8).
-    ApplicationsModule,
     IpamModule,
     // Przed `SeedModule` — seed pyta `SettingsService` o stan trybu demo.
     SettingsModule,

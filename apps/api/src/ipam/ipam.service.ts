@@ -557,26 +557,42 @@ export class IpamService {
   }
 
   /**
-   * Zdejmuje przypisania aplikacji i odblokowuje ich adresy.
+   * Zdejmuje przypisania aplikacji i przestawia status ich adresów.
    *
    * Wywoływane przez `ApplicationsService.remove()` — soft delete aplikacji
    * musi zdejmować jej przypisania, bo `onDelete: Cascade` zadziałałby
    * dopiero przy kasowaniu definicji, której soft delete nie robi. Bez tego
    * adres zostałby `IN_USE` bez właściciela, a `removeAddress` odmawiałby
-   * jego skasowania — wyjście z blokady tylko przez ręczną edycję bazy.
+   * jego skasowania.
    *
-   * Kolejność operacji jest zgubiona celowo:
+   * Kolejność operacji jest tu zgubiona celowo:
    *
-   *  1. `findMany` po `applicationId` — zbiór identyfikatorów adresów
-   *     czytamy PRZED skasowaniem wierszy, które zaraz znikają. Liczenie
-   *     „co zostało" po `deleteMany` pominęłoby adresy współdzielone
-   *     z inną aplikacją, a te mają wrócić do `FREE` tak samo.
-   *  2. `updateMany` na `ipAddress` z `status: 'FREE'` — PRZED
-   *     `deleteMany` na przypisaniach, bo odwrotna kolejność zostawiłaby
-   *     adresy zablokowane na zawsze.
+   *  1. `findMany` po `applicationId` i odczyt statusów tych adresów —
+   *     zbiór identyfikatorów czytamy PRZED skasowaniem wierszy, które
+   *     zaraz znikają, bo potem nie ma skąd wziąć ani `ipAddressId`,
+   *     ani poprzedniego statusu.
+   *  2. `deleteMany` na przypisaniach tej aplikacji.
+   *  3. `findMany` po pozostałych przypisaniach — filtrowane
+   *     `application: { deletedAt: null }`, czyli liczymy tylko aplikacje
+   *     żywe. Dopiero po skasowaniu wiemy, co zostało.
+   *  4. `updateMany` na adresach: `IN_USE` tam, gdzie zostało żywe
+   *     przypisanie, i `FREE` tam, gdzie nie zostało żadne.
    *
-   * Transakcję z soft delete'em zakłada wołający (`ApplicationsService`),
-   * żeby aplikacja znikała razem ze zdejmowaniem przypisań, a nie obok.
+   * Dwa osobne `updateMany`, nie jeden bezwarunkowy `FREE`: adres
+   * współdzielony z inną, żywą aplikacją musi zostać `IN_USE`. Bez tego
+   * żaden kod w systemie nie wróciłby mu `IN_USE` (przypisanie niczego nie
+   * zmienia w statusie), więc błąd byłby trwały i naprawialny tylko przez
+   * ręczną edycję bazy.
+   *
+   * `DEPRECATED` („wycofywany, czeka na zwolnienie") zostaje, jak był:
+   * to decyzja katalogu, a nie skutek przypisania, więc zdjęcie
+   * przypisania jej nie cofa.
+   *
+   * Transakcję z soft delete zakłada wołający (`ApplicationsService`), ale
+   * to tylko kolejność wywołań: zapytania idą bazowym klientem Prisma,
+   * którego Prisma nie włącza w `$transaction(fn)`. Śmierć procesu
+   * w trakcie zostawia więc aplikację usuniętą, a przypisania (albo
+   * statusy) nie do końca — wtedy wystarczy powtórzyć operację.
    */
   async releaseIpAddressesForApplication(appId: string): Promise<void> {
     const przypisania = await this.prisma.applicationIpAddress.findMany({
@@ -585,14 +601,36 @@ export class IpamService {
     if (przypisania.length === 0) return;
 
     const adresy = [...new Set(przypisania.map((p) => p.ipAddressId))];
+    const wiersze = await this.prisma.ipAddress.findMany({ where: { id: { in: adresy } } });
 
-    await this.prisma.ipAddress.updateMany({
-      where: { id: { in: adresy } },
-      data: { status: 'FREE' },
-    });
     await this.prisma.applicationIpAddress.deleteMany({
       where: { applicationId: appId },
     });
+
+    const pozostale = await this.prisma.applicationIpAddress.findMany({
+      where: { ipAddressId: { in: adresy }, application: { deletedAt: null } },
+    });
+    const zajete = new Set(pozostale.map((p) => p.ipAddressId));
+
+    const doWolnych: string[] = [];
+    const doZajetych: string[] = [];
+    for (const wiersz of wiersze) {
+      if (zajete.has(wiersz.id)) doZajetych.push(wiersz.id);
+      else if (wiersz.status !== 'DEPRECATED') doWolnych.push(wiersz.id);
+    }
+
+    if (doWolnych.length > 0) {
+      await this.prisma.ipAddress.updateMany({
+        where: { id: { in: doWolnych } },
+        data: { status: 'FREE' },
+      });
+    }
+    if (doZajetych.length > 0) {
+      await this.prisma.ipAddress.updateMany({
+        where: { id: { in: doZajetych } },
+        data: { status: 'IN_USE' },
+      });
+    }
   }
 
   // ── Pomocnicze ──────────────────────────────────────────────
