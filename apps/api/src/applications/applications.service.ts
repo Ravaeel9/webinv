@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { IpamService } from '../ipam/ipam.service';
 import type { AuthUser } from '../auth/decorators';
 import {
   CREATE_FIELDS,
@@ -202,6 +203,10 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    // Właścicielem logiki przypisań IP jest `IpamService` — druga kopia
+    // „zdejmij przypisania i odblokuj adresy" w tym serwisie rozjechałaby
+    // się z pierwszą przy pierwszej zmianie zachowania.
+    private readonly ipam: IpamService,
   ) {}
 
   // ── Odczyt ─────────────────────────────────────────────────
@@ -523,23 +528,43 @@ export class ApplicationsService {
     });
     if (!app) throw new NotFoundException('Aplikacja nie istnieje.');
 
-    await this.prisma.application.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    // Kolejność, nie atomowość. Zapytania poniżej (i w `IpamService`, i w
+    // dzienniku) idą bazowym klientem Prisma, którego Prisma NIE włącza w
+    // `$transaction(fn)` — wycofanie transakcji ich nie obejmuje. Transakcja
+    // daje więc gwarancję tylko wtedy, gdy wszystko się uda, a wyjątek jest
+    // mniej prawdopodobny niż przerwanie procesu.
+    //
+    // Dlaczego w ogóle: kolejność „zdejmij przypisania → przestaw status”
+    // sprawia, że niespójny stan (aplikacja usunięta, adres jeszcze `IN_USE`)
+    // jest krótkotrwały i naprawialny przez ponowne zapisanie adresu, a nie
+    // stanem, w którym adres jest `FREE` mimo żywego przypisania — ten
+    // zostawiłby blokadę, której żaden kod już nie zdejmie.
+    await this.prisma.$transaction(async () => {
+      await this.prisma.application.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
 
-    await this.audit.record({
-      action: 'app.deleted',
-      entity: 'Application',
-      entityId: id,
-      actorId: actor.id,
-      actorName: actor.username,
-      changes: { name: { from: app.name, to: null } },
-      ip,
+      await this.ipam.releaseIpAddressesForApplication(id);
+
+      await this.audit.record({
+        action: 'app.deleted',
+        entity: 'Application',
+        entityId: id,
+        actorId: actor.id,
+        actorName: actor.username,
+        changes: { name: { from: app.name, to: null } },
+        ip,
+      });
     });
   }
 
-  /** Przywrócenie usuniętej aplikacji. */
+  /** Przywrócenie usuniętej aplikacji.
+   *
+   * Przywrócenie NIE przywraca przypisań IP — `remove()` skasował je
+   * fizycznie, żeby odblokować adresy. Administrator przypisuje je
+   * ponownie z karty aplikacji, świadomie, a nie automatycznie.
+   */
   async restore(id: string, actor: AuthUser, ip?: string) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException('Aplikacja nie istnieje.');

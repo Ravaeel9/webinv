@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   useApplication,
+  useApplicationIpAddresses,
   useAuditForEntity,
   useDeleteApplication,
   useRestoreApplication,
@@ -26,6 +27,8 @@ import {
   CRITICALITY_LABELS,
   DELIVERY_TYPE_TONES,
   DELIVERY_TYPE_LABELS,
+  IP_STATUS_LABELS,
+  IP_STATUS_TONES,
   SECURITY_TONES,
   SECURITY_LABELS,
   STATUS_TONES,
@@ -39,6 +42,7 @@ import {
   IconExternalLink,
   IconHistory,
   IconInfo,
+  IconNetwork,
   IconPencil,
   IconRefresh,
   IconShield,
@@ -322,6 +326,16 @@ export function ApplicationDetailPage() {
               </dl>
             </div>
           </section>
+        )}
+
+        {/* Adresy IP — ta sama reguła usługowa co wyżej (`SELF_HOSTED`),
+            plus warunek sesji: `ipam:read` ma każda rola zalogowana
+            i żadna publiczna, więc `can('ipam:read')` jest dokładnie
+            „jest sesja". Gość nie zobaczy ani wierszy, ani pustego
+            stanu — sekcja w ogóle nie jest montowana, więc nie idzie
+            po nią żądanie, które skończyłoby się 401. */}
+        {can('ipam:read') && app.deliveryType === 'SELF_HOSTED' && (
+          <ApplicationIpSection id={app.id} />
         )}
 
         {/* Właściciel i administratorzy — tylko dla zalogowanych.
@@ -653,6 +667,72 @@ function ApplicationHistory({
             </li>
           ))}
         </ol>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Przypisane adresy IP — odczyt z karty aplikacji.
+ *
+ * Sekcja żyje własnym zapytaniem (`GET /api/ipam/applications/:appId/
+ * ip-addresses`), nie polami rekordu aplikacji: przypisania to osobne
+ * dane i osobne drzewo tras. Rodzic decyduje, kiedy ją montować —
+ * tutaj tylko zakładamy, że patrzy zalogowany widz z `SELF_HOSTED`.
+ *
+ * Każdy wiersz prowadzi do karty podsieci, bo „czy ten adres jest
+ * jeszcze wolny, ile ich tam jest, co skan widział" rozstrzyga się
+ * w katalogu IPAM, a nie na karcie aplikacji.
+ */
+function ApplicationIpSection({ id }: { id: string }) {
+  const { data, isLoading, error, refetch } = useApplicationIpAddresses(id);
+  const addresses = data?.addresses ?? [];
+
+  return (
+    <section className="card-section">
+      <div className="card-section-header">
+        <span className="section-icon tone-info">
+          <IconNetwork />
+        </span>
+        <h2 className="section-title">Adresy IP</h2>
+      </div>
+
+      {isLoading ? (
+        <Spinner label="Ładowanie adresów…" />
+      ) : error ? (
+        <ErrorMessage error={error} onRetry={() => refetch()} className="mx-5 mb-4" />
+      ) : addresses.length === 0 ? (
+        <EmptyState title="Brak przypisanych adresów" />
+      ) : (
+        <ul className="divide-y divide-line">
+          {addresses.map((address) => (
+            <li
+              key={address.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3"
+            >
+              <span className="font-mono text-sm text-fg">
+                {address.address}
+              </span>
+
+              <Badge tone={IP_STATUS_TONES[address.status]}>
+                {IP_STATUS_LABELS[address.status]}
+              </Badge>
+
+              <span className="text-sm text-fg-muted">
+                {address.description ?? (
+                  <span className="text-fg-subtle">bez opisu</span>
+                )}
+              </span>
+
+              <Link
+                to={`/ipam/${address.subnet.id}`}
+                className="ml-auto shrink-0 text-xs font-medium text-brand-600 hover:underline"
+              >
+                {address.subnet.name} · {address.subnet.cidr}
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

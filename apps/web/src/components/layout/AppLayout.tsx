@@ -13,6 +13,7 @@ import {
   IconHistory,
   IconLogout,
   IconMenu,
+  IconNetwork,
   IconUsers,
   IconX,
 } from '../ui/icons';
@@ -28,6 +29,11 @@ import {
  */
 const NAV = [
   { to: '/pulpit', label: 'Pulpit', icon: IconGauge, requiresAuth: true },
+  // Przed „Użytkownikami", żeby grupował się z zasobami (podsieć,
+  // aplikacja), a nie z narzędziami (dziennik, ustawienia).
+  // `requiresAuth` jest tu nieopcjonalny: IPAM nie jest treścią
+  // publiczną i nie ma widoku dla gościa.
+  { to: '/ipam', label: 'Adresy IP', icon: IconNetwork, permission: 'ipam:read', requiresAuth: true },
   { to: '/uzytkownicy', label: 'Użytkownicy', icon: IconUsers, permission: 'user:read', requiresAuth: true },
   { to: '/audyt', label: 'Dziennik zdarzeń', icon: IconHistory, permission: 'audit:read', requiresAuth: true },
   // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo

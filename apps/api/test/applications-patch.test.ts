@@ -28,9 +28,14 @@ import {
   declaredFields,
 } from '../src/applications/dto/application.dto';
 
-/** Pusty kontekst — `mapPatchDto` nie dotyka bazy ani `this`. */
+/**
+ * Pusty kontekst — `mapPatchDto` nie dotyka bazy ani `this`.
+ *
+ * Trzeci argument to `IpamService`, wstrzykiwany dla zdejmowania przypisań
+ * IP przy soft delete (`remove()`); te testy tej ścieżki nie dotykają.
+ */
 function service(): ApplicationsService {
-  return new ApplicationsService({} as never, {} as never);
+  return new ApplicationsService({} as never, {} as never, {} as never);
 }
 
 /** PATCH przez potok, którym przechodzi żądanie w produkcji. */

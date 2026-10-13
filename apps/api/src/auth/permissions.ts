@@ -6,12 +6,14 @@
  * przez zwykłego panel admina) i renderować UI bez duplikowania logiki.
  */
 export const PERMISSIONS = {
-  VIEWER: ['app:read', 'user:read', 'audit:read'],
+  VIEWER: ['app:read', 'user:read', 'audit:read', 'ipam:read'],
   ADMIN: [
     'app:read',
     'app:write',
     'user:read',
     'audit:read',
+    'ipam:read',
+    'ipam:write',
   ],
   SUPER_ADMIN: [
     'app:read',
@@ -24,6 +26,12 @@ export const PERMISSIONS = {
     // `app:write`, czyli może usunąć aplikację pojedynczo — to inna
     // skala i inna odpowiedzialność.
     'settings:write',
+    // IPAM ma własne uprawnienia, a nie idzie pod `settings:write`:
+    // adresy i podsieci to dane operacyjne, nie konfiguracja systemu.
+    // `ADMIN` redaguje je już dziś, a `settings:write` zostaje
+    // zastrzeżone dla operacji nieodwracalnych.
+    'ipam:read',
+    'ipam:write',
   ],
 } as const;
 
@@ -47,6 +55,8 @@ export const ALL_PERMISSIONS = [
   'user:write',
   'audit:read',
   'settings:write',
+  'ipam:read',
+  'ipam:write',
 ] as const satisfies readonly Permission[];
 
 /** Uprawnienia nadane roli, w kolejności z `PERMISSIONS`. */

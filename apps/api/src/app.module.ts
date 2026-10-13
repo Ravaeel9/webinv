@@ -10,6 +10,7 @@ import { AuthGuard } from './auth/auth.guard';
 import { AuditModule } from './audit/audit.module';
 import { UsersModule } from './users/users.module';
 import { ApplicationsModule } from './applications/applications.module';
+import { IpamModule } from './ipam/ipam.module';
 import { HealthController } from './health.controller';
 import { SeedModule } from './seed/seed.module';
 import { SettingsModule } from './settings/settings.module';
@@ -39,6 +40,9 @@ import { SettingsModule } from './settings/settings.module';
     AuthModule,
     UsersModule,
     ApplicationsModule,
+    // Po `ApplicationsModule` — `remove()` aplikacji woła serwis IPAM,
+    // a ten sam import rejestruje tu kontroler z trasami `/api/ipam`.
+    IpamModule,
     // Przed `SeedModule` — seed pyta `SettingsService` o stan trybu demo.
     SettingsModule,
     SeedModule,

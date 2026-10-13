@@ -175,6 +175,80 @@ export interface ApplicationFilters {
   sort?: string;
 }
 
+// ─── IPAM ─────────────────────────────────────────────────────
+//
+// UWAGA: `Subnet` to **podsieć sieciowa** z katalogu IPAM, a `Environment`
+// (wyżej) to **środowisko aplikacji** (`prod`/`test`/`dev`). Nazwy brzmią
+// podobnie, ale to dwa różne byty z różnych drzew: środowisko opisuje,
+// gdzie aplikacja działa, podsieć — jaki blok adresów zajmuje w sieci.
+// Katalog podsieci ma własne trasy `/api/ipam` i własne uprawnienia
+// (`ipam:read` / `ipam:write`), więc nie miesza się z `/api/applications`.
+
+/** Status pojedynczego adresu — enum `IpStatus` ze schematu Prisma. */
+export type IpStatus = 'FREE' | 'IN_USE' | 'DEPRECATED';
+
+export interface Subnet {
+  id: string;
+  name: string;
+  /** Zakres w zapisie CIDR, np. `10.20.0.0/16`. */
+  cidr: string;
+  description: string | null;
+  /** Nazwa tonu w stylu `slate` — kolor kafelka, nie znacznik. */
+  color: string;
+  vlan: number | null;
+  location: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Podsieć z podsumowaniem — wariant listy katalogu (`GET /subnets`). */
+export interface SubnetWithCounts extends Subnet {
+  addressCount: number;
+  applicationCount: number;
+  freeCount: number;
+}
+
+/** Podsieć z pełną listą adresów — wariant detalu (`GET /subnets/:id`). */
+export interface SubnetDetail extends Subnet {
+  addresses: IpAddress[];
+}
+
+/** Pojedynczy adres IPv4 w podsieci — bez maski, wraz z podsieć. */
+export interface IpAddress {
+  id: string;
+  subnetId: string;
+  address: string;
+  status: IpStatus;
+  description: string | null;
+  /** Ostatnie potwierdzenie skanem; `null` dla adresu wpisanego ręcznie. */
+  lastSeenAt: string | null;
+  /**
+   * Żywe przypisania aplikacji — lista adresów i karta podsieci niosą je
+   * w każdym wierszu (`include` w tym samym zapytaniu, bez N+1).
+   * Usunięta miękko aplikacja nigdy tu nie wraca: cały feature istnieje
+   * po to, żeby kasowane aplikacje nie trzymały adresów.
+   */
+  applications: { id: string; name: string }[];
+}
+
+/**
+ * Adres widziany z perspektywy aplikacji (`GET
+ * /applications/:appId/ip-addresses`).
+ *
+ * Druga strona jest obiektem, a nie identyfikatorem: na karcie aplikacji
+ * administrator przypisuje VIP-a „do bramy w danej podsieci”, więc musi
+ * widzieć jej nazwę i zakres. Odwrotna strona (`GET
+ * /addresses/:id/applications`) zwraca aplikacje, nie adresy — to osobny
+ * katalog, którego zadanie 10 nie potrzebuje.
+ */
+export interface ApplicationIpAddressRef {
+  id: string;
+  address: string;
+  status: IpStatus;
+  description: string | null;
+  subnet: { id: string; name: string; cidr: string };
+}
+
 export interface Stats {
   total: number;
   byStatus: Array<{ key: AppStatus; count: number }>;
@@ -313,8 +387,15 @@ export type DemoModeState = {
 
 /** Uprawnienia — lustrzane odbicie apps/api/src/auth/permissions.ts */
 export const PERMISSIONS = {
-  VIEWER: ['app:read', 'user:read', 'audit:read'],
-  ADMIN: ['app:read', 'app:write', 'user:read', 'audit:read'],
+  VIEWER: ['app:read', 'user:read', 'audit:read', 'ipam:read'],
+  ADMIN: [
+    'app:read',
+    'app:write',
+    'user:read',
+    'audit:read',
+    'ipam:read',
+    'ipam:write',
+  ],
   SUPER_ADMIN: [
     'app:read',
     'app:write',
@@ -325,6 +406,10 @@ export const PERMISSIONS = {
     // i skasować 30 przykładowych rekordów naraz. Lustrzane odbicie
     // `apps/api/src/auth/permissions.ts`.
     'settings:write',
+    // IPAM ma własne uprawnienia, a nie idzie pod `settings:write`:
+    // adresy i podsieci to dane operacyjne, nie konfiguracja systemu.
+    'ipam:read',
+    'ipam:write',
   ],
 } as const satisfies Record<Role, readonly string[]>;
 
@@ -448,6 +533,49 @@ export const CRITICALITY_TONES: Record<number, Tone> = {
 /** Odznaka „wniosek o dostęp": Tak = potwierdzone, Nie = bez znaczenia. */
 export const ACCESS_REQUEST_YES: Tone = 'ok';
 export const ACCESS_REQUEST_NO: Tone = 'neutral';
+
+// ─── IPAM: etykiety i kolory do UI ────────────────────────────
+//
+// Tak jak pozostałe `*_LABELS` / `*_TONES` wyżej: nazwy klas z
+// `index.css` i polskie napisy, a nie surowe enuma z API.
+
+export const IP_STATUS_LABELS: Record<IpStatus, string> = {
+  FREE: 'Wolny',
+  IN_USE: 'Zajęty',
+  DEPRECATED: 'Wycofany',
+};
+
+/**
+ * Ton dobierany tak samo jak przy statusach aplikacji: `FREE` się odsuwa,
+ * `IN_USE` niesie „to jest zajęte", `DEPRECATED` prosi o uwagi.
+ */
+export const IP_STATUS_TONES: Record<IpStatus, Tone> = {
+  FREE: 'neutral',
+  IN_USE: 'ok',
+  DEPRECATED: 'warn',
+};
+
+/**
+ * Paleta kolorów podsieci.
+ *
+ * API waliduje `color` tylko jako małe litery (`/^[a-z]+$/`) — to kolor
+ * kafelka, a nie znacznik, więc dobór z listy jest zamierzony: bez niej
+ * pole przyjęłoby „cokolwiek”, a tak wartość zawsze ma odpowiednik
+ * w interfejsie. Sworzek rysujemy inline (`style`), nie klasą Tailwinda
+ * złożoną z danych — budowanie nazwy klasy z danych nie trafia do
+ * wynikowego CSS, a `ui-state-colors.test.ts` pilnuje pary motywów
+ * tylko dla klas pisanych wprost.
+ */
+export const SUBNET_COLORS: Record<string, string> = {
+  slate: '#64748b',
+  sky: '#0284c7',
+  violet: '#7c3aed',
+  emerald: '#059669',
+  amber: '#d97706',
+  rose: '#e11d48',
+};
+
+export const SUBNET_COLOR_NAMES = Object.keys(SUBNET_COLORS);
 
 // `ENV_COLORS` (karta nazwy środowiska) nie było nigdzie używane —
 // odznaki środowisk mają własne klasy w komponentach. Usunięte jako martwy

@@ -65,6 +65,13 @@ enum SupportChannel {
   ON_SITE
 }
 
+// ─── Katalog adresów IP ───────────────────────────────────────
+enum IpStatus {
+  FREE       // wolny lub zarezerwowany, bez aplikacji
+  IN_USE     // przypisany do co najmniej jednej aplikacji
+  DEPRECATED // wycofywany, czeka na zwolnienie
+}
+
 // ─── Użytkownicy ──────────────────────────────────────────────
 model User {
   id           String    @id @default(uuid()) @db.Uuid
@@ -198,6 +205,8 @@ model Application {
 
   // Środowiska
   environments ApplicationEnvironment[]
+  // Adresy IP, pod którymi aplikacja odpowiada
+  ipAddresses  ApplicationIpAddress[]
 
   // Rekord demonstracyjny wstawiony przez seed, a nie przez człowieka.
   // Oznaczenie, po którym panel super administratora kasuje dane próbne
@@ -233,6 +242,67 @@ model Application {
   // Indeks częściowy `WHERE is_demo = true` — migracja go tworzy ręcznie,
   // bo Prisma nie umie deklarować indeksu częściowego w `@@index`.
   @@map("applications")
+}
+
+// ─── Podsieci i adresy IP ──────────────────────────────────────
+model Subnet {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.Citext
+  // "10.20.0.0/16" — tekst, nie typ inet. Walidację zakresu robi
+  // src/ipam/cidr.ts, bo chcemy ją testować bez bazy.
+  cidr        String   @db.VarChar(18)
+  description String?  @db.Text
+  color       String   @default("slate") @db.VarChar(30)
+  vlan        Int?     @db.SmallInt
+  location    String?  @db.VarChar(200)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  addresses IpAddress[]
+
+  @@map("subnets")
+}
+
+// Adres pojedynczy, właścicielem zakresu jest podsieć.
+model IpAddress {
+  id       String @id @default(uuid()) @db.Uuid
+  subnetId String @map("subnet_id") @db.Uuid
+  subnet   Subnet @relation(fields: [subnetId], references: [id], onDelete: Cascade)
+
+  address String @db.VarChar(18) // pojedynczy IPv4, bez maski
+  // Status jest tu, a nie na relacji: adres bywa zarezerwowany, zanim
+  // ktokolwiek go przypisze, i relacja tego stanu nie odwzorowuje.
+  status      IpStatus @default(FREE)
+  description String?  @db.Text
+  // Ostatnie potwierdzenie skanem (plan importu). Bez tej daty katalog
+  // nie mówi, co zniknęło z sieci.
+  lastSeenAt DateTime? @map("last_seen_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  applications ApplicationIpAddress[]
+
+  @@unique([subnetId, address])
+  @@index([status])
+  @@map("ip_addresses")
+}
+
+// Jeden adres może obsługiwać kilka aplikacji (VIP, wiele usług na
+// tym samym IP), a jedna aplikacja mieć ich kilka.
+model ApplicationIpAddress {
+  applicationId String   @map("application_id") @db.Uuid
+  ipAddressId   String   @map("ip_address_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  // onDelete: Cascade jest tu bezpieczne — kasowanie podsieci ma zabrać
+  // przypisania razem z adresami, a nie zostawić martwe wiersze.
+  ipAddress IpAddress @relation(fields: [ipAddressId], references: [id], onDelete: Cascade)
+
+  @@id([applicationId, ipAddressId])
+  @@index([ipAddressId])
+  @@map("application_ip_addresses")
 }
 
 // ─── Ustawienia systemowe ──────────────────────────────────────

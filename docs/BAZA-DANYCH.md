@@ -13,7 +13,7 @@ User ──< Session
   └──< Application (createdById)      "AppCreator"
 
 Application ──< ApplicationEnvironment >── Environment
-Application
+Application ──< ApplicationIpAddress >── IpAddress ──< Subnet
 AuditLog ──> User (opcjonalnie)
 ```
 
@@ -126,13 +126,87 @@ bez dopisywania `mode: 'insensitive'` w każdym zapytaniu. Serwis i tak sprawdza
 unikalność jawnie, żeby dać lepszy komunikat błędu (w tym informację, że
 wpis istnieje, ale jest usunięty).
 
+### `subnets`
+
+| Pole | Typ | Domyślnie | Uwagi |
+|---|---|---|---|
+| `id` | `uuid` | — | |
+| `name` | `citext` | — | unikalne, bez rozróżniania wielkości liter |
+| `cidr` | `varchar(18)` | — | `"10.20.0.0/16"` — tekst znormalizowany przy zapisie, **nie** typ `inet`; rachunek robi `src/ipam/cidr.ts` |
+| `description` | `text?` | `null` | |
+| `color` | `varchar(30)` | `slate` | słowo kluczowe palety UI — kolor kafelka, nic więcej |
+| `vlan` | `smallint?` | `null` | 1–4094, pilnuje API |
+| `location` | `varchar(200)?` | `null` | |
+| `created_at` / `updated_at` | `timestamp(3)` | — | |
+
+**Dlaczego brak soft-delete.** Aplikacja przeżywa w bazie po usunięciu,
+bo dziennik i historia przypisań muszą pozostać czytelne — podsieć takiego
+uzasadnienia nie ma. Katalog ma odpowiadać na pytanie „jakie zakresy mamy
+dziś", a wiersz z ustawionym `deleted_at` dawałby dwie odpowiedzi naraz:
+lista by go nie pokazała, natomiast kontrola kolizji (`assertZakresWolny`)
+czyta wszystkie wiersze bez filtrów i musiałaby odrębnie filtrować duchy,
+żeby usunięta podsieć nie blokowała zapisu nowej w tym samym zakresie.
+Miast tego usunięcie jest twarde i kaskadowe: `onDelete: Cascade` zabiera
+adresy (`ip_addresses.subnet_id`) i ich przypisania razem z podsiecią,
+a kasowanie idzie w jednej transakcji z **jednym** zbiorczym wpisem
+`subnet.deleted`. Historia w dzienniku zostaje, stan katalogu nie kłamie.
+
+### `ip_addresses`
+
+| Pole | Typ | Domyślnie | Uwagi |
+|---|---|---|---|
+| `id` | `uuid` | — | |
+| `subnet_id` | `uuid` | — | FK → `subnets`, `onDelete: Cascade` |
+| `address` | `varchar(18)` | — | pojedynczy IPv4 bez maski, oktety bez zer wiodących |
+| `status` | `IpStatus` | `FREE` | patrz „dlaczego tu, a nie na relacji" poniżej |
+| `description` | `text?` | `null` | |
+| `last_seen_at` | `timestamp(3)?` | `null` | ostatnie potwierdzenie skanem; pole już w schemacie, wypełni je planowany import `nmap` |
+| `created_at` / `updated_at` | `timestamp(3)` | — | |
+
+Unikalność: `@@unique([subnet_id, address])` — ten sam adres nie może
+wystąpić dwukrotnie w jednej podsieci. W skali katalogu jest jednoznaczny
+dla klienta, bo zakresy podsieci nie mogą na siebie nachodzić (kolizja
+to `409` przy zapisie), ale klucz złożony pozostaje zabezpieczeniem
+właściwym: chroni przed duplikatem także wtedy, gdyby ktoś kiedyś poluzował
+regułę nakładania. Indeks po `status` pod liczniki katalogu.
+
+**Dlaczego `status` siedzi na adresie, a nie na relacji z aplikacją.**
+Po pierwsze, adres ma życie niezależne od przypisań: bywa zarezerwowany,
+zanim ktokolwiek go podepnie, i wycofywany (`DEPRECATED`), gdy nic już
+na nim nie siedzi — żaden wiersz relacji takiego stanu nie pomieści, bo
+właśnie wtedy relacji nie ma. Po drugie, VIP obsługuje kilka aplikacji
+naraz; status na relacji musiałby być negocjowany między N wierszami,
+żeby odpowiedzieć na pytanie, które katalog i tak zadaje per adres.
+Konsekwencja: przypisanie **nie zmienia statusu** (PUT dopisuje i odejmuje
+wiersze relacji, status zostaje) — jedyny automat to
+`releaseIpAddressesForApplication` przy soft delete aplikacji: adres,
+któremu zostają żywe przypisania, dostaje `IN_USE`, zwalniany wraca do
+`FREE`, a `DEPRECATED` nie zostaje cofnięte, bo zdjęcie przypisania nie
+odwołuje decyzji katalogu. Status normalnie zmienia wyłącznie redaktor
+katalogu przez `PATCH /api/ipam/addresses/:id`.
+
+### `application_ip_addresses`
+
+Tabela łącząca aplikację z adresami (m:n). Klucz główny złożony
+`(application_id, ip_address_id)`, indeks po `ip_address_id`, każdy wiersz
+ma `created_at` (`timestamp(3)`, domyślnie czas zapisu), oba FK
+z `onDelete: Cascade` — usunięcie podsieci (przez adresy) i twarde
+usunięcie definicji aplikacji nie mogą zostawić martwych wierszy. Soft
+delete aplikacji kaskada nie objęłaby (rekord żyje), dlatego przypisania
+zdejmuje jawnie `ApplicationsService.remove()` przez
+`IpamService.releaseIpAddressesForApplication()`; przywrócenie aplikacji
+ich **nie** odtwarza — administrator dopina adresy ponownie.
+`created_at` przeżywa wymianę zestawu przypisań, bo
+`setApplicationIpAddresses` zapisuje samą różnicę (`deleteMany` +
+`createMany` tylko na pozycjach, które odeszły lub doszły).
+
 ### `audit_logs`
 
 | Pole | Typ | Uwagi |
 |---|---|---|
 | `id` | `uuid` | |
 | `action` | `varchar(40)` | np. `app.updated` |
-| `entity` | `varchar(60)` | `User`, `Session`, `Application` |
+| `entity` | `varchar(60)` | `User`, `Session`, `Application`, `Subnet`, `IpAddress` |
 | `entity_id` | `uuid?` | rekord, którego dotyczy zdarzenie |
 | `actor_id` | `uuid?` | FK → `users`, `SetNull` (historia przeżywa usunięcie konta) |
 | `actor_name` | `varchar(200)?` | kopia nazwy — czytelna nawet po usunięciu konta |
@@ -156,6 +230,7 @@ zdarzeń i filtrowanie po encji. Kolumna `entity_id` jest indeksowana, ale
 | `DeliveryType` | `GENERAL_USE`, `SELF_HOSTED`, `SAAS`, `VENDOR_MANAGED` | program na stanowisku czy usługa hostowana |
 | `SupportOwnerType` | `INTERNAL`, `VENDOR` | kto prowadzi wsparcie |
 | `SupportChannel` | `EMAIL`, `PHONE`, `PORTAL`, `CHAT`, `ON_SITE` | główny kanał zgłoszeń |
+| `IpStatus` | `FREE`, `IN_USE`, `DEPRECATED` | status adresu w katalogu: wolny (lub zarezerwowany bez aplikacji), zajęty, wycofywany — dlaczego na adresie, patrz `ip_addresses` |
 
 ## Rozszerzenia
 

@@ -9,10 +9,14 @@ Rejestr ma **dwa widoki**:
 - **publiczny** (bez logowania) — lista i szczegóły aplikacji, okrojone o pola
   poufne (klasyfikacja bezpieczeństwa, krytyczność, właściciel);
 - **panel** (po zalogowaniu) — pełne dane, pulpit ze statystykami, edycja,
-  zarządzanie użytkownikami, dziennik zdarzeń, eksport CSV.
+  katalog podsieci i adresów IP (IPAM), zarządzanie użytkownikami, dziennik
+  zdarzeń, eksport CSV.
 
 Dzięki temu ktoś spoza organizacji (np. dostawca, audytor) może sprawdzić,
 czy dana aplikacja w ogóle u nas jest, bez znajomości loginu i hasła.
+IPAM — mapa sieci wewnętrznej: podsieci, adresy i ich przypisania do
+aplikacji self-hosted — należy wyłącznie do panelu; żaden jego endpoint
+nie jest publiczny.
 
 ## Stan projektu
 
@@ -21,7 +25,7 @@ czy dana aplikacja w ogóle u nas jest, bez znajomości loginu i hasła.
 | Wersja | z `package.json` (pole `version`), podbijana przez `make release` — widoczna w prawym dolnym rogu interfejsu |
 | Środowisko produkcyjne | Docker Compose (3 kontenery) |
 | Baza danych | PostgreSQL 17 + Prisma 6 |
-| Testy | 386 przypadków, `npm test`, bez bazy danych |
+| Testy | 610 przypadków, `npm test`, bez bazy danych |
 | Licencja | brak — repozytorium prywatne, kod własnością organizacji |
 
 ## Stos technologiczny
@@ -143,6 +147,7 @@ Skrypty npm dostępne też bezpośrednio: `npm run dev:api`, `npm run dev:web`,
 │   │   │   ├── applications/ # rejestr aplikacji (REST)
 │   │   │   ├── audit/        # dziennik zdarzeń
 │   │   │   ├── auth/         # sesje, hasła, uprawnienia, guardy
+│   │   │   ├── ipam/         # podsieci i adresy IP (REST, walidacja CIDR)
 │   │   │   ├── users/        # zarządzanie kontami
 │   │   │   ├── config/       # walidacja zmiennych środowiskowych
 │   │   │   ├── prisma/       # klient Prisma jako injectable
@@ -199,9 +204,13 @@ renderowaniu nawigacji i przycisków.
 
 | Rola | Uprawnienia |
 |---|---|
-| `VIEWER` (Obserwator) | `app:read`, `user:read`, `audit:read` |
-| `ADMIN` (Administrator) | `app:read`, `app:write`, `user:read`, `audit:read` |
-| `SUPER_ADMIN` (Super administrator) | `app:read`, `app:write`, `user:read`, `user:write`, `audit:read` |
+| `VIEWER` (Obserwator) | `app:read`, `user:read`, `audit:read`, `ipam:read` |
+| `ADMIN` (Administrator) | `app:read`, `app:write`, `user:read`, `audit:read`, `ipam:read`, `ipam:write` |
+| `SUPER_ADMIN` (Super administrator) | wszystko: `app:read`, `app:write`, `user:read`, `user:write`, `audit:read`, `ipam:read`, `ipam:write`, `settings:write` |
+
+Adresy IP to mapa infrastruktury — dlatego `ipam:*` są oddzielnymi
+uprawnieniami, nie pochodnymi `app:*`; katalog wymaga sesji, gość nie widzi
+nawet liczby podsieci.
 
 Pełna tabela endpointów: [docs/API.md](docs/API.md). Konto z hasłem nadanym
 przez administratora wchodzi wyłącznie na `/konto` — wymusi to guard, nie
@@ -225,7 +234,7 @@ domyślne; opis w [.env.example](.env.example) i [docs/WDROZENIE.md](docs/WDROZE
 ## Testy
 
 ```bash
-npm test        # 386 przypadków: walidacja DTO, audyt, hasła, konfiguracja nginx, kontrast UI
+npm test        # 610 przypadków: walidacja DTO, audyt, CIDR/IPAM, hasła, konfiguracja nginx, kontrast UI
 make typecheck  # tsc --noEmit w API i web
 ```
 
