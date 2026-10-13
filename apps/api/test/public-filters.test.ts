@@ -133,7 +133,10 @@ describe('buildOrderBy — gość nie sortuje po ukrytych polach', () => {
   it('zwykłe sortowania działają u gościa', () => {
     assert.deepEqual(buildOrderBy('name', true), [{ name: 'asc' }]);
     assert.deepEqual(buildOrderBy('-name', true), [{ name: 'desc' }]);
-    assert.deepEqual(buildOrderBy('updatedAt', true), [{ updatedAt: 'desc' }]);
+    assert.deepEqual(buildOrderBy('updatedAt', true), [
+      { updatedAt: 'desc' },
+      { name: 'asc' },
+    ]);
   });
 
   it('kierunek zgadza się z etykietą w menu', () => {
@@ -144,22 +147,22 @@ describe('buildOrderBy — gość nie sortuje po ukrytych polach', () => {
     // odwrócona i nic nie mówi dlaczego.
     assert.deepEqual(
       buildOrderBy('introducedOn'),
-      [{ introducedOn: 'desc' }],
+      [{ introducedOn: 'desc' }, { name: 'asc' }],
       '„Najnowsze" musi dawać malejąco',
     );
     assert.deepEqual(
       buildOrderBy('-introducedOn'),
-      [{ introducedOn: 'asc' }],
+      [{ introducedOn: 'asc' }, { name: 'asc' }],
       '„Najstarsze" musi dawać rosnąco',
     );
     assert.deepEqual(
       buildOrderBy('updatedAt'),
-      [{ updatedAt: 'desc' }],
+      [{ updatedAt: 'desc' }, { name: 'asc' }],
       '„Ostatnio zmienione" musi dawać malejąco',
     );
     assert.deepEqual(
       buildOrderBy('sunsetOn'),
-      [{ sunsetOn: 'asc' }],
+      [{ sunsetOn: 'asc' }, { name: 'asc' }],
       '„Wycofanie ↑" musi dawać rosnąco',
     );
   });
@@ -167,6 +170,7 @@ describe('buildOrderBy — gość nie sortuje po ukrytych polach', () => {
   it('zalogowany nadal sortuje po ukrytych polach', () => {
     assert.deepEqual(buildOrderBy('criticality', false), [
       { criticality: 'desc' },
+      { name: 'asc' },
     ]);
   });
 

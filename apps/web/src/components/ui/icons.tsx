@@ -115,6 +115,21 @@ export function IconChevronRight(props: IconProps) {
   );
 }
 
+/**
+ * Strzałka sortowania kolumny.
+ *
+ * `up`/`down` to kierunek, w którym posortowane są wiersze (nie kierunek
+ * „kliknij, żeby zmienić") — dzięki temu ikona opisuje stan, a nie akcję.
+ */
+export function IconSort(props: IconProps & { up?: boolean }) {
+  const { up = false, ...reszta } = props;
+  return (
+    <Icon {...reszta}>
+      {up ? <path d="M6 14.5l6-6 6 6" /> : <path d="M6 9.5l6 6 6-6" />}
+    </Icon>
+  );
+}
+
 export function IconMenu(props: IconProps) {
   return (
     <Icon {...props}>

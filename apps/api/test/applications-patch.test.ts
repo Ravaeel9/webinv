@@ -257,7 +257,8 @@ describe('isoDate — helper scalania dat', () => {
 
 describe('buildOrderBy — biała lista sortowania', () => {
   // Wynik to tablica obiektów, bo Prisma przyjmuje `orderBy` jako listę
-  // (dla stabilnego sortowania przy remisach).
+  // (dla stabilnego sortowania przy remisach). Drugi klucz rozstrzyga
+  // remis — patrz `applications-sort-stability.test.ts`.
   it('przepuszcza znaną kolumnę', () => {
     assert.deepEqual(buildOrderBy('name'), [{ name: 'asc' }]);
   });
@@ -270,8 +271,14 @@ describe('buildOrderBy — biała lista sortowania', () => {
     // `criticality` ma w SORTABLE `desc` (najwyższa krytyczność pierwsza),
     // więc `-criticality` musi dać `asc` — inaczej kliknięcie w nagłówek
     // niczego by nie zmieniało.
-    assert.deepEqual(buildOrderBy('criticality'), [{ criticality: 'desc' }]);
-    assert.deepEqual(buildOrderBy('-criticality'), [{ criticality: 'asc' }]);
+    assert.deepEqual(buildOrderBy('criticality'), [
+      { criticality: 'desc' },
+      { name: 'asc' },
+    ]);
+    assert.deepEqual(buildOrderBy('-criticality'), [
+      { criticality: 'asc' },
+      { name: 'asc' },
+    ]);
   });
 
   it('odrzuca nieznaną kolumnę zamiast przekazywać ją do ORDER BY', () => {

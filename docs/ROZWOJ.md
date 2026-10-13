@@ -111,8 +111,10 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `ipam-permissions.test.ts` | że `ipam:read` i `ipam:write` są oddzielnymi uprawnieniami, a nie pochodnymi `app:*` — katalog wymaga sesji |
 | `ipam-ip-parity.test.ts` | zgodność walidacji IPv4 interfejs ↔ serwer: `isIpv4` z `web/src/lib/ip.ts` i `isValidIpv4` z `cidr.ts` muszą dawać **ten sam werdykt** na wspólnym zestawie prób. Kopia rozjechała się raz — `\d{1,2}` dopuszczał oktety 1–2 cyfrowe, więc `10.1.120.120` było odrzucane przez przeglądarkę, choć serwer je przyjmował; żadnych dotychczasowych testów nie używało oktetu ≥ 100 |
 | `queries-hooks-used.test.ts` | że każdy hook eksportowany z `queries.ts` jest użyty w kodzie interfejsu — brak użytkownika oznacza, że endpoint umiera po cichu. Złapał `useUpdateAddress`: `PATCH /ipam/addresses/:id` działał i był udokumentowany, ale plan wdrożenia wymienił propsy tabeli bez `onEdit`, więc w UI nie było przycisku. Kierunek „hook bez użytkownika", nie „endpoint bez hooka" — jedno źródło prawdy, które samo się aktualizuje |
+| `applications-sort-stability.test.ts` | drugi klucz `orderBy` w `buildOrderBy` — przy remisie wartości kolejność w SQL jest nieokreślona, a lista jest stronicowana `take`/`skip`, więc ten sam zestaw wierszy przy drugim kliknięciu „Następna" wypadałby inaczej. Pilnuje też, że klucz rozstrzygający to nazwa (pole widoczne dla gościa) i że dublowania nie ma przy sortowaniu już po nazwie |
+| `sort-kolumn.test.ts` | zgodność kolumn sortowalnych z białą listą `SORTABLE` w API — API **ignoruje nieznane pole po cichu**, więc nagłówek obiecywałby sortowanie, którego nie będzie, a strzałek nie ruszyłaby. Test złapał `ownerEmail`: kolumna „Właściciel" była w tabeli, a w białej liście jej nie było. Do tego sprawdza, że kolumny ukryte przed gościem (`GUEST_SORTABLE`) nie wyciekają do sortowania, bo kolejność wierszy zdradziłaby ukrytą wartość |
 
-Stan: **678 przypadków, 92 suite'ów, wszystkie przechodzą**, plus
+Stan: **700 przypadków, 94 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).

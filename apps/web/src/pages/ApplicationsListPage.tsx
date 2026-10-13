@@ -13,6 +13,7 @@ import { Checkbox, Select } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
 import { Th } from '../components/ui/Table';
+import { SortableTh } from '../components/ui/SortableTh';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -50,28 +51,23 @@ import { ApiError } from '../lib/api';
 const PAGE_SIZE = 25;
 
 /**
- * Kolumny sortujące — muszą pokrywać się z białą listą SORTABLE w API.
+ * Kolumny sortowalne — nazwy pól muszą pokrywać się z białą listą
+ * `SORTABLE` w API. Pilnuje tego `apps/api/test/sort-kolumn.test.ts`,
+ * bo API ignoruje nieznane pole po cichu: strzałek by się nie ruszyła,
+ * a użytkownik nie miałby pojęcia, dlaczego.
  *
- * Uwaga na kierunek: `SORTABLE` w API trzyma dla każdego pola jego
- * *domyślną* kolejność, a prefiks `-` ją odwraca. Dla `introducedOn`
- * i `updatedAt` domyślna jest malejąca (`desc`), więc „najnowsze”
- * to **bez** minusa — z minusem wyszłyby najstarsze.
- *
- * `guestHidden` oznacza sortowanie, którego gość nie dostanie: krytyczność
- * i klasyfikacja bezpieczeństwa nie są w jego widoku, więc kolejność
- * wierszy zdradzałaby ukrytą wartość. API i tak takie sortowanie ignoruje
- * (`GUEST_SORTABLE`), tu po prostu nie pokazujemy go w menu.
+ * `guestHidden` = kolumna znika u gościa razem ze strzałką. Pola
+ * bezpieczeństwa, krytyczności i właściciela nie są w jego widoku, więc
+ * kolejność wierszy zdradziłaby ukrytą wartość — API i tak odrzuca takie
+ * sortowanie (`GUEST_SORTABLE`).
  */
-const SORT_OPTIONS = [
-  { value: '', label: 'Domyślnie (nazwa A→Z)' },
-  { value: 'name', label: 'Nazwa A→Z' },
-  { value: '-name', label: 'Nazwa Z→A' },
-  { value: 'criticality', label: 'Krytyczność ↓', guestHidden: true },
-  { value: 'status', label: 'Status' },
-  { value: 'deliveryType', label: 'Typ dostarczenia' },
-  { value: 'introducedOn', label: 'Najnowsze' },
-  { value: '-introducedOn', label: 'Najstarsze' },
-  { value: 'updatedAt', label: 'Ostatnio zmienione' },
+const SORT_COLUMNS = [
+  { label: 'Nazwa', sortBy: 'name' },
+  { label: 'Dostarczanie', sortBy: 'deliveryType' },
+  { label: 'Status', sortBy: 'status' },
+  { label: 'Bezpieczeństwo', sortBy: 'securityClass', guestHidden: true },
+  { label: 'Krytyczność', sortBy: 'criticality', guestHidden: true },
+  { label: 'Właściciel', sortBy: 'ownerEmail', guestHidden: true },
 ];
 
 /**
@@ -230,21 +226,6 @@ export function ApplicationsListPage() {
               </Button>
             </div>
           </form>
-
-          <Select
-            label="Sortowanie"
-            value={filters.sort ?? ''}
-            onChange={(e) => setFilter('sort', e.target.value)}
-            className="w-52"
-          >
-            {SORT_OPTIONS.filter((o) => !isGuest || !('guestHidden' in o) || !o.guestHidden).map(
-              (option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ),
-            )}
-          </Select>
 
           <Select
             label="Status"
@@ -448,13 +429,23 @@ export function ApplicationsListPage() {
               <table className="w-full min-w-[900px] text-left text-sm">
                 <thead className="border-b border-line bg-page">
                   <tr>
-                    <Th className="w-[26%]">Nazwa</Th>
-                    <Th>Dostarczanie</Th>
-                    <Th>Status</Th>
+                    {SORT_COLUMNS.map((kolumna) => (
+                      <SortableTh
+                        key={kolumna.sortBy}
+                        label={kolumna.label}
+                        sortBy={
+                          'guestHidden' in kolumna && kolumna.guestHidden && isGuest
+                            ? undefined
+                            : kolumna.sortBy
+                        }
+                        currentSort={filters.sort}
+                        onSort={(pole) => setFilter('sort', pole)}
+                        className={kolumna.label === 'Nazwa' ? 'w-[26%]' : ''}
+                      />
+                    ))}
+                    {/* Brak sortowania: pole nie istnieje w modelu, a
+                        „Wniosek o dostęp" ma własny, niezależny mechanizm. */}
                     <Th>Wniosek o dostęp</Th>
-                    {!isGuest && <Th>Bezpieczeństwo</Th>}
-                    {!isGuest && <Th>Krytyczność</Th>}
-                    {!isGuest && <Th>Właściciel</Th>}
                     <Th className="w-10">
                       <span className="sr-only">Akcje</span>
                     </Th>

@@ -25,7 +25,7 @@ nie jest publiczny.
 | Wersja | z `package.json` (pole `version`), podbijana przez `make release` — widoczna w prawym dolnym rogu interfejsu |
 | Środowisko produkcyjne | Docker Compose (3 kontenery) |
 | Baza danych | PostgreSQL 17 + Prisma 6 |
-| Testy | 678 przypadków, `npm test`, bez bazy danych |
+| Testy | 700 przypadków, `npm test`, bez bazy danych |
 | Licencja | brak — repozytorium prywatne, kod własnością organizacji |
 
 ## Stos technologiczny
@@ -234,7 +234,7 @@ domyślne; opis w [.env.example](.env.example) i [docs/WDROZENIE.md](docs/WDROZE
 ## Testy
 
 ```bash
-npm test        # 678 przypadków: walidacja DTO, audyt, CIDR/IPAM, hasła, konfiguracja nginx, kontrast UI
+npm test        # 700 przypadków: walidacja DTO, audyt, CIDR/IPAM, hasła, konfiguracja nginx, kontrast UI
 make typecheck  # tsc --noEmit w API i web
 ```
 

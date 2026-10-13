@@ -34,6 +34,11 @@ const SORTABLE: Record<string, Prisma.ApplicationOrderByWithRelationInput> = {
   status: { status: 'asc' },
   securityClass: { securityClass: 'desc' },
   criticality: { criticality: 'desc' },
+  // Kolumna właściciela jest sortowalna, bo inaczej nagłówek obiecywałby
+  // klik, a API ignorowałby go po cichu. Świadomie poza `GUEST_SORTABLE`:
+  // gość właściciela nie widzi, więc kolejność wierszy zdradziłaby
+  // ukrytą wartość — tak samo jak `securityClass` i `criticality`.
+  ownerEmail: { ownerEmail: 'asc' },
   introducedOn: { introducedOn: 'desc' },
   sunsetOn: { sunsetOn: 'asc' },
   updatedAt: { updatedAt: 'desc' },
@@ -115,9 +120,21 @@ export function buildOrderBy(
   const mapped = SORTABLE[key];
   if (!mapped) return [{ name: 'asc' }];
 
-  return Object.entries(mapped).map(([field, dir]) => ({
+  const klucze = Object.entries(mapped).map(([field, dir]) => ({
     [field]: negate ? (dir === 'asc' ? 'desc' : 'asc') : dir,
   }));
+
+  // Drugi klucz rozstrzyga remis. Bez niego kolejność wierszy o równej
+  // wartości (kilka aplikacji o statusie PROD) jest nieokreślona w SQL,
+  // a lista jest stronicowana `take`/`skip` — ten sam zestaw przy drugim
+  // kliknięciu „Następna" wypadałby inaczej i użytkownik widziałby, jak
+  // wiersz znika z listy bez powodu.
+  //
+  // Nazwa, bo pole jest sortowalne dla każdego, kto czyta listę
+  // (`GUEST_SORTABLE`), więc gość też dostaje stabilną kolejność.
+  // Przy sortowaniu już po nazwie dublujemy klucz, więc go pomijamy.
+  const remisy = klucze.filter((k) => !('name' in k));
+  return remisy.length === 0 ? klucze : [...remisy, { name: 'asc' }];
 }
 
 /** Aplikacja wraz z relacjami — tak, jak wychodzi z APP_INCLUDE. */
