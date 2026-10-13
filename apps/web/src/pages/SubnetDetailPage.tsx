@@ -9,6 +9,7 @@ import {
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { liczba } from '../lib/format';
+import { isIpv4 } from '../lib/ip';
 import { PageHeader } from '../components/layout/AppLayout';
 import { Button } from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
@@ -19,20 +20,6 @@ import { formatDateTime } from '../lib/format';
 import { AddressDeleteModal } from '../components/ipam/AddressDeleteModal';
 import { AddressTable } from '../components/ipam/AddressTable';
 import type { IpAddress } from '../types';
-
-/** Oktety 0–255 bez zer wiodących — ta sama rygorystyczność co w API. */
-const IPV4 = /^(\d{1,2})\.(\d{1,2})\.(\d{1,2})\.(\d{1,2})$/;
-
-/** Poprawny IPv4: cztery oktety, każdy 0–255, bez zer wiodących. */
-function isIpv4(value: string): boolean {
-  const m = IPV4.exec(value);
-  if (!m) return false;
-  return m.slice(1).every((part) => {
-    if (part.length > 1 && part.startsWith('0')) return false;
-    const n = Number(part);
-    return n >= 0 && n <= 255;
-  });
-}
 
 /** Karta podsieci — opis, lista adresów i akcje administracyjne. */
 export function SubnetDetailPage() {

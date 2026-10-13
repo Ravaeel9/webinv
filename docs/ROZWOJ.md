@@ -109,8 +109,9 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `ipam-service.test.ts` | serwis na atrapie portu: kolizja zakresów jako 409, blokada usunięcia przypisanej podsieci, `sortCidrs` liczbowo (`10.9.0.0/8` przed `10.10.0.0/8`, nie leksykograficznie) i dopasowanie adresu do najwęższej podsieci |
 | `ipam-app-delete.test.ts` | że usunięcie aplikacji zwalnia przypisane adresy, a odblokowanie adresu respektuje żywe przypisania i status `DEPRECATED` |
 | `ipam-permissions.test.ts` | że `ipam:read` i `ipam:write` są oddzielnymi uprawnieniami, a nie pochodnymi `app:*` — katalog wymaga sesji |
+| `ipam-ip-parity.test.ts` | zgodność walidacji IPv4 interfejs ↔ serwer: `isIpv4` z `web/src/lib/ip.ts` i `isValidIpv4` z `cidr.ts` muszą dawać **ten sam werdykt** na wspólnym zestawie prób. Kopia rozjechała się raz — `\d{1,2}` dopuszczał oktety 1–2 cyfrowe, więc `10.1.120.120` było odrzucane przez przeglądarkę, choć serwer je przyjmował; żadnych dotychczasowych testów nie używało oktetu ≥ 100 |
 
-Stan: **612 przypadków, 90 suite'ów, wszystkie przechodzą**, plus
+Stan: **639 przypadków, 91 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).
