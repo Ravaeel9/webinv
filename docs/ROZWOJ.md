@@ -110,8 +110,9 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `ipam-app-delete.test.ts` | że usunięcie aplikacji zwalnia przypisane adresy, a odblokowanie adresu respektuje żywe przypisania i status `DEPRECATED` |
 | `ipam-permissions.test.ts` | że `ipam:read` i `ipam:write` są oddzielnymi uprawnieniami, a nie pochodnymi `app:*` — katalog wymaga sesji |
 | `ipam-ip-parity.test.ts` | zgodność walidacji IPv4 interfejs ↔ serwer: `isIpv4` z `web/src/lib/ip.ts` i `isValidIpv4` z `cidr.ts` muszą dawać **ten sam werdykt** na wspólnym zestawie prób. Kopia rozjechała się raz — `\d{1,2}` dopuszczał oktety 1–2 cyfrowe, więc `10.1.120.120` było odrzucane przez przeglądarkę, choć serwer je przyjmował; żadnych dotychczasowych testów nie używało oktetu ≥ 100 |
+| `queries-hooks-used.test.ts` | że każdy hook eksportowany z `queries.ts` jest użyty w kodzie interfejsu — brak użytkownika oznacza, że endpoint umiera po cichu. Złapał `useUpdateAddress`: `PATCH /ipam/addresses/:id` działał i był udokumentowany, ale plan wdrożenia wymienił propsy tabeli bez `onEdit`, więc w UI nie było przycisku. Kierunek „hook bez użytkownika", nie „endpoint bez hooka" — jedno źródło prawdy, które samo się aktualizuje |
 
-Stan: **639 przypadków, 91 suite'ów, wszystkie przechodzą**, plus
+Stan: **678 przypadków, 92 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).

@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { useDeleteAddress, useSubnets, useSubnetAddresses } from '../lib/queries';
+import {
+  useDeleteAddress,
+  useSubnets,
+  useSubnetAddresses,
+  useUpdateAddress,
+} from '../lib/queries';
 import { liczba } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
@@ -10,6 +15,7 @@ import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { Th } from '../components/ui/Table';
 import { IconChevronRight, IconNetwork, IconPlus } from '../components/ui/icons';
 import { AddressDeleteModal } from '../components/ipam/AddressDeleteModal';
+import { AddressEditModal } from '../components/ipam/AddressEditModal';
 import { AddressTable } from '../components/ipam/AddressTable';
 import { SUBNET_COLORS, type IpAddress, type SubnetWithCounts } from '../types';
 
@@ -140,6 +146,8 @@ function SubnetRow({
 
   const remove = useDeleteAddress();
   const [doUsuniecia, setDoUsuniecia] = useState<IpAddress | null>(null);
+  const update = useUpdateAddress();
+  const [doEdycji, setDoEdycji] = useState<IpAddress | null>(null);
 
   const zajete = subnet.addressCount - subnet.freeCount;
   const color = SUBNET_COLORS[subnet.color] ?? SUBNET_COLORS.slate!;
@@ -247,7 +255,8 @@ function SubnetRow({
 
                 <AddressTable
                   addresses={addresses}
-                  // Gość nie usuwa adresów, więc nie dostaje kolumny akcji.
+                  // Gość nie edytuje i nie usuwa, więc nie dostaje kolumny akcji.
+                  onEdit={can('ipam:write') ? (a) => setDoEdycji(a) : undefined}
                   onDelete={can('ipam:write') ? (a) => setDoUsuniecia(a) : undefined}
                   busyId={remove.isPending ? (doUsuniecia?.id ?? null) : null}
                 />
@@ -272,6 +281,22 @@ function SubnetRow({
           if (!doUsuniecia) return;
           await remove.mutateAsync(doUsuniecia.id);
           setDoUsuniecia(null);
+        }}
+      />
+
+      <AddressEditModal
+        address={doEdycji}
+        subnetName={`${subnet.name} (${subnet.cidr})`}
+        pending={update.isPending}
+        error={update.error}
+        onClose={() => {
+          setDoEdycji(null);
+          update.reset();
+        }}
+        onConfirm={async (payload) => {
+          if (!doEdycji) return;
+          await update.mutateAsync({ id: doEdycji.id, ...payload });
+          setDoEdycji(null);
         }}
       />
     </>

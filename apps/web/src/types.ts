@@ -539,6 +539,16 @@ export const ACCESS_REQUEST_NO: Tone = 'neutral';
 // Tak jak pozostałe `*_LABELS` / `*_TONES` wyżej: nazwy klas z
 // `index.css` i polskie napisy, a nie surowe enuma z API.
 
+/**
+ * Statusy w kolejności prezentacji — do wypełniania listy wyboru.
+ *
+ * Osobne od `IpStatus`, bo typ jest unia i nie da się z niej wyczytać
+ * kolejności. Trzymamy tu same trzy wartości, żeby dodanie czwartego
+ * wymuszało świadome decyzje o nazwie i kolejności, a nie ciche
+ * pominięcie w jednym z miejsc.
+ */
+export const IP_STATUSES: readonly IpStatus[] = ['FREE', 'IN_USE', 'DEPRECATED'];
+
 export const IP_STATUS_LABELS: Record<IpStatus, string> = {
   FREE: 'Wolny',
   IN_USE: 'Zajęty',

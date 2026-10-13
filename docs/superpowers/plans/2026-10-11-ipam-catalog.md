@@ -837,7 +837,9 @@ W `NAV` dodaj `{ to: '/ipam', label: 'Adresy IP', icon: IconNetwork, permission:
 
 - [ ] **Step 2: Napisz `AddressTable`**
 
-Komponent prezentacyjny bez wiedzy o domenie: propsy `{ addresses, onDelete?, showSubnet? }`, kolumny adres / status / opis / przypisane aplikacje / ostatni skan. `onDelete` opcjonalne — jego brak oznacza „brak akcji", dzięki czemu tabela działa i dla VIEWER, i dla admina bez osobnej wersji.
+Komponent prezentacyjny bez wiedzy o domenie: propsy `{ addresses, onEdit?, onDelete?, showSubnet? }`, kolumny adres / status / opis / przypisane aplikacje / ostatni skan. `onEdit` i `onDelete` opcjonalne — ich brak oznacza „brak akcji", dzięki czemu tabela działa i dla VIEWER, i dla admina bez osobnej wersji.
+
+**Oba propsy są konieczne.** Pierwsza wersja planu wymieniała tylko `onDelete`, implementacja poszła za listą — i `useUpdateAddress` został martwy: endpoint działał, był udokumentowany, ale w interfejsie nie było przycisku, który by go wołał. Test `queries-hooks-used.test.ts` pilnuje tego od tej pory.
 
 - [ ] **Step 3: Napisz `IpamListPage`**
 

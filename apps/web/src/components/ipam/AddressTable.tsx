@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Th } from '../ui/Table';
-import { IconTrash } from '../ui/icons';
+import { IconPencil, IconTrash } from '../ui/icons';
 import { formatDateTime } from '../../lib/format';
 import { IP_STATUS_LABELS, IP_STATUS_TONES, type IpAddress } from '../../types';
 
@@ -23,10 +23,10 @@ export interface AddressRow extends IpAddress {
  * podsieci) i karty podsieci.
  *
  * Komponent nie wie, skąd przychodzą adresy ani kto może zapisywać.
- * Jedyne co mówi mu o uprawnieniach, to **brak `onDelete`**: wołający
- * przekazuje go tylko przy `can('ipam:write')`, a gość wtedy dostaje
- * tę samą tabelę bez kolumny akcji. Dzięki temu nie ma dwóch wersji
- * komponentu, które trzeba utrzymywać równolegle.
+ * Jedyne co mówi mu o uprawnieniach, to **brak `onEdit` i `onDelete`**:
+ * wołający przekazuje je tylko przy `can('ipam:write')`, a gość wtedy
+ * dostaje tę samą tabelę bez kolumny akcji. Dzięki temu nie ma dwóch
+ * wersji komponentu, które trzeba utrzymywać równolegle.
  *
  * Kolumny: adres, podsieć (opcjonalnie), status, opis, przypisane
  * aplikacje, ostatni skan. Przypisania niesie sam wiersz `IpAddress`
@@ -36,15 +36,17 @@ export interface AddressRow extends IpAddress {
  */
 export function AddressTable({
   addresses,
+  onEdit,
   onDelete,
   showSubnet = false,
   busyId,
 }: {
   addresses: AddressRow[];
   /** Brak = brak akcji (VIEWER). */
+  onEdit?: (address: IpAddress) => void;
   onDelete?: (address: IpAddress) => void;
   showSubnet?: boolean;
-  /** Adres w trakcie usuwania — jego przycisk pokazuje wtedy „usuwanie”. */
+  /** Adres w trakcie usuwania — jego przycisk pokazuje wtedy „usuwanie". */
   busyId?: string | null;
 }) {
   return (
@@ -70,8 +72,8 @@ export function AddressTable({
               <Th>Opis</Th>
               <Th>Przypisane aplikacje</Th>
               <Th className="w-44">Ostatni skan</Th>
-              {onDelete && (
-                <Th className="w-16">
+              {(onEdit || onDelete) && (
+                <Th className="w-28">
                   <span className="sr-only">Akcje</span>
                 </Th>
               )}
@@ -122,18 +124,33 @@ export function AddressTable({
                     : 'nie skanowany'}
                 </td>
 
-                {onDelete && (
+                {(onEdit || onDelete) && (
                   <td className="px-4 py-2.5 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      loading={busyId === address.id}
-                      onClick={() => onDelete(address)}
-                      aria-label={`Usuń adres ${address.address}`}
-                      title="Usuń adres"
-                    >
-                      <IconTrash className="size-4" />
-                    </Button>
+                    <span className="inline-flex items-center gap-1">
+                      {onEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEdit(address)}
+                          aria-label={`Edytuj adres ${address.address}`}
+                          title="Edytuj adres"
+                        >
+                          <IconPencil className="size-4" />
+                        </Button>
+                      )}
+                      {onDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={busyId === address.id}
+                          onClick={() => onDelete(address)}
+                          aria-label={`Usuń adres ${address.address}`}
+                          title="Usuń adres"
+                        >
+                          <IconTrash className="size-4" />
+                        </Button>
+                      )}
+                    </span>
                   </td>
                 )}
               </tr>

@@ -6,6 +6,7 @@ import {
   useDeleteSubnet,
   useSubnet,
   useSubnets,
+  useUpdateAddress,
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { liczba } from '../lib/format';
@@ -18,6 +19,7 @@ import { Modal } from '../components/ui/Modal';
 import { IconInfo, IconPencil, IconPlus, IconTrash } from '../components/ui/icons';
 import { formatDateTime } from '../lib/format';
 import { AddressDeleteModal } from '../components/ipam/AddressDeleteModal';
+import { AddressEditModal } from '../components/ipam/AddressEditModal';
 import { AddressTable } from '../components/ipam/AddressTable';
 import type { IpAddress } from '../types';
 
@@ -31,9 +33,11 @@ export function SubnetDetailPage() {
   const removeSubnet = useDeleteSubnet();
   const removeAddress = useDeleteAddress();
   const createAddress = useCreateAddress(id ?? '');
+  const updateAddress = useUpdateAddress();
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [addressToDelete, setAddressToDelete] = useState<IpAddress | null>(null);
+  const [addressToEdit, setAddressToEdit] = useState<IpAddress | null>(null);
   const [address, setAddress] = useState('');
   const [addressError, setAddressError] = useState<string | undefined>(undefined);
 
@@ -202,6 +206,7 @@ export function SubnetDetailPage() {
           ) : (
             <AddressTable
               addresses={addresses}
+              onEdit={canWrite ? (a) => setAddressToEdit(a) : undefined}
               onDelete={canWrite ? (a) => setAddressToDelete(a) : undefined}
               busyId={removeAddress.isPending ? (addressToDelete?.id ?? null) : null}
             />
@@ -338,6 +343,22 @@ export function SubnetDetailPage() {
           if (!addressToDelete) return;
           await removeAddress.mutateAsync(addressToDelete.id);
           setAddressToDelete(null);
+        }}
+      />
+
+      <AddressEditModal
+        address={addressToEdit}
+        subnetName={`${subnet.name} (${subnet.cidr})`}
+        pending={updateAddress.isPending}
+        error={updateAddress.error}
+        onClose={() => {
+          setAddressToEdit(null);
+          updateAddress.reset();
+        }}
+        onConfirm={async (payload) => {
+          if (!addressToEdit) return;
+          await updateAddress.mutateAsync({ id: addressToEdit.id, ...payload });
+          setAddressToEdit(null);
         }}
       />
     </>
