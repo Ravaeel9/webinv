@@ -429,15 +429,13 @@ export function ApplicationsListPage() {
               <table className="w-full min-w-[900px] text-left text-sm">
                 <thead className="border-b border-line bg-page">
                   <tr>
-                    {SORT_COLUMNS.map((kolumna) => (
+                    {SORT_COLUMNS.filter(
+                      (k) => !isGuest || !('guestHidden' in k) || !k.guestHidden,
+                    ).map((kolumna) => (
                       <SortableTh
                         key={kolumna.sortBy}
                         label={kolumna.label}
-                        sortBy={
-                          'guestHidden' in kolumna && kolumna.guestHidden && isGuest
-                            ? undefined
-                            : kolumna.sortBy
-                        }
+                        sortBy={kolumna.sortBy}
                         currentSort={filters.sort}
                         onSort={(pole) => setFilter('sort', pole)}
                         className={kolumna.label === 'Nazwa' ? 'w-[26%]' : ''}

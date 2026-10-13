@@ -126,3 +126,99 @@ describe('kolumny sortowalne a biała lista w API', () => {
     assert.ok(webSources().some((plik) => plik.endsWith('ApplicationsListPage.tsx')));
   });
 });
+
+/**
+ * Widoczność kolumn, nie sortowania.
+ *
+ * Osobny blok, bo to osobna klasa błędu: przy wdrożeniu nagłówków
+ * sortowalnych warunek `!isGuest` zniknął z `<thead>` i zastąpił go
+ * warunek na `sortBy`. Ten wyłączał **sortowanie**, ale `SortableTh`
+ * i tak renderuje `<Th>{label}</Th>` — gość dostał trzy puste kolumny
+ * w środku tabeli.
+ *
+ * Testy powyżej tego nie widziały: sprawdzały nazwy pól wobec białej
+ * listy, czyli **sortowanie**. Tu chodzi o to, **czy kolumna w ogóle
+ * istnieje**.
+ */
+describe('wiersz nagłówka tabeli aplikacji', () => {
+  /** Źródło strony listy aplikacji. */
+  function strona(): string {
+    return read('apps', 'web', 'src', 'pages', 'ApplicationsListPage.tsx');
+  }
+
+  it('gość nie dostaje kolumn oznaczonych guestHidden', () => {
+    const zrodlo = strona();
+    // `.filter(` przed mapowaniem `SORT_COLUMNS` w `<thead>`. Samo
+    // `guestHidden` w danych nie wystarczy — bez filtra kolumna i tak
+    // się renderuje, tylko bez strzałki.
+    const mapowanie = zrodlo.match(/SORT_COLUMNS\s*\.\s*map\(/);
+    assert.equal(
+      mapowanie,
+      null,
+      'kolumny renderują się przez samo SORT_COLUMNS.map — brak filtra ' +
+        'widoczności, więc gość zobaczy puste kolumny ukrytych pól',
+    );
+    assert.ok(
+      /SORT_COLUMNS\s*\.\s*filter\(/.test(zrodlo),
+      'mapowanie nagłówka nie ma filtra — kolumny guestHidden trafiają do gościa',
+    );
+  });
+
+  it('filtr powołuje się na isGuest, nie na coś innego', () => {
+    // Filtr, który sprawdza tylko `guestHidden` w danych, przepuściłby
+    // wszystkie kolumny — a chodzi o to, żeby gość nie dostał tych
+    // ukrytych przed nim.
+    //
+    // Czytamy do końca wyrażenia (`[\s\S]*?`), a nie `[^)]*` — to drugie
+    // zatrzymuje się na nawiasie funkcji `filter((k) => …)` i uchwyciłoby
+    // tylko `(k`, przez co test sprawdzałby nie to, o co chodzi.
+    const filtr = strona().match(/SORT_COLUMNS\s*\.\s*filter\(([\s\S]*?)\)\.map\(/);
+    assert.ok(filtr, 'nie znaleziono filtra kolumn przed .map()');
+    assert.ok(
+      filtr[1]!.includes('isGuest'),
+      `filtr kolumn nie odwołuje się do isGuest: ${filtr[1]}`,
+    );
+  });
+
+  it('kolumny gościa nie są sortowalne przez przypadek', () => {
+    // `sortBy={undefined}` wyłącza sortowanie, ale nie usuwa kolumny.
+    // Dlatego `guestHidden` nie może pojawiać się już w wyrażeniu
+    // przekazywanym do `sortBy` — tam miałoby tylko zniekształcać
+    // czytelność kodu, sugerując ochronę, której nie ma.
+    const wiersz = strona().slice(strona().indexOf('<thead'));
+    assert.ok(
+      !/sortBy=\{[^}]*guestHidden/.test(wiersz),
+      'guestHidden nadal steruje sortBy w <thead> — usuwa tylko strzałkę, ' +
+        'a kolumna zostaje pusta u gościa',
+    );
+  });
+
+  it('wiersze tabeli nadal warunkują ukryte pola', () => {
+    // Nagłówek i wiersze muszą być zgodne w obie strony: sam nagłówek
+    // bez warunku to puste kolumny, sam wiersz bez warunku to wyciek
+    // danych do odpowiedzi publicznej.
+    const zrodlo = strona();
+    const wystapienia = [...zrodlo.matchAll(/showRestricted\s*&&/g)].length;
+    assert.ok(
+      wystapienia >= 3,
+      `znaleziono ${wystapienia} warunków showRestricted — oczekiwano co najmniej 3 ` +
+        '(bezpieczeństwo, krytyczność, właściciel)',
+    );
+  });
+
+  it('dane ukrytych pól nie wracają z publicznej odpowiedzi', () => {
+    // Ostatnia linia obrony: nawet gdyby kolumna wyciekła, wartości
+    // nie ma w odpowiedzi dla gościa, więc nic poufnego nie pokaże.
+    assert.ok(
+      DLA_GOSCIA.size > 0 && DOZWOLONE.size > 0,
+      'białe listy nie wczytane — porównanie byłoby pozorne',
+    );
+    for (const pole of ['securityClass', 'criticality', 'ownerEmail']) {
+      assert.ok(
+        !DLA_GOSCIA.has(pole),
+        `„${pole}" nie może być sortowalne dla gościa — kolejność zdradziłaby wartość`,
+      );
+    }
+  });
+});
+
