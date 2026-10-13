@@ -167,6 +167,7 @@ git pull
 | `db` nie wstaje | `docker compose logs db` — najczęściej nieistniejący wolumen lub brak `POSTGRES_PASSWORD`; `pgdata` trzyma schemat z pierwszego `initdb` |
 | 502 zamiast strony | `web` nie widzi `api` — sprawdź `make ps` i healthcheck API |
 | „Sesja wygasła” przy każdym żądaniu | za krótki `SESSION_TTL_DAYS`, zmieniony `SESSION_SECRET`, zegary kontenera |
+| build pada z `Killed` lub „JavaScript heap out of memory” | brakuje RAM-u na budowanie obrazów — `./install.sh --low-memory` (albo `make install-lowmem`) i swap; szczegóły w [INSTALACJA.md](INSTALACJA.md#mało-pamięci-vps-z-1-gb-ram) |
 | Bardzo wolne listy | baza: indeksy z [BAZA-DANYCH.md](BAZA-DANYCH.md) pokrywają główne filtry; sprawdź `make psql` i `EXPLAIN` |
 
 ## Granice i skalowanie

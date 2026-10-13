@@ -104,8 +104,13 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `ui-css-output.test.ts` | że każda klasa z `@layer components` **dotarła do `dist/`** — LightningCSS gubi reguły po `*/` w komentarzu, po cichu; oraz że w komentarzu nie ma sekwencji zamykającej komentarz |
 | `ui-state-colors.test.ts` | każda właściwość koloru stanu w JSX ma wariant jasny **i** ciemny (brak `dark:` przy `bg-*` = niewidoczna odznaka w jasnym motywie), z wyjątkami nazwanymi po pliku |
 | `ui-class-syntax.test.ts` | że utility koloru w JSX ma wartość w nawiasie kwadratowym — `hover:bg-oklch(0.83 0.08 20 / 0.4)` wygląda poprawnie, przechodzi build bez ostrzeżenia i nie robi nic |
+| `ipam-cidr.test.ts` | parser CIDR odrzucający oktety spoza zakresu i adres hosta (`10.20.1.5/24`) **zamiast** po cichu go normalizować do adresu sieci, oraz równość, zawieranie i nakładanie zakresów — cała ta warstwa działa bez bazy |
+| `ipam-dto.test.ts` | walidację ładunków podsieci, adresów i przypisań zgodnie z tym, co robi `ValidationPipe` |
+| `ipam-service.test.ts` | serwis na atrapie portu: kolizja zakresów jako 409, blokada usunięcia przypisanej podsieci, `sortCidrs` liczbowo (`10.9.0.0/8` przed `10.10.0.0/8`, nie leksykograficznie) i dopasowanie adresu do najwęższej podsieci |
+| `ipam-app-delete.test.ts` | że usunięcie aplikacji zwalnia przypisane adresy, a odblokowanie adresu respektuje żywe przypisania i status `DEPRECATED` |
+| `ipam-permissions.test.ts` | że `ipam:read` i `ipam:write` są oddzielnymi uprawnieniami, a nie pochodnymi `app:*` — katalog wymaga sesji |
 
-Stan: **386 przypadków, 48 suite'ów, wszystkie przechodzą**, plus
+Stan: **612 przypadków, 90 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).
