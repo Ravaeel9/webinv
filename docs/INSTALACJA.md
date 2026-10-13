@@ -27,7 +27,7 @@ Aplikacja: `http://<adres-serwera>:8080` · konto: `admin`
 |---|---|
 | System | Linux (AMD64 lub ARM64) |
 | Docker | Engine 24+ z Compose **v2** (`docker compose`, nie `docker-compose`) |
-| Pamięć | 1 GB RAM na działanie, 2 GB na czas pierwszej instalacji (budowa obrazów) |
+| Pamięć | 1 GB RAM na działanie. Na czas pierwszej instalacji (budowa obrazów) **1 GB + swap albo 2 GB** — patrz „Mało pamięci” niżej |
 | Miejsce | ~3 GB na obrazy i dane |
 | Port | jeden wolny port na zewnątrz — domyślnie `8080` |
 | Dostęp do konta | konto musi należeć do grupy `docker` albo uruchamiasz skrypt przez `sudo` |
@@ -58,12 +58,47 @@ cd /opt/webinv
 
 | Krok | Co sprawdza / robi |
 |---|---|
-| 1/6 Wymagania | Docker, Compose v2, działający daemon, dostępność wzorca `.env.example` |
-| 2/6 Konfiguracja | tworzy `.env`, generuje `SESSION_SECRET` (64 znaki) i hasło bazy, ustawia prawa `600` na pliku |
-| 3/6 Port i HTTPS | pyta o port i czy przed aplikacją będzie HTTPS |
-| 4/6 Administrator | ustawia login, e-mail i hasło startowe super administratora (sprawdza je tą samą polityką, co aplikacja) |
-| 5/6 Uruchomienie | `docker compose up -d --build` — budowa obrazów trwa zwykle 3–8 minut |
-| 6/6 Weryfikacja | czeka, aż baza, API i aplikacja będą zdrowe, i sprawdza odpowiedź HTTP |
+| 1/8 Wymagania | Docker, Compose v2, działający daemon, dostępność wzorca `.env.example` |
+| 2/8 Zasoby | dostępna pamięć RAM, wolne miejsce na dysku, obecność swapu; w razie potrzeby włącza tryb oszczędny |
+| 3/8 Konfiguracja | tworzy `.env`, generuje `SESSION_SECRET` (64 znaki) i hasło bazy, ustawia prawa `600` na pliku |
+| 4/8 Port i HTTPS | pyta o port i czy przed aplikacją będzie HTTPS |
+| 5/8 Administrator | ustawia login, e-mail i hasło startowe super administratora (sprawdza je tą samą polityką, co aplikacja) |
+| 6/8 Budowa obrazów | `docker compose build` z widocznym postępem i zegarem; pełny log w pliku wskazanym na ekranie |
+| 7/8 Uruchomienie | `docker compose up -d` — osobny krok, żeby błąd startu nie mylił się z błędem builda |
+| 8/8 Weryfikacja | czeka, aż baza, API i aplikacja będą zdrowe, i sprawdza odpowiedź HTTP |
+
+### Mało pamięci (VPS z 1 GB RAM)
+
+Budowanie obrazów to jedyny etap instalacji, który potrafi przekroczyć
+gigab RAM — obraz API ma dwa pełne `npm ci`, obraz web jeden. Instalator
+mierzy dostępną pamięć przed budową i sam włącza tryb oszczędny
+(limit sterty Node + budowanie serwisów po kolei), gdy zostanie mniej
+niż 900 MB. Tryb można też włączyć ręcznie:
+
+```bash
+./install.sh --low-memory      # albo: make install-lowmem
+```
+
+Jeśli zobaczysz ostrzeżenie o braku swapu, dodaj go — jednorazowo,
+jedna komenda na serwer:
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Budowanie trwa wtedy dłużej, ale się kończy. Postęp i czas pokazuje
+instalator na ekranie, a pełny log zapisuje w pliku wskazanym po
+budowie — tam też warto zajrzeć, gdy build padnie z `Killed`
+(oznaka OOM-killa) albo `JavaScript heap out of memory`.
+
+### Budowanie poza instalatorem
+
+`make up`, `make build` i `make rebuild` też budują serwisy po kolei
+(`COMPOSE_PARALLEL_LIMIT=1`) — na jednym vCPU nie traci to na
+prędkości, a obniża szczytowe zużycie RAM. Limit sterty ustawisz
+zmienną `NODE_OPTIONS`, np. `NODE_OPTIONS=--max-old-space-size=768 make build`.
 
 Instalator jest **idempotentny**: uruchomiony ponownie nie kasuje danych,
 nie zmienia sekretów i nie nadpisuje ustawień w `.env`.
@@ -86,6 +121,7 @@ logowaniu, więc nie zostaje na dysku w jawnej postaci.
 | `--admin-user`, `--admin-email`, `--admin-name` | dane konta administratora |
 | `--cookie-secure true` | ciasteczko tylko przez HTTPS |
 | `--no-start` | przygotować `.env`, ale nie uruchamiać kontenerów |
+| `--low-memory` | wymuś tryb oszczędny na maszynie z ~1 GB RAM (patrz „Mało pamięci”) |
 | `--new-env` | nowy `.env` od zera (stary zostaje jako `.env.bak.<data>`); unieważnia zalogowane sesje |
 
 Przykład instalacji bez interakcji (np. w automatyzacji):
@@ -112,6 +148,14 @@ openssl rand -base64 24  # → SEED_ADMIN_PASSWORD (musisz wpisać własne,
                          #   bo hasła startowego nie da się zapamiętać z base64)
 
 docker compose up -d --build
+```
+
+Na maszynie z 1 GB RAM dodaj `COMPOSE_PARALLEL_LIMIT=1` i ogranicz
+stertę Node, np.:
+
+```bash
+COMPOSE_PARALLEL_LIMIT=1 NODE_OPTIONS=--max-old-space-size=768 \
+  docker compose up -d --build
 ```
 
 Trzy zmienne są **wymagane** — bez nich kontener API celowo nie wstaje:

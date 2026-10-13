@@ -40,10 +40,14 @@ else
 fi
 
 STEP_NO=0
+# Liczba kroków instalatora. Trzymana w zmiennej, a nie w literale
+# w `step`, bo kroki dodajemy i usuwamy — przy twardym „/6” numeracja
+# rozjeżdża się z rzeczywistością przy pierwszej zmianie.
+TOTAL_STEPS=8
 
 step() {
   STEP_NO=$((STEP_NO + 1))
-  printf '\n%s── %d/6 %s %s\n' "$C_BLUE" "$STEP_NO" "$1" "$C_OFF"
+  printf '\n%s── %d/%d %s %s\n' "$C_BLUE" "$STEP_NO" "$TOTAL_STEPS" "$1" "$C_OFF"
 }
 
 banner() {
@@ -84,11 +88,14 @@ Opcje:
       --new-env           Nadpisz istniejący .env (UWAGA: nowe sekrety sesji
                            unieważniają zalogowane sesje)
       --no-start          Tylko przygotuj .env, nie uruchamiaj kontenerów
+      --low-memory        Wymuś tryb oszczędny: ograniczona sterta Node i
+                          serwisy budowane po kolei (dla VPS-ów z ~1 GB RAM)
   -h, --help               Ta pomoc
 
 Przykłady:
   ./install.sh
   ./install.sh -y --port 80 --cookie-secure true --admin-password 'Kf3!xRdm9#vQ2'
+  ./install.sh --low-memory
 EOF
 }
 
@@ -97,6 +104,7 @@ parse_args() {
     case "$1" in
       -y|--unattended)  UNATTENDED=1 ;;
       --no-start)       START_STACK=0 ;;
+      --low-memory)     LOW_MEMORY=1 ;;
       --new-env)        NEW_ENV=1 ;;
       --port)           ARG_PORT="${2:-}"; shift ;;
       --admin-user)     ARG_ADMIN_USER="${2:-}"; shift ;;
@@ -263,6 +271,92 @@ check_requirements() {
 
   [ -f "$ENV_EXAMPLE" ] || die "Brak pliku $ENV_EXAMPLE w katalogu $SCRIPT_DIR."
   ok "Wzorzec konfiguracji: $ENV_EXAMPLE"
+}
+
+# ── Krok 2: zasoby maszyny ────────────────────────────────────
+# Budowa obrazów jest jedynym etapem instalacji, który potrafi
+# przekroczyć gigab RAM: trzy pełne `npm ci` (dwa w API, jeden
+# we webie). Dlatego sprawdzamy zasoby ZANIM cokolwiek zbudujemy,
+# a nie wtedy, gdy instalator padnie z OOM-killem.
+LOW_MEMORY=0
+
+mem_available_mb() {
+  # MemAvailable z /proc/meminfo mówi ile RAM jest realnie do dyspozycji
+  # (po cache jądra), więc jest trafniejszy niż MemTotal. W kontenerach
+  # i na części dystrybucji pliku nie ma — wtedy sięgamy po `free`.
+  local kb
+  kb="$(awk '/^MemAvailable:/ {print $2; exit}' /proc/meminfo 2>/dev/null || true)"
+  if [ -z "$kb" ]; then
+    kb="$(free -m 2>/dev/null | awk '/^Mem:/ {print $7}')"
+  fi
+  case "$kb" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  printf '%s' "$((kb / 1024))"
+}
+
+has_swap() {
+  # Sprawdzamy ROZMIAR swapu, nie to, ile jest aktualnie zajęte:
+  # szukamy rady „dodaj swap”, a niewykorzystany swap właśnie jest
+  # tym, czego brakuje. `free` ma w wierszu „Swap:” tylko trzy
+  # liczby (total, used, free) — czwarta i dalsze to puste, stąd $2.
+  local total
+  total="$(free -k 2>/dev/null | awk '/^Swap:/ {print $2}')"
+  case "$total" in
+    ''|*[!0-9]*) return 1 ;;
+    0) return 1 ;;
+  esac
+  return 0
+}
+
+check_resources() {
+  step "Sprawdzam zasoby maszyny"
+
+  local mem
+  if mem="$(mem_available_mb)"; then
+    if [ "$mem" -lt 900 ]; then
+      LOW_MEMORY=1
+      warn "Mało dostępnej pamięci: ${mem} MB"
+      info "Włączam tryb oszczędny — budowa pójdzie wolniej, ale się uda."
+    else
+      ok "Dostępne pamięci: ${mem} MB"
+    fi
+  else
+    warn "Nie umiem odczytać ilości pamięci — pomijam sprawdzenie."
+  fi
+
+  if [ "$LOW_MEMORY" = "1" ] && ! has_swap; then
+    warn "Brak swapu. To najczęstsza przyczyna OOM-killa przy budowie."
+    info "Dodaj swap poleceniem (jednorazowo):"
+    printf '     %s\n' "sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+  fi
+
+  # Dokumentacja mówi o ~3 GB na obrazy i dane. Nie blokujemy, bo
+  # katalog docelowy może być montowany z innego dysku — ostrzegamy.
+  local avail_mb
+  avail_mb="$(df -Pk "$SCRIPT_DIR" 2>/dev/null | awk 'NR==2 {print $4}')"
+  case "$avail_mb" in
+    ''|*[!0-9]*) : ;;
+    *)
+      avail_mb=$((avail_mb / 1024))
+      if [ "$avail_mb" -lt 4096 ]; then
+        warn "Mało miejsca na dysku: ${avail_mb} MB wolnego w $SCRIPT_DIR"
+        info "Aplikacja potrzebuje ok. 3 GB na obrazy i dane."
+      else
+        ok "Wolnego miejsca na dysku: ${avail_mb} MB"
+      fi
+      ;;
+  esac
+
+  # Budujemy serwisy po kolei zawsze, nie tylko przy małym RAM.
+  # Równoległy build dwóch obrazów na 1 vCPU nie jest szybszy, a
+  # podwaja szczytowe zużycie pamięci.
+  export COMPOSE_PARALLEL_LIMIT=1
+  if [ "$LOW_MEMORY" = "1" ]; then
+    # Limit sterty dociera do buildów przez build.args w compose.yml.
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=768}"
+    ok "Tryb oszczędny: limity Node ustawione"
+  fi
 }
 
 # ── Krok 2: konfiguracja (.env) ──────────────────────────────
@@ -442,18 +536,96 @@ configure_admin() {
   fi
 }
 
-# ── Krok 4: uruchomienie ─────────────────────────────────────
-start_stack() {
-  step "Uruchamiam aplikację"
+# ── Krok 4: budowa i uruchomienie ─────────────────────────────
+# Build i start rozdzielone celowo. `compose up -d --build` miesza
+# dwa procesy w jedną czarną skrzynkę i administrator przez kilka
+# minut nie wie, co się dzieje — ani ile zostało, ani czy wpadł
+# w błąd, czy po prostu wolno liczy.
+format_elapsed() {
+  local s="$1"
+  printf '%02d:%02d' "$((s / 60))" "$((s % 60))"
+}
 
-  if [ "$START_STACK" = "0" ]; then
-    ok "Pominięte (--no-start). Uruchom później: docker compose up -d --build"
-    return 0
+render_build_progress() {
+  # Wyłuskuje z wyjścia `build --progress=plain` nazwę bieżącego kroku
+  # i pokazuje ją wraz z zegarem. Pełne wyjście zostaje w $BUILD_LOG,
+  # bo komunikat OOM („Killed”, „JavaScript heap out of memory”) ginie
+  # w filtrze i administrator nie ma gdzie szukać przyczyny.
+  local started elapsed line step_name last_name=""
+  started="$(date +%s)"
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >>"$BUILD_LOG"
+    # Przykładowa linia:  #7 [3/5] RUN npm ci --no-audit
+    step_name="$(printf '%s' "$line" | sed -n 's/^#[0-9]\{1,\} \[[0-9]\{1,\}\/[0-9]\{1,\}\] *//p' | cut -c1-60)"
+    case "$step_name" in
+      ''|CACHED) continue ;;
+    esac
+    # Linie zapisujące warstwę powtarzają poprzedni krok — pomijamy.
+    case "$line" in
+      *'CACHED'*|*'DONE'*) continue ;;
+    esac
+    # BuildKit wypisuje komendę, a potem jeszcze raz tę samą w
+    # pośrednich liniach postępu. Bez tego filtru administrator
+    # widzi ten sam krok dwa razy pod rząd.
+    [ "$step_name" = "$last_name" ] && continue
+    last_name="$step_name"
+    elapsed=$(( $(date +%s) - started ))
+    if [ -t 1 ]; then
+      printf '\r\033[K   %s…%s %s  (%s)\n' "$C_BLUE" "$C_OFF" "$step_name" "$(format_elapsed "$elapsed")"
+    fi
+  done
+  return 0
+}
+
+build_images() {
+  # Ścieżka logu musi istnieć PRZED pierwszym wypisaniem jej nazwy —
+  # skrypt leczy `set -u`, więb odwołanie do nieprzypisanej zmiennej
+  # zatrzymałoby instalację dokładnie wtedy, gdy administrator czeka
+  # najbardziej.
+  BUILD_LOG="$(mktemp -t webinv-build.XXXXXX.log)"
+
+  info "Budowanie obrazów — pierwszy raz trwa zwykle 3–8 minut."
+  info "Postęp i czas poniżej; pełny log: ${C_DIM}${BUILD_LOG}${C_OFF}"
+  printf '\n'
+
+  local progress_opt=""
+  [ -t 1 ] && progress_opt="--progress=plain"
+
+  # `|| true`: chcemy własną obsługę błędu niż wyjście z `set -e`
+  # w środku potoku, bo musimy pokazać ogon logu.
+  # shellcheck disable=SC2086
+  if ! docker compose build $progress_opt 2>&1 | render_build_progress; then
+    printf '\n'
+    warn "Budowanie obrazów nie powiodło się. Ostatnie linie logu:"
+    printf '\n'
+    tail -n 30 "$BUILD_LOG" 2>/dev/null | sed 's/^/     │ /'
+    printf '\n'
+    # Rozpoznajemy OOM po słowach-kluczach, bo komunikat sam w sobie
+    # („Killed”) nie mówi, czym jest. Bez tego administrator szuka
+    # przyczyny w kodzie, a problem leży w ilości RAM-u.
+    case "$(grep -cE 'Killed|heap out of memory|JavaScript heap' "$BUILD_LOG" 2>/dev/null || true)" in
+      0) : ;;
+      *)
+        if [ "$LOW_MEMORY" = "1" ]; then
+          die "Zabrakło pamięci mimo trybu oszczędnego. Dodaj swap (polecenie powyżej) — bez niego budowanie dwóch obrazów nie zmieści się w RAM-ie."
+        fi
+        die "Zabrakło pamięci podczas budowania. Dodaj swap (polecenie powyżej) i spróbuj ponownie, albo uruchom ./install.sh --low-memory"
+        ;;
+    esac
+    die "Instalacja nie powiodła się. Powyższy log mówi, na którym kroku build padł."
   fi
 
-  info "Pierwsze budowanie obrazów trwa zwykle 3–8 minut."
-  printf '\n'
-  if ! docker compose up -d --build; then
+  [ -t 1 ] && printf '\r\033[K'
+  ok "Obrazy zbudowane"
+  ok "Szczegółowy log builda: $BUILD_LOG"
+}
+
+start_stack() {
+  step "Buduję obrazy"
+  build_images
+
+  step "Uruchamiam aplikację"
+  if ! docker compose up -d; then
     printf '\n'
     warn "docker compose zakończył się błędem. Ostatnie logi:"
     docker compose logs --tail=30 2>/dev/null || true
@@ -570,6 +742,7 @@ main() {
   printf '  Katalog: %s\n' "$SCRIPT_DIR"
 
   check_requirements
+  check_resources
   prepare_env
   configure_port
   configure_admin
@@ -580,9 +753,11 @@ main() {
   fi
 
   if [ "$START_STACK" = "0" ]; then
-    step "Podsumowanie"
-    info "Konfiguracja gotowa. Uruchom stos poleceniem: docker compose up -d --build"
-    printf '\n'
+    # Bez nagłówka kroku: `--no-start` kończy instalację na kroku 5,
+    # a nagłówek „6/8” sugerowałby, że coś jeszcze zostało.
+    banner "Konfiguracja gotowa"
+    info "Nie uruchamiałem kontenerów (--no-start). Uruchom stos poleceniem:"
+    printf '\n     %smake up%s\n\n' "$C_BOLD" "$C_OFF"
     return 0
   fi
 

@@ -43,6 +43,11 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        # Puste domyślnie = bez limitu sterty (dotychczasowe zachowanie).
+        # install.sh ustawia NODE_OPTIONS przy wykryciu małej ilości RAM,
+        # a użytkownik może też nadpisać go w .env albo w środowisku.
+        NODE_OPTIONS: ${NODE_OPTIONS:-}
     container_name: webinv_api
     restart: unless-stopped
     depends_on:
@@ -83,6 +88,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
+        NODE_OPTIONS: ${NODE_OPTIONS:-}
         VITE_API_BASE_URL: /api
         # Wersja wplatana do interfejsu. Makefile podstawia tu pole
         # `version` z package.json; fallback `0.0.0-dev` jest widoczny

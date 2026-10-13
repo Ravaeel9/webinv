@@ -6,6 +6,11 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
+# Limit sterty Node — patrz komentarz w apps/api/Dockerfile.
+# Ten etap to pełne `npm ci` dla obu workspace'ów.
+ARG NODE_OPTIONS
+ENV NODE_OPTIONS=${NODE_OPTIONS}
+
 # Repo jest monorepo (npm workspaces), więc `npm ci` wymaga
 # manifestu głównego, lockfile'a i manifestów obu pakietów.
 COPY package.json package-lock.json ./
@@ -18,6 +23,12 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM node:22-bookworm-slim AS build-web
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Dziedziczone po etapie deps, ale wypisujemy jawnie: `tsc` i `vite
+# build` też liczą się do zużycia RAM, a gdyby kiedyś build-web
+# przestał dziedziczyć z deps, limit zniknąłby po cichu.
+ARG NODE_OPTIONS
+ENV NODE_OPTIONS=${NODE_OPTIONS}
 
 # Kopiujemy deps
 COPY --from=deps /app/node_modules ./node_modules

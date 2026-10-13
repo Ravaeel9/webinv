@@ -44,7 +44,8 @@ kontener ma zawsze działać na tym samym kodzie, na którym testy przeszły.
 Do uruchomienia całości (Docker) wystarczy:
 
 - Docker Engine 24+ z Compose v2
-- wolne ~2 GB RAM
+- wolne ~1 GB RAM na działanie; na pierwszą instalację (budowa obrazów)
+  **1 GB + swap albo 2 GB**
 
 Do pracy nad kodem (poza Dockerem):
 
@@ -60,8 +61,16 @@ kontenery i weryfikuje, że aplikacja odpowiada:
 ./install.sh
 ```
 
-Prowadzi krok po kroku: port, HTTPS, hasło administratora. Szczegółowa
-instrukcja dla administratora serwera: **[docs/INSTALACJA.md](docs/INSTALACJA.md)**.
+Prowadzi krok po kroku: zasoby maszyny, port, HTTPS, hasło administratora.
+Szczegółowa instrukcja dla administratora serwera:
+**[docs/INSTALACJA.md](docs/INSTALACJA.md)**.
+
+Na VPS-ie z ~1 GB RAM dodaj `--low-memory` — kreator ograniczy wtedy stertę
+Node i zbuduje obrazy po kolei:
+
+```bash
+./install.sh --low-memory      # albo: make install-lowmem
+```
 
 Bez kreatora (albo do prac lokalnych):
 
@@ -105,6 +114,7 @@ Wszystko kręci się wokół `Makefile`; pełna lista: `make help`.
 | Polecenie | Co robi |
 |---|---|
 | `make install` | kreator instalacji na serwerze (to samo co `./install.sh`) |
+| `make install-lowmem` | j.w. na VPS-ie z ~1 GB RAM (`./install.sh --low-memory`) |
 | `make release` | **wydanie**: podbija wersję, buduje, uruchamia, weryfikuje i wypycha na GitHub |
 | `make init` | `.env` z losowymi sekretami (raz, przy pierwszym uruchomieniu) |
 | `make up` | buduje obrazy i uruchamia stos na `APP_PORT` (domyślnie 8080) |

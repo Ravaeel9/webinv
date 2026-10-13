@@ -8,6 +8,14 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
+# Limit sterty Node. `npm ci` w monorepo potrafi momentami zjeść
+# 700–900 MB, a na VPS-ie z 1 GB RAM trzy równoległe instalacje
+# zależności kończą się OOM-killem. Compose przekazuje tę wartość
+# przez `build.args` (NODE_OPTIONS z .env/środowiska). Pusty ARG
+# = dotychczasowe zachowanie, więc build poza Compose działa jak zawsze.
+ARG NODE_OPTIONS
+ENV NODE_OPTIONS=${NODE_OPTIONS}
+
 # Prisma wymaga OpenSSL — biblioteki w runtime, nagłówki w buildzie
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -42,6 +50,11 @@ RUN npx prisma generate && npm run build
 # do obrazu końcowego.
 FROM node:22-bookworm-slim AS prod-deps
 WORKDIR /app
+
+# Jak w etapie deps — to `npm ci --omit=dev` jest tu najcięższym krokiem.
+ARG NODE_OPTIONS
+ENV NODE_OPTIONS=${NODE_OPTIONS}
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*

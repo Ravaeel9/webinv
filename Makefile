@@ -1,4 +1,4 @@
-.PHONY: help install init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean
+.PHONY: help install install-lowmem init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean
 
 # Ścieżka wydania żyje w scripts/release.sh, nie tutaj: kroków jest
 # dużo i kolejność ma znaczenie (testy → wersja → commit → tag → build →
@@ -6,7 +6,11 @@
 # pół drogi i zostać z obrazem, którego wersja nie pasuje do commita.
 
 APP := webinv
-COMPOSE := docker compose
+# Budowanie serwisów po kolei zamiast równolegle. Na jednym vCPU
+# nie przyspiesza, a mniej więcej dwukrotnie obniża szczytowe
+# zużycie RAM — na VPS-ie z 1 GB to różnica między sukcesem
+# a OOM-killem w trakcie `npm ci`.
+COMPOSE := COMPOSE_PARALLEL_LIMIT=1 docker compose
 
 # Wersja wplatana do obrazu frontendu (widoczna w prawym dolnym rogu
 # interfejsu). Źródłem jest pole `version` w głównym package.json —
@@ -35,6 +39,9 @@ help: ## Pokaż tę pomoc
 
 install: ## Instalacja na serwerze: kreator ./install.sh (konfiguracja + start)
 	@./install.sh
+
+install-lowmem: ## Instalacja na VPS-ie z ~1 GB RAM (limit sterty Node, build po kolei)
+	@./install.sh --low-memory
 
 init: ## Utwórz .env z losowymi sekretami (pierwsze uruchomienie)
 	@test -f .env && { echo ".env już istnieje — pominięto"; exit 0; }

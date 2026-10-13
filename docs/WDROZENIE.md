@@ -8,7 +8,7 @@ zapasowe, aktualizacje i granice skalowania.
 | | |
 |---|---|
 | Docker Engine | 24+ z Compose v2 |
-| CPU / RAM | 1 vCPU, 1 GB RAM (zapas na build — 2 GB) |
+| CPU / RAM | 1 vCPU, 1 GB RAM + swap **albo** 2 GB RAM (budowa obrazów) |
 | System | Linux (ARM64 i amd64) |
 | Port | jeden z zewnątrz: `APP_PORT` (domyślnie 8080) |
 

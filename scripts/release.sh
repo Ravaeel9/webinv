@@ -145,10 +145,13 @@ fi
 
 step "Budowanie i uruchamianie obrazu"
 
+# COMPOSE_PARALLEL_LIMIT=1 jak w Makefile: serwisy budujemy po kolei.
+# Wydanie bywa pierwszym buildem na świeżym VPS-ie, a równoległa
+# budowa dwóch obrazów na 1 GB RAM kończy się OOM-killem.
 if [ "$DRY" = "0" ]; then
-  APP_VERSION="$NEW" docker compose up -d --build
+  APP_VERSION="$NEW" COMPOSE_PARALLEL_LIMIT=1 docker compose up -d --build
 else
-  echo "  [sucho] APP_VERSION=$NEW docker compose up -d --build"
+  echo "  [sucho] APP_VERSION=$NEW COMPOSE_PARALLEL_LIMIT=1 docker compose up -d --build"
 fi
 
 # ─── 5. Weryfikacja tego, co naprawdę powstało ────────────────
