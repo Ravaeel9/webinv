@@ -34,7 +34,7 @@ import {
   RequirePermission,
   type AuthUser,
 } from '../auth/decorators';
-import { PreviewImportDto } from './dto/import.dto';
+import { ApplyImportDto, PreviewImportDto } from './dto/import.dto';
 import {
   CreateAddressDto,
   CreateSubnetDto,
@@ -61,6 +61,17 @@ export class IpamController {
       }
       throw e;
     }
+  }
+
+  @Post('import/apply')
+  @RequirePermission('ipam:write')
+  @HttpCode(200)
+  async applyImport(
+    @Body() dto: ApplyImportDto,
+    @CurrentUser() actor: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return this.ipam.applyImport(dto, actor, ip);
   }
 
   // ── Podsieci ────────────────────────────────────────────────

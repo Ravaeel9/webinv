@@ -202,6 +202,11 @@ export type IpamPort = {
     findUnique(args: { where: { id: string } }): Promise<IpAddressRow | null>;
     create(args: { data: IpAddressCreateData }): Promise<IpAddressRow>;
     update(args: { where: { id: string }; data: IpAddressUpdateData }): Promise<IpAddressRow>;
+    upsert(args: {
+      where: { subnetId_address: { subnetId: string; address: string } };
+      create: IpAddressCreateData;
+      update: { lastSeenAt: Date } & Partial<IpAddressCreateData>;
+    }): Promise<IpAddressRow>;
     delete(args: { where: { id: string } }): Promise<IpAddressRow>;
     /**
      * Zbiorcze przestawienie statusu. Przy zwalnianiu przypisań wołane

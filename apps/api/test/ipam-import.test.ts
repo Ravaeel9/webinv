@@ -101,19 +101,63 @@ function port(stan: StanImportu = {}) {
         wywolania.update.push(args);
         throw new Error('preview nie może wołać update');
       },
-      upsert: async (args: unknown) => {
-        wywolania.upsert.push(args);
-        throw new Error('preview nie może wołać upsert');
+      upsert: async ({
+        where,
+        create,
+        update,
+      }: {
+        where: { subnetId_address: { subnetId: string; address: string } };
+        create: IpAddressRow;
+        update: Partial<IpAddressRow>;
+      }) => {
+        wywolania.upsert.push({ where, create, update });
+        const { subnetId, address } = where.subnetId_address;
+        const istniejacy = adresy.find(
+          (a) => a.subnetId === subnetId && a.address === address,
+        );
+        if (istniejacy) {
+          if (update.lastSeenAt !== undefined) {
+            istniejacy.lastSeenAt = update.lastSeenAt;
+          }
+          if (update.description !== undefined) {
+            istniejacy.description = update.description;
+          }
+          return { ...istniejacy };
+        }
+        const nowy: IpAddressRow = {
+          id: `ip-${address}`,
+          subnetId: create.subnetId,
+          address: create.address,
+          status: create.status,
+          description: create.description ?? null,
+          lastSeenAt: create.lastSeenAt ?? null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        };
+        adresy.push(nowy);
+        return { ...nowy };
       },
     },
     $transaction: async <T>(fn: () => Promise<T>): Promise<T> => fn(),
   } as unknown as IpamPort;
 
+  const zdarzenia: Array<{
+    action: string;
+    entity: string;
+    changes?: unknown;
+  }> = [];
+
   const dziennik = {
-    record: async () => {},
+    record: async (e: {
+      action: string;
+      entity: string;
+      changes?: unknown;
+    }) => {
+      zdarzenia.push(e);
+    },
   };
 
-  return { p, wywolania, dziennik, adresy };
+  return { p, wywolania, dziennik, zdarzenia, adresy };
 }
 
 function serwis(
@@ -190,5 +234,82 @@ describe('IpamService.previewImport', () => {
     assert.equal(zestaw.wywolania.create.length, 0);
     assert.equal(zestaw.wywolania.update.length, 0);
     assert.equal(zestaw.wywolania.upsert.length, 0);
+  });
+});
+
+const AKTOR = {
+  id: 'u-1',
+  username: 'admin',
+  email: 'admin@firma.pl',
+  fullName: 'Administrator Systemu',
+  role: 'ADMIN',
+  mustChangePassword: false,
+} as const;
+
+const PODNET_ID = 'id-Sieć';
+
+describe('IpamService.applyImport', () => {
+  it('odrzuca pozycję z nieznanym adresem podsieci', async () => {
+    await assert.rejects(
+      () =>
+        serwis(port({})).applyImport(
+          { selections: [{ address: '10.20.5.7', subnetId: 'nie-uuid' }] },
+          AKTOR,
+        ),
+      /nie istnieje/,
+    );
+  });
+
+  it('odrzuca adres spoza wskazanej podsieci', async () => {
+    // Administrator mógł wybrać podsieć z rozwijanej listy, ale lista
+    // pochodzi z podglądu sprzed godziny — dane mogły się rozjechać.
+    await assert.rejects(
+      () =>
+        serwis(
+          port({ podsieci: [subnet('10.20.0.0/16', 'Sieć')] }),
+        ).applyImport(
+          { selections: [{ address: '192.168.1.5', subnetId: PODNET_ID }] },
+          AKTOR,
+        ),
+      /poza zakresem/,
+    );
+  });
+
+  it('zapisuje zatwierdzone adresy i ustawia lastSeenAt', async () => {
+    const zestaw = port({ podsieci: [subnet('10.20.0.0/16', 'Sieć')] });
+    await serwis(zestaw).applyImport(
+      { selections: [{ address: '10.20.5.7', subnetId: PODNET_ID }] },
+      AKTOR,
+    );
+    assert.equal(zestaw.adresy.length, 1);
+    assert.ok(zestaw.adresy[0]?.lastSeenAt instanceof Date);
+  });
+
+  it('drugie wgranie tego samego pliku nie tworzy duplikatu i zachowuje ręczny opis', async () => {
+    // Review Focus 2 — upsert, nie create. Wywołanie apply dwa razy
+    // z tym samym wejściem daje ten sam stan, bez wyjątku.
+    const zestaw = port({
+      podsieci: [subnet('10.20.0.0/16', 'Sieć')],
+      ipAddresses: [adres('10.20.5.7', 'ręczny opis administratora')],
+    });
+    const dto = {
+      selections: [{ address: '10.20.5.7', subnetId: PODNET_ID }],
+    };
+    await serwis(zestaw).applyImport(dto, AKTOR);
+    await serwis(zestaw).applyImport(dto, AKTOR);
+    assert.equal(zestaw.adresy.length, 1);
+    assert.equal(zestaw.adresy[0]?.description, 'ręczny opis administratora');
+  });
+
+  it('loguje jeden wpis audytu dla całego importu', async () => {
+    const zestaw = port({ podsieci: [subnet('10.20.0.0/16', 'Sieć')] });
+    const trzyPozycje = [
+      { address: '10.20.5.7', subnetId: PODNET_ID, description: 'jenkins' },
+      { address: '10.20.5.8', subnetId: PODNET_ID },
+      { address: '10.20.5.9', subnetId: PODNET_ID },
+    ];
+    await serwis(zestaw).applyImport({ selections: trzyPozycje }, AKTOR);
+    assert.equal(zestaw.zdarzenia.length, 1);
+    assert.equal(zestaw.zdarzenia[0]?.action, 'ip_addresses.import');
   });
 });

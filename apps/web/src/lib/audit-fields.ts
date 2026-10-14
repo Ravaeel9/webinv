@@ -63,6 +63,7 @@ export const FIELD_LABELS: Record<string, string> = {
 
   // Pozostałe zdarzenia
   count: 'liczba',
+  source: 'źródło',
 };
 
 /** Nazwa pola po polsku; nieznane pole wraca jako klucz, nie jako pustka. */

@@ -28,6 +28,7 @@ import {
   type Cidr,
 } from './cidr';
 import { parseNmapXml } from './nmap-xml';
+import type { ApplyImportDto } from './dto/import.dto';
 import type {
   CreateAddressDto,
   CreateSubnetDto,
@@ -756,6 +757,83 @@ export class IpamService {
     }
 
     return wynik;
+  }
+
+  /**
+   * Zapis zatwierdzonego importu w jednej transakcji.
+   *
+   * `description` przy `update` ustawiamy wyłącznie wtedy, gdy przyszło
+   * w ładunku: inaczej drugie wgranie tego samego pliku wyczyściłoby
+   * opisy dodane ręcznie przez administratora.
+   */
+  async applyImport(
+    dto: ApplyImportDto,
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<{ imported: number }> {
+    const selections = dto.selections ?? [];
+    if (selections.length === 0) {
+      return { imported: 0 };
+    }
+
+    return this.prisma.$transaction(async () => {
+      const wszystkiePodsieci = await this.prisma.subnet.findMany();
+      const podsiecPoId = new Map<string, SubnetRow>(
+        wszystkiePodsieci.map((s) => [s.id, s]),
+      );
+
+      for (const sel of selections) {
+        const podsiec = podsiecPoId.get(sel.subnetId);
+        if (!podsiec) {
+          throw new BadRequestException(
+            `Podsieć (${sel.subnetId}) wskazana dla adresu ${sel.address} nie istnieje.`,
+          );
+        }
+        this.assertAdresWPodsieci(sel.address, podsiec);
+      }
+
+      const teraz = new Date();
+      for (const sel of selections) {
+        const maOpis =
+          sel.description !== undefined && sel.description.trim().length > 0;
+        const opis = maOpis ? sel.description!.trim() : undefined;
+
+        await this.prisma.ipAddress.upsert({
+          where: {
+            subnetId_address: {
+              subnetId: sel.subnetId,
+              address: sel.address,
+            },
+          },
+          create: {
+            subnetId: sel.subnetId,
+            address: sel.address,
+            status: 'FREE',
+            description: opis ?? null,
+            lastSeenAt: teraz,
+          },
+          update:
+            opis !== undefined
+              ? { lastSeenAt: teraz, description: opis }
+              : { lastSeenAt: teraz },
+        });
+      }
+
+      await this.audit.record({
+        action: 'ip_addresses.import',
+        entity: 'Subnet',
+        entityId: null,
+        actorId: actor.id,
+        actorName: actor.username,
+        changes: {
+          count: { from: null, to: selections.length },
+          source: { from: null, to: 'nmap-xml' },
+        },
+        ip,
+      });
+
+      return { imported: selections.length };
+    });
   }
 
   // ── Pomocnicze ──────────────────────────────────────────────
