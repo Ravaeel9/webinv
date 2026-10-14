@@ -61,12 +61,17 @@ export function IpamListPage() {
         }
         actions={
           can('ipam:write') && (
-            <Link to="/ipam/nowa">
-              <Button>
-                <IconPlus className="size-4" />
-                Dodaj podsieć
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link to="/ipam/import">
+                <Button variant="secondary">Importuj z nmap</Button>
+              </Link>
+              <Link to="/ipam/nowa">
+                <Button>
+                  <IconPlus className="size-4" />
+                  Dodaj podsieć
+                </Button>
+              </Link>
+            </div>
           )
         }
       />

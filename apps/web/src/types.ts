@@ -249,6 +249,34 @@ export interface ApplicationIpAddressRef {
   subnet: { id: string; name: string; cidr: string };
 }
 
+export interface ImportPreviewRow {
+  address: string;
+  hostname: string | null;
+  existingDescription: string | null;
+}
+
+export interface ImportPreview {
+  new: Array<
+    ImportPreviewRow & { subnetId: string; subnetName: string; cidr: string }
+  >;
+  existing: Array<
+    ImportPreviewRow & {
+      id: string;
+      status: IpStatus;
+      subnetId: string;
+      subnetName: string;
+    }
+  >;
+  unmatched: ImportPreviewRow[];
+  skipped: number;
+}
+
+export interface ImportSelection {
+  address: string;
+  subnetId: string;
+  description?: string;
+}
+
 export interface Stats {
   total: number;
   byStatus: Array<{ key: AppStatus; count: number }>;

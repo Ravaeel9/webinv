@@ -11,6 +11,7 @@ import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { UsersPage } from './pages/UsersPage';
 import { AuditPage } from './pages/AuditPage';
 import { IpamListPage } from './pages/IpamListPage';
+import { ImportPage } from './pages/ImportPage';
 import { SubnetDetailPage } from './pages/SubnetDetailPage';
 import { SubnetFormPage } from './pages/SubnetFormPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -107,6 +108,14 @@ export const router = createBrowserRouter([
                     element: (
                       <RequirePermission permission="ipam:write">
                         <SubnetFormPage />
+                      </RequirePermission>
+                    ),
+                  },
+                  {
+                    path: 'import',
+                    element: (
+                      <RequirePermission permission="ipam:write">
+                        <ImportPage />
                       </RequirePermission>
                     ),
                   },

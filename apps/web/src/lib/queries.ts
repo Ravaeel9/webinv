@@ -20,6 +20,8 @@ import type {
   AuthUser,
   DemoModeState,
   Environment,
+  ImportPreview,
+  ImportSelection,
   IpAddress,
   SessionInfo,
   Stats,
@@ -56,6 +58,8 @@ export const qk = {
   subnetAddresses: (id: string) => ['ipam', 'subnet-addresses', id] as const,
   applicationIpAddresses: (appId: string) =>
     ['ipam', 'application-ip-addresses', appId] as const,
+  importPreview: ['ipam', 'import-preview'] as const,
+  importApply: ['ipam', 'import-apply'] as const,
 };
 
 // ─── Uwierzytelnienie ─────────────────────────────────────────
@@ -464,6 +468,37 @@ export function useSetApplicationIpAddresses(appId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['ipam'] });
       void queryClient.invalidateQueries({ queryKey: qk.application(appId) });
+    },
+  });
+}
+
+export function useImportPreview() {
+  return useMutation({
+    mutationKey: qk.importPreview,
+    mutationFn: (xml: string) =>
+      api.post<ImportPreview>('/ipam/import/preview', { xml }),
+  });
+}
+
+export function useApplyImport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: qk.importApply,
+    mutationFn: (selections: ImportSelection[]) =>
+      api.post<{ imported: number }>('/ipam/import/apply', { selections }),
+    onSuccess: (_data, selections) => {
+      void queryClient.invalidateQueries({ queryKey: qk.subnets });
+      const subnetIds = new Set(selections.map((s) => s.subnetId));
+      for (const subnetId of subnetIds) {
+        void queryClient.invalidateQueries({
+          queryKey: qk.subnetAddresses(subnetId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: qk.subnet(subnetId),
+        });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['ipam'] });
     },
   });
 }
