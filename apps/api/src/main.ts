@@ -19,7 +19,9 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter({
       // Nginx stoi przed nami i przekazuje nagłówki X-Forwarded-*
       trustProxy: true,
-      bodyLimit: 2 * 1024 * 1024, // 2 MB
+      // Import nmap przyjmuje plik do 5 MB, a globalny limit jest tylko
+      // zaporą przed plikami większymi; właściwą granicę sprawdza `parseNmapXml`.
+      bodyLimit: 6 * 1024 * 1024, // 6 MB
       logger:
         process.env.NODE_ENV === 'development'
           ? { level: 'info' }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" version="7.94">
+  <host><status state="up"/><address addr="10.20.5.7" addrtype="ipv4"/><hostnames><hostname name="jenkins"/></hostnames></host>
+  <host><status state="up"/><address addr="10.20.5.12" addrtype="ipv4"/><hostnames></hostnames></host>
+  <host><status state="up"/></host>
+</nmaprun>

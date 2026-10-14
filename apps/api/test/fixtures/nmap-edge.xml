@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" version="7.94">
+  <host>
+    <status state="up"/>
+    <address addr="10.20.5.20" addrtype="ipv4"/>
+    <address addr="fe80::1ff:fe23:4567:890a" addrtype="ipv6"/>
+    <address addr="00:11:22:33:44:55" addrtype="mac" vendor="Acme"/>
+    <hostnames><hostname name="srv-a&amp;b"/></hostnames>
+  </host>
+  <host>
+    <status state="up"/>
+    <address addr="fe80::99" addrtype="ipv6"/>
+    <hostnames><hostname name="only-ipv6"/></hostnames>
+  </host>
+</nmaprun>
