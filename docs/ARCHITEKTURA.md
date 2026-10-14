@@ -16,9 +16,24 @@ Rejestr oprogramowania musi być czytelny dla dwie różnych grup:
    dostępu administracyjnego.
 
 Stąd dwa widoki na te same dane: publiczny (okrojony) i panelowy (pełny). Granica
-jest egzekwowana **po stronie serwera** — patrz [§6](#6-widok-publiczny-a-pełny).
+jest egzekwowana **po stronie serwera** — patrz [§7](#7-widok-publiczny-a-pełny).
 
-## 2. Komponenty
+## 2. Stos technologiczny
+
+| Warstwa | Technologia |
+|---|---|
+| Frontend | React 19, React Router 8, TanStack Query 5, Vite 8, Tailwind CSS 4 |
+| API | NestJS 11 na Fastify 5, class-validator, `@nestjs/throttler` |
+| Sesje | własne, ciasteczko `httpOnly` + skrót tokenu w bazie |
+| Hasła | Argon2id (natywny moduł `argon2`) |
+| Baza danych | PostgreSQL 17 (`citext` dla loginów i nazw aplikacji) |
+| Serwowanie SPA | nginx (statyczne pliki + proxy `/api` → API) |
+| Orkiestracja | Docker Compose, wieloetapowe obrazy, healthchecki i `depends_on: service_healthy` |
+
+Wersje wszystkich zależności są **przypięte dokładnie** (bez `^` i `~`) —
+kontener ma zawsze działać na tym samym kodzie, na którym testy przeszły.
+
+## 3. Komponenty
 
 Trzy kontenery, jedna sieć wewnętrzna, jeden port na zewnątrz.
 
@@ -43,7 +58,29 @@ pgAdmin) istnieje osobna nakładka `docker-compose.dev.yml`, która dokłada
 Logi każdego kontenera są limitowane (`json-file`, 10 MB × 3 pliki), żaden
 kontener nie rośnie w nieskończoność.
 
-## 3. Przepływ żądania
+### Jak to działa
+
+```
+                    ┌──────────────────────────────────────────┐
+  przeglądarka ───► │ web: nginx (alpine)                     │
+      HTTP :80     │  • /            → SPA (pliki statyczne)│
+                    │  • /assets/     → cache 1 rok           │
+                    │  • /api/        → proxy → api:3000      │
+                    └───────────────────┬──────────────────────┘
+                                        │  sieć wewnętrzna (bridge)
+                    ┌───────────────────▼──────────────────────┐
+                    │ api: NestJS na Fastify (node:22)         │
+                    │  ThrottlerGuard → AuthGuard → DTO       │
+                    │  kontroler → serwis → Prisma + Audit    │
+                    └───────────────────┬──────────────────────┘
+                                        │
+                    ┌───────────────────▼──────────────────────┐
+                    │ db: postgres:17-alpine                  │
+                    │  wolumen webinv_pgdata, citext          │
+                    └──────────────────────────────────────────┘
+```
+
+## 4. Przepływ żądania
 
 ```
 GET /aplikacje  (przeglądarka, bez sesji)
@@ -73,7 +110,7 @@ Prisma → PostgreSQL
 Kolejność guardów jest jawna w `app.module.ts` i **znaczy**: throttling przed
 autoryzacją, żeby zgadywanie haseł kończyło się 429, a nie 401.
 
-## 4. API
+## 5. API
 
 ### Moduły
 
@@ -182,7 +219,7 @@ nie rośnie w nieskończoność, a interfejs nie udaje, że pokazuje pełną ró
 Lista zdarzeń dodatkowo przycina `changes`, gdy jego serializacja przekracza
 2000 znaków.
 
-## 5. Frontend
+## 6. Frontend
 
 ### Trasy
 
@@ -235,7 +272,7 @@ na `/konto`, a UI pilnuje tego, żeby nie robić pętli z API, które i tak odma
 - **Formatowanie** (`lib/format.ts`) — daty, kwoty (PLN), odliczanie dni do
   wycofania (`daysUntil`, `describeEol`), skrót długiego tekstu, inicjały.
 
-## 6. Widok publiczny a pełny
+## 7. Widok publiczny a pełny
 
 Granica widoczności danych jest **jednym z najważniejszych miejsc w systemie**,
 bo publiczny odczyt jest celową funkcją.
@@ -270,7 +307,7 @@ Zapis (`POST`/`PATCH`/`DELETE`) zawsze wymaga `app:write`, więc widok publiczny
 jest z definicji tylko do odczytu. Ta sama granica jest pilnowana przez testy
 `public-view.test.ts` i `public-filters.test.ts`.
 
-## 7. Build i obrazy
+## 8. Build i obrazy
 
 Oba obrazy są wieloetapowe, a kontekstem buildu jest **katalog główny repo**
 (npm workspaces wymaga manifestu głównego, lockfile'a i manifestów obu
@@ -298,7 +335,7 @@ sprawdzany osobno, żeby błąd w typach nie zginął w głośnym błędzie bund
 `VITE_API_BASE_URL` jest wstrzykiwany jako argument buildu; domyślnie `/api`,
 bo w produkcji nginx obsługuje tę ścieżkę i nie potrzebujemy pełnego URL.
 
-## 8. Konfiguracja nginx
+## 9. Konfiguracja nginx
 
 Pliki rozdzielone są ze względu na kontekst dyrektyw: `nginx.conf` (kontekst
 główny i `http`), `default.conf` (`conf.d`, includowane wewnątrz `http`),
@@ -320,7 +357,7 @@ Cache: pliki `/assets/` mają hash w nazwie → `max-age=31536000, immutable`;
 `index.html` ma `no-store, must-revalidate` (inaczej użytkownik dostałby starą
 aplikację po wdrożeniu).
 
-## 9. Decyzje i ich koszt
+## 10. Decyzje i ich koszt
 
 | Decyzja | Powód | Koszt / ograniczenie |
 |---|---|---|
@@ -337,7 +374,7 @@ aplikację po wdrożeniu).
 | Walidacja bloku wsparcia miękka (wsystko opcjonalne) | rejestr ma opisywać to, co wiemy; brak kontaktu do wsparcia nie może blokować zapisu | nie wymusimy kompletności opisu usługi — jakość zależy od użytkownika |
 | Brak roli „gość” w bazie | gość nie ma sesji, więc nie ma użytkownika | brak śladu, kto oglądał publiczny widok (celowo — to nie jest wymagane) |
 
-## 10. Granice systemu
+## 11. Granice systemu
 
 Czego tu **nie ma** świadomie (szczegóły i rekomendacje:
 [../SECURITY.md](../SECURITY.md)):

@@ -53,6 +53,39 @@ set -a; . ./.env; set +a
 npm run dev:api
 ```
 
+## Struktura repozytorium
+
+```
+.
+├── apps/
+│   ├── api/                 # NestJS + Prisma (CommonJS)
+│   │   ├── prisma/          # schema.prisma + migracje
+│   │   ├── src/
+│   │   │   ├── applications/ # rejestr aplikacji (REST)
+│   │   │   ├── audit/        # dziennik zdarzeń
+│   │   │   ├── auth/         # sesje, hasła, uprawnienia, guardy
+│   │   │   ├── ipam/         # podsieci i adresy IP (REST, walidacja CIDR)
+│   │   │   ├── users/        # zarządzanie kontami
+│   │   │   ├── config/       # walidacja zmiennych środowiskowych
+│   │   │   ├── prisma/       # klient Prisma jako injectable
+│   │   │   └── seed/         # dane startowe + konto SUPER_ADMIN
+│   │   └── test/             # testy (node:test + tsx)
+│   └── web/                 # React SPA (ESM)
+│       ├── public/theme.js  # skrypt motywu przed pierwszym renderem
+│       └── src/
+│           ├── components/   # layout, bramki tras, biblioteka UI
+│           ├── lib/          # klient HTTP, hooki react-query, formatowanie
+│           └── pages/        # widoki
+├── docker/init/             # skrypty initdb (rozszerzenia PostgreSQL)
+├── nginx/                   # konfiguracja serwera (nginx.conf, default.conf, nagłówki)
+├── docs/                    # dokumentacja (nie trafia do obrazów — patrz .dockerignore)
+├── .env.example             # wzorzec konfiguracji
+├── install.sh               # kreator instalacji na serwerze (docs/INSTALACJA.md)
+├── docker-compose.yml       # stos produkcyjny
+├── docker-compose.dev.yml   # nakładka deweloperska (port bazy na hoście)
+└── Makefile                 # wszystkie polecenia operacyjne
+```
+
 ## Polecenia
 
 | Polecenie | Kiedy |
@@ -114,7 +147,7 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `applications-sort-stability.test.ts` | drugi klucz `orderBy` w `buildOrderBy` — przy remisie wartości kolejność w SQL jest nieokreślona, a lista jest stronicowana `take`/`skip`, więc ten sam zestaw wierszy przy drugim kliknięciu „Następna" wypadałby inaczej. Pilnuje też, że klucz rozstrzygający to nazwa (pole widoczne dla gościa) i że dublowania nie ma przy sortowaniu już po nazwie |
 | `sort-kolumn.test.ts` | zgodność kolumn sortowalnych z białą listą `SORTABLE` w API — API **ignoruje nieznane pole po cichu**, więc nagłówek obiecywałby sortowanie, którego nie będzie, a strzałek nie ruszyłaby. Test złapał `ownerEmail`: kolumna „Właściciel" była w tabeli, a w białej liście jej nie było. Do tego sprawdza, że kolumny ukryte przed gościem (`GUEST_SORTABLE`) nie wyciekają do sortowania, bo kolejność wierszy zdradziłaby ukrytą wartość, oraz — w osobnym bloku — **że w ogóle nie trafiają do wiersza nagłówka**: przy wdrożeniu nagłówków sortowalnych warunek `!isGuest` zniknął i zastąpił go warunek na `sortBy`, który wyłączał sortowanie, ale nie usuwał kolumny. Gość dostał trzy puste kolumny w środku tabeli, a wcześniejsze testy tego nie widziały, bo sprawdzały sortowanie, a nie widoczność |
 
-Stan: **705 przypadków, 95 suite'ów, wszystkie przechodzą**, plus
+Stan: **740 przypadków, 98 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).
@@ -168,7 +201,7 @@ komentarz** — nie zostawiaj go w pastie.
   w obu motywach (jasne tło w trybie ciemnym jest nieczytelne — stąd podwójne
   klasy `dark:` w `types.ts`);
 - nowy widok dostępny dla gościa musi respektować cięcia z
-  [ARCHITEKTURA.md](ARCHITEKTURA.md#6-widok-publiczny-a-pełny).
+  [ARCHITEKTURA.md](ARCHITEKTURA.md#7-widok-publiczny-a-pełny).
 
 ## Dodawanie endpointu — checklista
 

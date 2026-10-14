@@ -49,6 +49,26 @@ Pierwsze logowanie: `SEED_ADMIN_USERNAME` (domyślnie `admin`) —
 konto **wymusi zmianę hasła**. Kolejne starty kontenera nie nadpisują hasła;
 `SEED_ADMIN_PASSWORD` służy tylko do utworzenia konta.
 
+## Konfiguracja
+
+Cała konfiguracja siedzi w `.env` (wzorzec: [.env.example](../.env.example)).
+
+Zmienne **wymagane** — kontener API celowo nie wstanie bez nich:
+
+| Zmienna | Opis |
+|---|---|
+| `POSTGRES_PASSWORD` | hasło użytkownika bazy |
+| `SESSION_SECRET` | sekret sesji, ≥ 32 znaki (`openssl rand -hex 32`) |
+| `SEED_ADMIN_PASSWORD` | hasło konta super administratora, polityka haseł wymuszana przy starcie |
+
+Pozostałe mają wartości domyślne i opisuje je wzorzec: `APP_PORT`,
+`SESSION_TTL_DAYS`, `COOKIE_SECURE`, `CORS_ORIGINS`, `LOGIN_RATE_LIMIT_MAX`,
+`LOGIN_RATE_LIMIT_WINDOW`, `DB_DEV_PORT`.
+
+Hasła z cudzysłowem (`"`), znakiem `$` lub odwrotnym ukośnikiem (`\`)
+wpisz w cudzysłowy wewnętrzne pliku `.env` — Compose podstawia w nich
+zmienne. Instalator odrzuca te znaki, żeby nie było niespodzianek.
+
 ## Konfiguracja produkcyjna
 
 | Zmienna | Ustawienie produkcyjne |

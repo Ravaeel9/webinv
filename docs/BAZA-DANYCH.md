@@ -224,7 +224,7 @@ zdarzeń i filtrowanie po encji. Kolumna `entity_id` jest indeksowana, ale
 
 | Enum | Wartości | Znaczenie |
 |---|---|---|
-| `Role` | `SUPER_ADMIN`, `ADMIN`, `VIEWER` | uprawnienia, patrz [README](../README.md#role-i-uprawnienia) |
+| `Role` | `SUPER_ADMIN`, `ADMIN`, `VIEWER` | uprawnienia, patrz [API.md](API.md#role-i-uprawnienia) |
 | `SecurityClass` | `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED` | klasyfikacja danych/aplikacji |
 | `AppStatus` | `PROD`, `TEST`, `DEV`, `PLANNED`, `DEPRECATED`, `RETIRED` | status wdrożenia |
 | `DeliveryType` | `GENERAL_USE`, `SELF_HOSTED`, `SAAS`, `VENDOR_MANAGED` | program na stanowisku czy usługa hostowana |

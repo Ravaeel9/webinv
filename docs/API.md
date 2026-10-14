@@ -18,6 +18,22 @@ Wszystkie odpowiedzi to JSON (wyjątkiem eksportu CSV). Formaty dat: `RRRR-MM-DD
   Każde żądanie musi mieć `credentials: 'include'` (przeglądarka robi to
   domyślnie dla `fetch` same-origin, ale warto wiedzieć).
 
+## Role i uprawnienia
+
+Uprawnienia sprawdzane są **w API** (guard), a interfejs tylko je odwzorowuje
+przy renderowaniu nawigacji i przycisków. Brak dekoratora `@Public()` oznacza
+wymóg sesji — brak endpointu nie oznacza braku ochrony.
+
+| Rola | Uprawnienia |
+|---|---|
+| `VIEWER` (Obserwator) | `app:read`, `user:read`, `audit:read`, `ipam:read` |
+| `ADMIN` (Administrator) | `app:read`, `app:write`, `user:read`, `audit:read`, `ipam:read`, `ipam:write` |
+| `SUPER_ADMIN` (Super administrator) | wszystkie powyższe plus `user:write` i `settings:write` |
+
+Adresy IP to mapa infrastruktury — dlatego `ipam:*` są oddzielnymi
+uprawnieniami, nie pochodnymi `app:*`; katalog wymaga sesji, a gość nie widzi
+nawet liczby podsieci.
+
 ## Format błędów
 
 Zwykły wyjątek NestJS:
