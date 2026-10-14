@@ -285,5 +285,17 @@ describe('wiersz nagłówka tabeli aplikacji', () => {
       );
     }
   });
+
+  it('kolumna Nazwa ma ograniczenie szerokości (max-w-0), żeby nie wypychać kolumny Właściciel', () => {
+    const wiersz = strona().slice(strona().indexOf('function ApplicationRow'));
+    const pierwszaKomorka = wiersz.match(/<td\s+className="([^"]+)"/);
+    assert.ok(pierwszaKomorka, 'nie znaleziono pierwszej komórki <td> w ApplicationRow');
+    assert.match(
+      pierwszaKomorka[1]!,
+      /\bmax-w-0\b/,
+      'pierwsza komórka (Nazwa) musi mieć max-w-0 — w table-auto samo truncate ' +
+        'rozpycha kolumnę do pełnej długości tekstu i wypycha e-mail właściciela poza tabelę',
+    );
+  });
 });
 

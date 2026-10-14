@@ -70,38 +70,43 @@
 :root {
   color-scheme: light;
 
-  --c-page: oklch(0.977 0.003 254);
+  --c-page: oklch(0.962 0.006 254);
 
   /* Gradient nałożony na `--c-page` przez `body`.
    *
    * Plamy są w tym samym bloku co kolor bazowy, a nie w klasach w JSX —
    * gradient jest jedną decyzją motywu, więc zmiana barwy nie powinna
-   * dotykać komponentów. Ostatni stopień to `var(--c-page)`, więc gradient
-   * kończy się dokładnie kolorem bazowym: bez duplikatu wartości do
-   * aktualizowania i bez przezroczystości, którą przeglądarka mieszałaby
-   * z tłem po swojemu.
+   * dotykać komponentów. Każda warstwa wygasa do `transparent`, dzięki
+   * czemu trzy poświaty (granatowa w lewym górnym rogu, szmaragdowa
+   * w prawym górnym rogu oraz indygo u dołu) są widoczne jednocześnie
+   * nad bazowym `bg-page` i pierwsza warstwa nie zasłania kolejnych.
    *
-   * Jasność plam trzymana przy `--c-page` (L 0.94 przy bazie 0.977) —
-   * `--c-fg-muted` leżący wprost na tle strony ma dzięki temu 6.5:1.
-   * Pilnuje tego `ui-contrast.test.ts`.
+   * Środki plam leżą na przeciwnych krawędziach ekranu, a ich jasność
+   * pozwala tekstowi `--c-fg-muted` leżącemu wprost na tle strony
+   * utrzymać kontrast > 5.5:1. Pilnuje tego `ui-contrast.test.ts`.
    */
   --c-page-gradient:
     radial-gradient(
-      120% 85% at 10% -12%,
-      oklch(0.94 0.035 254) 0%,
-      var(--c-page) 62%
+      95% 70% at 8% -8%,
+      oklch(0.91 0.065 254) 0%,
+      transparent 55%
     ),
     radial-gradient(
-      110% 80% at 95% 4%,
-      oklch(0.945 0.035 155) 0%,
-      var(--c-page) 58%
+      85% 65% at 94% -4%,
+      oklch(0.915 0.06 155) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      90% 65% at 50% 108%,
+      oklch(0.92 0.05 280) 0%,
+      transparent 55%
     );
 
   --c-surface: oklch(1 0 0);
-  --c-surface-2: oklch(0.972 0.004 254);
-  --c-surface-3: oklch(0.945 0.006 254);
-  --c-line: oklch(0.912 0.006 254);
-  --c-line-strong: oklch(0.85 0.008 254);
+  --c-surface-2: oklch(0.955 0.007 254);
+  --c-surface-3: oklch(0.92 0.01 254);
+  --c-line: oklch(0.875 0.01 254);
+  --c-line-strong: oklch(0.79 0.014 254);
 
   /* Kontrast na białej karcie: 17:1, 8:1, 5.4:1 */
   --c-fg: oklch(0.21 0.02 254);
@@ -113,27 +118,32 @@
 .dark {
   color-scheme: dark;
 
-  --c-page: oklch(0.17 0.008 254);
+  --c-page: oklch(0.14 0.01 254);
 
-  /* Ta sama struktura co w jasnym motywie, przygaszona: plamy są tu
-     jaśniejsze od bazowego tła, nie ciemniejsze, i dlatego zostają
-     nisko — inaczej gradient rozświetliłby ciemny motyw. */
+  /* Ta sama 3-punktowa struktura co w jasnym motywie, przygaszona:
+     plamy są tu jaśniejsze od bazowego tła i wygaszają się do
+     `transparent` nad `--c-page`. */
   --c-page-gradient:
     radial-gradient(
-      120% 85% at 10% -12%,
-      oklch(0.24 0.045 254) 0%,
-      var(--c-page) 62%
+      95% 70% at 8% -8%,
+      oklch(0.25 0.065 254) 0%,
+      transparent 55%
     ),
     radial-gradient(
-      110% 80% at 95% 4%,
-      oklch(0.235 0.035 155) 0%,
-      var(--c-page) 58%
+      85% 65% at 94% -4%,
+      oklch(0.24 0.055 155) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      90% 65% at 50% 108%,
+      oklch(0.235 0.055 280) 0%,
+      transparent 55%
     );
-  --c-surface: oklch(0.215 0.01 254);
-  --c-surface-2: oklch(0.255 0.012 254);
-  --c-surface-3: oklch(0.295 0.012 254);
-  --c-line: oklch(0.32 0.013 254);
-  --c-line-strong: oklch(0.42 0.015 254);
+  --c-surface: oklch(0.22 0.012 254);
+  --c-surface-2: oklch(0.265 0.014 254);
+  --c-surface-3: oklch(0.31 0.015 254);
+  --c-line: oklch(0.35 0.015 254);
+  --c-line-strong: oklch(0.46 0.018 254);
 
   /* Kontrast na ciemnej karcie: 14:1, 7:1, 4.8:1 */
   --c-fg: oklch(0.96 0.005 254);
@@ -205,12 +215,12 @@
    * opisuje — odwrócona hierarchia, powtórzona w ~20 miejscach.
    */
   .page-title {
-    @apply text-2xl font-semibold tracking-tight text-fg;
+    @apply text-2xl font-bold tracking-tight text-fg;
   }
 
   /* Ikona jest częścią roli, więc call-site nie musi pamiętać jej klas. */
   .section-title {
-    @apply mb-3 flex items-center gap-2 text-base font-semibold
+    @apply mb-3 flex items-center gap-2 text-base font-bold
            tracking-tight text-fg;
   }
   .section-title svg {
@@ -221,7 +231,7 @@
      a nie `.section-title`, bo legenda nie ma ikony ani marginesu — ma za to
      wcięcie, którego nagłówek sekcji nie potrzebuje. */
   .group-title {
-    @apply px-1 text-base font-semibold tracking-tight text-fg;
+    @apply px-1 text-base font-bold tracking-tight text-fg;
   }
 
   /* Wartość pola (`<dd>`): 14 px, ciasny interlinia — lista definicji
@@ -252,7 +262,7 @@
      a nie wariant `.meta-text`, bo wygląd wynika z tagu semantycznego,
      a nie z decyzji na call-site. */
   .field-label {
-    @apply mb-1 text-xs font-medium uppercase tracking-wide text-fg-muted;
+    @apply mb-1 text-xs font-semibold uppercase tracking-wider text-fg-muted;
   }
 
   .meta-text {
@@ -260,14 +270,14 @@
   }
 
   .table-head {
-    @apply px-4 py-2.5 text-xs font-semibold uppercase
-           tracking-wide text-fg-muted;
+    @apply px-3 py-2.5 text-xs font-semibold uppercase
+           tracking-wide whitespace-nowrap text-fg;
   }
 
   /* Odznaka — baza dla wszystkich statusów i klasyfikacji */
   .badge {
     @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5
-           text-xs font-medium whitespace-nowrap ring-1 ring-inset;
+           text-xs font-semibold whitespace-nowrap ring-1 ring-inset;
   }
 
   /* ─── Tony kolorów ────────────────────────────────────────
@@ -310,38 +320,38 @@
   }
 
   .tone-info {
-    @apply dark:bg-[oklch(0.31_0.075_255)] dark:text-[oklch(0.84_0.12_255)]
-           dark:ring-[oklch(0.44_0.1_255)]
-           bg-[oklch(0.915_0.04_255)] text-[oklch(0.35_0.12_255)]
-           ring-[oklch(0.8_0.08_255)];
+    @apply dark:bg-[oklch(0.32_0.095_255)] dark:text-[oklch(0.86_0.13_255)]
+           dark:ring-[oklch(0.47_0.13_255)]
+           bg-[oklch(0.905_0.06_255)] text-[oklch(0.33_0.14_255)]
+           ring-[oklch(0.76_0.11_255)];
   }
 
   .tone-violet {
-    @apply dark:bg-[oklch(0.31_0.08_297)] dark:text-[oklch(0.84_0.12_297)]
-           dark:ring-[oklch(0.44_0.1_297)]
-           bg-[oklch(0.92_0.04_297)] text-[oklch(0.35_0.12_297)]
-           ring-[oklch(0.81_0.08_297)];
+    @apply dark:bg-[oklch(0.32_0.1_297)] dark:text-[oklch(0.86_0.13_297)]
+           dark:ring-[oklch(0.47_0.13_297)]
+           bg-[oklch(0.91_0.06_297)] text-[oklch(0.33_0.14_297)]
+           ring-[oklch(0.77_0.11_297)];
   }
 
   .tone-ok {
-    @apply dark:bg-[oklch(0.305_0.07_155)] dark:text-[oklch(0.85_0.13_155)]
-           dark:ring-[oklch(0.43_0.1_155)]
-           bg-[oklch(0.925_0.05_155)] text-[oklch(0.33_0.11_155)]
-           ring-[oklch(0.8_0.09_155)];
+    @apply dark:bg-[oklch(0.315_0.09_155)] dark:text-[oklch(0.87_0.14_155)]
+           dark:ring-[oklch(0.46_0.12_155)]
+           bg-[oklch(0.915_0.065_155)] text-[oklch(0.31_0.12_155)]
+           ring-[oklch(0.76_0.12_155)];
   }
 
   .tone-warn {
-    @apply dark:bg-[oklch(0.315_0.07_80)] dark:text-[oklch(0.87_0.12_80)]
-           dark:ring-[oklch(0.44_0.1_80)]
-           bg-[oklch(0.93_0.05_80)] text-[oklch(0.36_0.11_80)]
-           ring-[oklch(0.81_0.09_80)];
+    @apply dark:bg-[oklch(0.325_0.085_80)] dark:text-[oklch(0.88_0.13_80)]
+           dark:ring-[oklch(0.47_0.12_80)]
+           bg-[oklch(0.92_0.065_80)] text-[oklch(0.34_0.12_80)]
+           ring-[oklch(0.77_0.12_80)];
   }
 
   .tone-danger {
-    @apply dark:bg-[oklch(0.305_0.09_20)] dark:text-[oklch(0.86_0.12_20)]
-           dark:ring-[oklch(0.44_0.11_20)]
-           bg-[oklch(0.92_0.045_20)] text-[oklch(0.35_0.14_20)]
-           ring-[oklch(0.8_0.09_20)];
+    @apply dark:bg-[oklch(0.315_0.105_20)] dark:text-[oklch(0.87_0.13_20)]
+           dark:ring-[oklch(0.47_0.13_20)]
+           bg-[oklch(0.91_0.06_20)] text-[oklch(0.33_0.15_20)]
+           ring-[oklch(0.76_0.11_20)];
   }
 
   /* ─── Banery komunikatów ──────────────────────────────────
@@ -388,13 +398,16 @@
    * Tekst na tle własnym (WCAG, jasny / ciemny): 7.2:1 / 8.1:1
    */
   .nav-item-active {
-    @apply dark:bg-[oklch(0.285_0.05_254)] dark:text-[oklch(0.82_0.11_254)]
-           bg-[oklch(0.945_0.018_254)] text-[oklch(0.42_0.16_254)];
+    @apply ring-1 ring-inset
+           dark:bg-[oklch(0.295_0.065_254)] dark:text-[oklch(0.85_0.12_254)]
+           dark:ring-[oklch(0.42_0.11_254)]
+           bg-[oklch(0.935_0.03_254)] text-[oklch(0.4_0.17_254)]
+           ring-[oklch(0.82_0.08_254)];
   }
 
   /* Karta treści */
   .card {
-    @apply rounded-xl border border-line bg-surface shadow-xs;
+    @apply rounded-xl border border-line bg-surface shadow-sm;
   }
 
   /* ─── Sekcja na stronie szczegółów ────────────────────────────
@@ -410,7 +423,7 @@
    * przy zmianie wyglądu kart szczegółów.
    */
   .card-section {
-    @apply overflow-hidden rounded-xl border border-line bg-surface shadow-xs;
+    @apply overflow-hidden rounded-xl border border-line bg-surface shadow-sm;
   }
 
   /* Wnętrze karty poza pasmem nagłówka — odstęp od krawędzi należy

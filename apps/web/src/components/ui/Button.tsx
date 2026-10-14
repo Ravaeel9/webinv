@@ -30,7 +30,7 @@ const SIZES: Record<Size, string> = {
  */
 export function buttonClass(variant: Variant = 'primary', size: Size = 'md'): string {
   return [
-    'inline-flex items-center justify-center rounded-lg font-medium',
+    'inline-flex items-center justify-center rounded-lg font-semibold',
     'transition-colors',
     VARIANTS[variant],
     SIZES[size],

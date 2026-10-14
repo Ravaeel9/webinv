@@ -443,7 +443,7 @@ export function ApplicationsListPage() {
             */}
             <div className="scroll-thin hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="border-b border-line bg-page">
+                <thead className="border-b border-line-strong bg-surface-2">
                   <tr>
                     {SORT_COLUMNS.filter(
                       (k) => !isGuest || !('guestHidden' in k) || !k.guestHidden,
@@ -454,10 +454,10 @@ export function ApplicationsListPage() {
                         sortBy={kolumna.sortBy}
                         currentSort={filters.sort}
                         onSort={(pole) => setFilter('sort', pole)}
-                        className={kolumna.label === 'Nazwa' ? 'w-[26%]' : ''}
+                        className={kolumna.label === 'Nazwa' ? 'w-[24%]' : ''}
                       />
                     ))}
-                    <Th className="w-10">
+                    <Th className="w-8 px-2">
                       <span className="sr-only">Akcje</span>
                     </Th>
                   </tr>
@@ -561,7 +561,7 @@ function ApplicationCard({
                 {app.environments.slice(0, 3).map((env) => (
                   <span
                     key={env.id}
-                    className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg-muted"
+                    className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-fg-muted ring-1 ring-inset ring-line"
                   >
                     {env.name}
                   </span>
@@ -688,14 +688,15 @@ function ApplicationRow({
   return (
     <>
       <tr
-        className={`group hover:bg-page ${
+        className={`group transition-colors hover:bg-surface-2/70 ${
           app.deletedAt ? 'opacity-60' : ''
         }`}
       >
-        <td className="px-4 py-2.5">
+        <td className="w-[24%] max-w-0 px-3 py-2.5">
           <Link
             to={`/aplikacje/${app.id}`}
-            className="block truncate font-medium text-fg hover:text-brand-600"
+            title={`${app.name} ${app.version}`}
+            className="block truncate font-semibold text-fg hover:text-brand-600"
           >
             {app.name}
             <span className="ml-1.5 font-normal text-fg-muted">{app.version}</span>
@@ -705,7 +706,7 @@ function ApplicationRow({
             {app.environments.slice(0, 3).map((env) => (
               <span
                 key={env.id}
-                className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg-muted"
+                className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-fg-muted ring-1 ring-inset ring-line"
               >
                 {env.name}
               </span>
@@ -723,19 +724,19 @@ function ApplicationRow({
           </div>
         </td>
 
-        <td className="px-4 py-2.5">
+        <td className="px-3 py-2.5">
           <Badge tone={DELIVERY_TYPE_TONES[app.deliveryType]}>
             {DELIVERY_TYPE_LABELS[app.deliveryType]}
           </Badge>
         </td>
 
-        <td className="px-4 py-2.5">
+        <td className="px-3 py-2.5">
           <Badge tone={STATUS_TONES[app.status]}>
             {STATUS_LABELS[app.status]}
           </Badge>
         </td>
 
-        <td className="px-4 py-2.5">
+        <td className="px-3 py-2.5">
           <Badge
             dot={false}
             tone={app.accessRequestRequired ? ACCESS_REQUEST_YES : ACCESS_REQUEST_NO}
@@ -745,7 +746,7 @@ function ApplicationRow({
         </td>
 
         {showRestricted && (
-          <td className="px-4 py-2.5">
+          <td className="px-3 py-2.5">
             {app.securityClass && (
               <Badge tone={SECURITY_TONES[app.securityClass]}>
                 {SECURITY_LABELS[app.securityClass]}
@@ -755,7 +756,7 @@ function ApplicationRow({
         )}
 
         {showRestricted && (
-          <td className="px-4 py-2.5">
+          <td className="px-3 py-2.5">
             {app.criticality !== undefined && (
               <Badge tone={CRITICALITY_TONES[app.criticality]}>
                 {CRITICALITY_LABELS[app.criticality]}
@@ -765,7 +766,7 @@ function ApplicationRow({
         )}
 
         {showRestricted && (
-          <td className="px-4 py-2.5">
+          <td className="px-3 py-2.5 whitespace-nowrap">
             {app.ownerEmail ? (
               <a
                 href={`mailto:${app.ownerEmail}`}
@@ -781,7 +782,7 @@ function ApplicationRow({
           </td>
         )}
 
-        <td className="px-4 py-2.5 text-right">
+        <td className="px-2 py-2.5 text-right">
           <RowActions
             app={app}
             canWrite={canWrite && !app.deletedAt}

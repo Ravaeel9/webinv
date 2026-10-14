@@ -215,8 +215,8 @@ export function AppLayout() {
             zieloną identyfikację motywu bez dotykania treści strony. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-px
-                     bg-linear-to-r from-brand-500/60 via-accent-500/60 to-brand-500/60"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5
+                     bg-linear-to-r from-brand-500/80 via-accent-500/80 to-brand-500/80"
         />
       </header>
 

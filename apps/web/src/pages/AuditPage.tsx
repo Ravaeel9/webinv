@@ -133,7 +133,7 @@ export function AuditPage() {
           <>
             <ul className="divide-y divide-line">
               {items.map((entry) => (
-                <li key={entry.id} className="px-4 py-3">
+                <li key={entry.id} className="px-4 py-3 transition-colors hover:bg-surface-2/50">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-fg">

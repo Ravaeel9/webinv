@@ -99,7 +99,7 @@ export function IpamListPage() {
         ) : (
           <div className="scroll-thin overflow-x-auto">
             <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-line bg-page">
+              <thead className="border-b border-line-strong bg-surface-2">
                 <tr>
                   <Th className="w-8">
                     <span className="sr-only">Rozwiń</span>
@@ -159,7 +159,7 @@ function SubnetRow({
 
   return (
     <>
-      <tr className="cursor-pointer align-middle hover:bg-page" onClick={onToggle}>
+      <tr className="cursor-pointer align-middle transition-colors hover:bg-surface-2/70" onClick={onToggle}>
         <td className="px-2 py-2.5">
           {/* Prawdziwy przycisk, nie sam klik w wiersz: klawiatura i czytniki
               ekranu dostają stan (`aria-expanded`) i wskazanie rozwijanego

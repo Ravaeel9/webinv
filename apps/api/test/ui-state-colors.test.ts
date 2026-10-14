@@ -110,16 +110,12 @@ function stateClasses(value: string): Occurrence[] {
  * **i** jest widoczna dla `stateClasses()`.
  */
 const DECORATIVE = new Map<string, readonly string[]>([
-  // Wyjątki dotyczą **tylko tła ikony** w `StatTile` oraz paska
-  // postępu pod rozkładem statusów.
-  //
-  // `text-accent-600` w `StatTile` wyjątkiem **nie jest** — stoi tam w
-  // pełnej parze z `dark:text-accent-400`. Wyłączenie jednego z tej pary
-  // dawałoby fałszywy alarm na drugim.
+  // Wyjątek dotyczy wyłącznie paska postępu pod rozkładem statusów
+  // (PROD dostaje zielony, reszta granatowy — kolor niesie znaczenie
+  // danych, nie stan wymagający pary motywów). Ikony w `StatCard`
+  // korzystają teraz z `.section-icon` + `.tone-*`.
   ['apps/web/src/pages/DashboardPage.tsx', [
     'bg-accent-500',
-    'bg-accent-500/10',
-    'bg-amber-500/10',
   ]],
 ]);
 

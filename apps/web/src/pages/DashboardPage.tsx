@@ -91,211 +91,233 @@ export function DashboardPage() {
 
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Statusy */}
-        <section className="card px-5 py-4">
-          <h2 className="section-title mb-4">
-            <IconGauge />
-            Status wdrożenia
-          </h2>
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
+              <IconGauge />
+            </span>
+            <h2 className="section-title">Status wdrożenia</h2>
+          </div>
 
-          {data.byStatus.length === 0 ? (
-            <p className="py-6 text-center text-sm text-fg-muted">
-              Brak danych
-            </p>
-          ) : (
-            <ul className="space-y-2.5">
-              {data.byStatus.map((entry) => (
-                <li key={entry.key}>
-                  <Link
-                    to={`/aplikacje?status=${entry.key}`}
-                    className="group block"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-fg-muted group-hover:text-brand-600">
-                        {STATUS_LABELS[entry.key as AppStatus]}
-                      </span>
-                      <span className="font-medium tabular-nums text-fg">
-                        {entry.count}
-                      </span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          entry.key === 'PROD' ? 'bg-accent-500' : 'bg-brand-500'
-                        }`}
-                        style={{
-                          width: `${Math.round((entry.count / totalStatus) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="card-section-body">
+            {data.byStatus.length === 0 ? (
+              <p className="py-6 text-center text-sm text-fg-muted">
+                Brak danych
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {data.byStatus.map((entry) => (
+                  <li key={entry.key}>
+                    <Link
+                      to={`/aplikacje?status=${entry.key}`}
+                      className="group block"
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="font-medium text-fg-muted group-hover:text-brand-600">
+                          {STATUS_LABELS[entry.key as AppStatus]}
+                        </span>
+                        <span className="font-semibold tabular-nums text-fg">
+                          {entry.count}
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-surface-3">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            entry.key === 'PROD' ? 'bg-accent-500' : 'bg-brand-500'
+                          }`}
+                          style={{
+                            width: `${Math.round((entry.count / totalStatus) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         {/* Środowiska */}
-        <section className="card px-5 py-4">
-          <h2 className="section-title mb-4">
-            <IconBox />
-            Środowiska
-          </h2>
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
+              <IconBox />
+            </span>
+            <h2 className="section-title">Środowiska</h2>
+          </div>
 
-          {data.byEnvironment.length === 0 ? (
-            <p className="py-6 text-center text-sm text-fg-muted">
-              Brak danych
-            </p>
-          ) : (
-            <ul className="space-y-2.5">
-              {data.byEnvironment.map((env) => (
-                <li key={env.id}>
-                  <Link
-                    to={`/aplikacje?environmentId=${env.id}`}
-                    className="group block"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-fg-muted group-hover:text-brand-600">
-                        {env.name}
-                      </span>
-                      <span className="font-medium tabular-nums text-fg">
-                        {env.count}
-                      </span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                      <div
-                        className="h-full rounded-full bg-fg-subtle transition-all"
-                        style={{ width: `${Math.round((env.count / maxEnv) * 100)}%` }}
-                      />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="card-section-body">
+            {data.byEnvironment.length === 0 ? (
+              <p className="py-6 text-center text-sm text-fg-muted">
+                Brak danych
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {data.byEnvironment.map((env) => (
+                  <li key={env.id}>
+                    <Link
+                      to={`/aplikacje?environmentId=${env.id}`}
+                      className="group block"
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="font-medium text-fg-muted group-hover:text-brand-600">
+                          {env.name}
+                        </span>
+                        <span className="font-semibold tabular-nums text-fg">
+                          {env.count}
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-surface-3">
+                        <div
+                          className="h-full rounded-full bg-brand-500 transition-all"
+                          style={{ width: `${Math.round((env.count / maxEnv) * 100)}%` }}
+                        />
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         {/* Klasyfikacja + krytyczność + kategorie */}
         <section className="space-y-5">
-          <div className="card px-5 py-4">
-            <h2 className="section-title">
-              <IconShield />
-              Klasyfikacja bezpieczeństwa
-            </h2>
-            <ul className="space-y-2">
-              {data.bySecurityClass.map((entry) => (
-                <li
-                  key={entry.key}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <Badge tone={SECURITY_TONES[entry.key as SecurityClass]}>
-                    {SECURITY_LABELS[entry.key as SecurityClass]}
-                  </Badge>
-                  <Link
-                    to={`/aplikacje?securityClass=${entry.key}`}
-                    className="text-xs font-medium tabular-nums text-fg-muted hover:text-brand-600"
-                  >
-                    {entry.count}
-                  </Link>
-                </li>
-              ))}
-              {data.bySecurityClass.length === 0 && (
-                <li className="py-2 text-center text-sm text-fg-muted">
-                  Brak danych
-                </li>
-              )}
-            </ul>
-          </div>
-
-          <div className="card px-5 py-4">
-            <h2 className="section-title">
-              <IconAlert />
-              Krytyczność biznesowa
-            </h2>
-            <ul className="space-y-2">
-              {[4, 3, 2, 1].map((level) => {
-                const entry = data.byCriticality.find(
-                  (c) => c.key === level,
-                );
-                const count = entry?.count ?? 0;
-                return (
+          <div className="card-section">
+            <div className="card-section-header">
+              <span className="section-icon tone-violet">
+                <IconShield />
+              </span>
+              <h2 className="section-title">Klasyfikacja bezpieczeństwa</h2>
+            </div>
+            <div className="card-section-body">
+              <ul className="space-y-2">
+                {data.bySecurityClass.map((entry) => (
                   <li
-                    key={level}
+                    key={entry.key}
                     className="flex items-center justify-between gap-2"
                   >
-                    <Badge tone={CRITICALITY_TONES[level]}>
-                      {CRITICALITY_LABELS[level]}
+                    <Badge tone={SECURITY_TONES[entry.key as SecurityClass]}>
+                      {SECURITY_LABELS[entry.key as SecurityClass]}
                     </Badge>
                     <Link
-                      to={`/aplikacje?criticality=${level}`}
-                      className={`text-xs font-medium tabular-nums hover:text-brand-600 ${
-                        level === 4 && count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-fg-muted'
-                      }`}
+                      to={`/aplikacje?securityClass=${entry.key}`}
+                      className="text-xs font-semibold tabular-nums text-fg-muted hover:text-brand-600"
                     >
-                      {count}
+                      {entry.count}
                     </Link>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+                {data.bySecurityClass.length === 0 && (
+                  <li className="py-2 text-center text-sm text-fg-muted">
+                    Brak danych
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+
+          <div className="card-section">
+            <div className="card-section-header">
+              <span className="section-icon tone-warn">
+                <IconAlert />
+              </span>
+              <h2 className="section-title">Krytyczność biznesowa</h2>
+            </div>
+            <div className="card-section-body">
+              <ul className="space-y-2">
+                {[4, 3, 2, 1].map((level) => {
+                  const entry = data.byCriticality.find(
+                    (c) => c.key === level,
+                  );
+                  const count = entry?.count ?? 0;
+                  return (
+                    <li
+                      key={level}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <Badge tone={CRITICALITY_TONES[level]}>
+                        {CRITICALITY_LABELS[level]}
+                      </Badge>
+                      <Link
+                        to={`/aplikacje?criticality=${level}`}
+                        className={`text-xs font-semibold tabular-nums hover:text-brand-600 ${
+                          level === 4 && count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-fg-muted'
+                        }`}
+                      >
+                        {count}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
         </section>
       </div>
 
       {/* Typ dostarczenia + ostatnie zmiany */}
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <section className="card px-5 py-4">
-          <h2 className="section-title">
-            <IconTag />
-            Podział wg typu dostarczenia
-          </h2>
+        <section className="card-section">
+          <div className="card-section-header">
+            <span className="section-icon tone-info">
+              <IconTag />
+            </span>
+            <h2 className="section-title">Podział wg typu dostarczenia</h2>
+          </div>
 
-          {data.byDeliveryType.length === 0 ? (
-            <p className="py-6 text-center text-sm text-fg-muted">
-              Brak danych
-            </p>
-          ) : (
-            <ul className="space-y-1.5">
-              {/* Stała kolejność zamiast kolejności w bazie: cztery typy
-                  zawsze w tej samej kolejności, także gdy któryś ma zero. */}
-              {DELIVERY_TYPE_ORDER.map((type) => {
-                const count =
-                  data.byDeliveryType.find((e) => e.key === type)?.count ?? 0;
-                return (
-                  <li key={type}>
-                    <Link
-                      to={`/aplikacje?deliveryType=${encodeURIComponent(type)}`}
-                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-sm hover:bg-page"
-                    >
-                      <span className="truncate text-fg">
-                        {DELIVERY_TYPE_LABELS[type]}
-                      </span>
-                      <span className="shrink-0 text-xs font-medium tabular-nums text-fg-muted">
-                        {count}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <div className="card-section-body">
+            {data.byDeliveryType.length === 0 ? (
+              <p className="py-6 text-center text-sm text-fg-muted">
+                Brak danych
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {/* Stała kolejność zamiast kolejności w bazie: cztery typy
+                    zawsze w tej samej kolejności, także gdy któryś ma zero. */}
+                {DELIVERY_TYPE_ORDER.map((type) => {
+                  const count =
+                    data.byDeliveryType.find((e) => e.key === type)?.count ?? 0;
+                  return (
+                    <li key={type}>
+                      <Link
+                        to={`/aplikacje?deliveryType=${encodeURIComponent(type)}`}
+                        className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-surface-2/70"
+                      >
+                        <span className="truncate font-medium text-fg">
+                          {DELIVERY_TYPE_LABELS[type]}
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-fg-muted">
+                          {count}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
-          {data.incomplete.missingDescription > 0 && (
-            <p className="alert alert-warn mt-4 rounded-md px-3 py-2 text-xs">
-              {data.incomplete.missingDescription} aplikacji nie ma opisu.
-              Uzupełnij je, żeby rejestr był czytelny dla nowych osób.
-            </p>
-          )}
+            {data.incomplete.missingDescription > 0 && (
+              <p className="alert alert-warn mt-4 rounded-md px-3 py-2 text-xs">
+                {data.incomplete.missingDescription} aplikacji nie ma opisu.
+                Uzupełnij je, żeby rejestr był czytelny dla nowych osób.
+              </p>
+            )}
+          </div>
         </section>
 
-        <section className="card lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-line px-5 py-4">
-            <h2 className="section-title mb-0">
-              <IconHistory />
-              Ostatnio zmienione
-            </h2>
+        <section className="card-section lg:col-span-2">
+          <div className="card-section-header justify-between">
+            <div className="flex items-center gap-3">
+              <span className="section-icon tone-info">
+                <IconHistory />
+              </span>
+              <h2 className="section-title">Ostatnio zmienione</h2>
+            </div>
             <Link
               to="/aplikacje"
-              className="text-xs font-medium text-brand-600 hover:text-brand-700"
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
             >
               Zobacz wszystkie
             </Link>
@@ -313,10 +335,10 @@ export function DashboardPage() {
                 <li key={app.id}>
                   <Link
                     to={`/aplikacje/${app.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 hover:bg-page"
+                    className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 transition-colors hover:bg-surface-2/70"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-fg">
+                      <p className="truncate text-sm font-semibold text-fg">
                         {app.name}{' '}
                         <span className="font-normal text-fg-muted">
                           {app.version}
@@ -375,26 +397,35 @@ function StatCard({
 
   const iconTone =
     tone === 'danger'
-      ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+      ? 'tone-danger'
       : tone === 'warn'
-        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+        ? 'tone-warn'
         : tone === 'ok'
-          ? 'bg-accent-500/10 text-accent-600 dark:text-accent-400'
-          : 'bg-brand-500/10 text-brand-600 dark:text-brand-400';
+          ? 'tone-ok'
+          : 'tone-info';
+
+  const borderAccent =
+    tone === 'danger'
+      ? 'border-l-4 border-l-rose-500 dark:border-l-rose-400'
+      : tone === 'warn'
+        ? 'border-l-4 border-l-amber-500 dark:border-l-amber-400'
+        : tone === 'ok'
+          ? 'border-l-4 border-l-accent-500 dark:border-l-accent-400'
+          : 'border-l-4 border-l-brand-500 dark:border-l-brand-400';
 
   const content = (
     <div className="flex items-center gap-3">
       {icon && (
         <span
           aria-hidden="true"
-          className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${iconTone}`}
+          className={`section-icon size-9 ${iconTone}`}
         >
           {icon}
         </span>
       )}
       <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-fg-muted">{label}</p>
-        <p className={`mt-0.5 text-2xl font-semibold tabular-nums ${toneClass}`}>
+        <p className="truncate text-xs font-semibold text-fg-muted">{label}</p>
+        <p className={`mt-0.5 text-2xl font-bold tracking-tight tabular-nums ${toneClass}`}>
           {value}
         </p>
       </div>
@@ -402,13 +433,13 @@ function StatCard({
   );
 
   if (!to) {
-    return <div className="card px-4 py-3.5">{content}</div>;
+    return <div className={`card px-4 py-3.5 ${borderAccent}`}>{content}</div>;
   }
 
   return (
     <Link
       to={to}
-      className="card px-4 py-3.5 transition-colors hover:border-brand-300/50 hover:bg-page dark:hover:border-brand-500/40"
+      className={`card px-4 py-3.5 transition-colors hover:border-brand-300 hover:bg-surface-2/70 dark:hover:border-brand-500/60 ${borderAccent}`}
     >
       {content}
     </Link>

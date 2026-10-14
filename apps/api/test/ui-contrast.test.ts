@@ -255,7 +255,7 @@ describe('Tony stanów — kontrast', () => {
       ] as const) {
         const delta = contrast(fill, card);
         assert.ok(
-          delta >= 1.15,
+          delta >= 1.2,
           `.tone-${tone} w trybie ${mode} zlewa się z kartą (${delta.toFixed(2)}:1)`,
         );
       }
@@ -326,8 +326,15 @@ describe('Neutral — kontrast policzony z tokenów', () => {
     // Tu sprawdzamy samą różnicę tła: neutral ma się cofać, ale nie znikać.
     const light = contrast(token('c-surface-2', false), CARD.light);
     const dark = contrast(token('c-surface-3', true), CARD.dark);
-    assert.ok(light > 1.03, `surface-2 vs karta: ${light.toFixed(3)}:1`);
-    assert.ok(dark >= 1.15, `surface-3 vs karta: ${dark.toFixed(2)}:1`);
+    assert.ok(light >= 1.09, `surface-2 vs karta: ${light.toFixed(3)}:1`);
+    assert.ok(dark >= 1.18, `surface-3 vs karta: ${dark.toFixed(2)}:1`);
+  });
+
+  it('tło strony (--c-page) wyraźnie odcina się od karty (--c-surface)', () => {
+    const light = contrast(token('c-page', false), CARD.light);
+    const dark = contrast(token('c-page', true), CARD.dark);
+    assert.ok(light >= 1.07, `page vs karta (jasny): ${light.toFixed(3)}:1`);
+    assert.ok(dark >= 1.15, `page vs karta (ciemny): ${dark.toFixed(2)}:1`);
   });
 });
 
@@ -477,6 +484,21 @@ describe('Gradient tła strony — kontrast', () => {
           );
         }
       }
+    });
+
+    it(`gradient tła w trybie ${label} ma 3 widoczne plamy (przezroczyste wygaszanie warstw)`, () => {
+      const value = raw('c-page-gradient', dark);
+      const stops = glows(dark);
+      assert.equal(
+        stops.length,
+        3,
+        `oczekiwano 3 plam w --c-page-gradient (${label}), znaleziono ${stops.length}`,
+      );
+      assert.equal(
+        value.includes('var(--c-page)'),
+        false,
+        `--c-page-gradient (${label}) nie może kończyć warstw nieprzezroczystym var(--c-page), bo górna warstwa przykrywa pozostałe plamy`,
+      );
     });
   }
 });

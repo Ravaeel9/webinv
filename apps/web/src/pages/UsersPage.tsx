@@ -102,7 +102,7 @@ export function UsersPage() {
         ) : (
           <div className="scroll-thin overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-line bg-page">
+              <thead className="border-b border-line-strong bg-surface-2">
                 <tr>
                   <Th>Imię i nazwisko</Th>
                   <Th>Nazwa użytkownika</Th>
@@ -180,7 +180,7 @@ function UserRow({
     user.role === 'SUPER_ADMIN' ? 'violet' : user.role === 'ADMIN' ? 'info' : 'neutral';
 
   return (
-    <tr className={`hover:bg-page ${user.isActive ? '' : 'opacity-60'}`}>
+    <tr className={`transition-colors hover:bg-surface-2/70 ${user.isActive ? '' : 'opacity-60'}`}>
       <td className="px-4 py-2.5">
         <span className="font-medium text-fg">{user.fullName}</span>
         {isSelf && (

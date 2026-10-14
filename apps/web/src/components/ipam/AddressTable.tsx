@@ -64,7 +64,7 @@ export function AddressTable({
         </p>
       ) : (
         <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="border-b border-line bg-page">
+          <thead className="border-b border-line-strong bg-surface-2">
             <tr>
               <Th>Adres</Th>
               {showSubnet && <Th>Podsieć</Th>}
@@ -81,7 +81,7 @@ export function AddressTable({
           </thead>
           <tbody className="divide-y divide-line">
             {addresses.map((address) => (
-              <tr key={address.id} className="hover:bg-page">
+              <tr key={address.id} className="transition-colors hover:bg-surface-2/70">
                 <td className="px-4 py-2.5 font-mono text-fg">{address.address}</td>
 
                 {showSubnet && (
