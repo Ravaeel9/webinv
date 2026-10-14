@@ -19,6 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/decorators';
 import {
   cidrErrorMessage,
+  findContainingSubnet,
   ipInCidr,
   ipToNumber,
   isValidIpv4,
@@ -26,6 +27,7 @@ import {
   rangesOverlap,
   type Cidr,
 } from './cidr';
+import { parseNmapXml } from './nmap-xml';
 import type {
   CreateAddressDto,
   CreateSubnetDto,
@@ -36,6 +38,7 @@ import type {
 import type {
   ApplicationIpAddressRef,
   ApplicationRefRow,
+  ImportPreview,
   IpAddressCreateData,
   IpAddressListRow,
   IpAddressRow,
@@ -52,7 +55,7 @@ import type {
  * pozostałe kontrakty odpowiedzi), a wystawiamy go jeszcze raz przy
  * serwisie — to serwis jest tym, co kontroler wystawia w trasie.
  */
-export type { ApplicationIpAddressRef } from './ipam.port';
+export type { ApplicationIpAddressRef, ImportPreview, PreviewRow } from './ipam.port';
 
 /**
  * Include dla listy adresów i karty podsieci: żywe przypisania razem
@@ -659,6 +662,100 @@ export class IpamService {
         data: { status: 'IN_USE' },
       });
     }
+  }
+
+  // ── Import z pliku nmap ─────────────────────────────────────
+
+  /**
+   * Podgląd importu z pliku `nmap -oX` — nie wykonuje żadnego zapisu.
+   *
+   * Dopasowuje hosty do istniejących podsieci po CIDR i dzieli je na
+   * trzy grupy: `new`, `existing`, `unmatched`. Adresy pobieramy jednym
+   * zapytaniem tylko dla podsieci, do których trafił choć jeden host.
+   */
+  async previewImport(xml: string): Promise<ImportPreview> {
+    const { hosts, skipped } = parseNmapXml(xml);
+
+    const wszystkiePodsieci = await this.prisma.subnet.findMany();
+    const cidry: Cidr[] = [];
+    const podsiecPoCidr = new Map<string, SubnetRow>();
+
+    for (const wiersz of wszystkiePodsieci) {
+      const cidr = parseCidr(wiersz.cidr);
+      if (!cidr) continue;
+      cidry.push(cidr);
+      podsiecPoCidr.set(cidr.text, wiersz);
+    }
+
+    const dopasowania = hosts.map((host) => {
+      const trafiony = findContainingSubnet(host.address, cidry);
+      const podsiec = trafiony ? (podsiecPoCidr.get(trafiony.text) ?? null) : null;
+      return { host, podsiec };
+    });
+
+    const trafioneSubnetIds = [
+      ...new Set(
+        dopasowania
+          .map((d) => d.podsiec?.id)
+          .filter((id): id is string => id !== undefined),
+      ),
+    ];
+
+    const istniejaceWiersze =
+      trafioneSubnetIds.length > 0
+        ? await this.prisma.ipAddress.findMany({
+            where: { subnetId: { in: trafioneSubnetIds } },
+          })
+        : [];
+
+    const istniejacePoKluczu = new Map<string, IpAddressRow>();
+    for (const a of istniejaceWiersze) {
+      istniejacePoKluczu.set(`${a.subnetId}:${a.address}`, a);
+    }
+
+    const wynik: ImportPreview = {
+      new: [],
+      existing: [],
+      unmatched: [],
+      skipped,
+    };
+
+    for (const { host, podsiec } of dopasowania) {
+      if (!podsiec) {
+        wynik.unmatched.push({
+          address: host.address,
+          hostname: host.hostname,
+          existingDescription: null,
+        });
+        continue;
+      }
+
+      const istniejacy = istniejacePoKluczu.get(
+        `${podsiec.id}:${host.address}`,
+      );
+      if (istniejacy) {
+        wynik.existing.push({
+          id: istniejacy.id,
+          address: host.address,
+          hostname: host.hostname,
+          existingDescription: istniejacy.description,
+          status: istniejacy.status,
+          subnetId: podsiec.id,
+          subnetName: podsiec.name,
+        });
+      } else {
+        wynik.new.push({
+          address: host.address,
+          hostname: host.hostname,
+          existingDescription: null,
+          subnetId: podsiec.id,
+          subnetName: podsiec.name,
+          cidr: podsiec.cidr,
+        });
+      }
+    }
+
+    return wynik;
   }
 
   // ── Pomocnicze ──────────────────────────────────────────────

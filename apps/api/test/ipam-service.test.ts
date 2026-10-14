@@ -231,7 +231,11 @@ function port(stan: StanPortu = {}) {
         where,
         include,
       }: {
-        where?: { subnetId?: string; address?: string; id?: { in: string[] } };
+        where?: {
+          subnetId?: string | { in: string[] };
+          address?: string;
+          id?: { in: string[] };
+        };
         include?: {
           subnet?: { select: { id: true; name: true; cidr: true } };
           applications?: {
@@ -242,7 +246,13 @@ function port(stan: StanPortu = {}) {
       } = {}) => {
         wywolania.kolejnosc.push('ipAddress.findMany');
         return adresy
-          .filter((a) => !where?.subnetId || a.subnetId === where.subnetId)
+          .filter((a) => {
+            if (!where?.subnetId) return true;
+            if (typeof where.subnetId === 'string') {
+              return a.subnetId === where.subnetId;
+            }
+            return where.subnetId.in.includes(a.subnetId);
+          })
           .filter((a) => !where?.address || a.address === where.address)
           .filter((a) => !where?.id || where.id.in.includes(a.id))
           .map((a) => {

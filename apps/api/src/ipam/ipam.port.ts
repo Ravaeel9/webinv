@@ -140,6 +140,28 @@ export type ApplicationRefRow = {
   baseUrl: string | null;
 };
 
+export type PreviewRow = {
+  address: string;
+  hostname: string | null;
+  /** Opis z istniejącego rekordu — do pokazania różnicy. */
+  existingDescription: string | null;
+};
+
+export type ImportPreview = {
+  /** Adres z pliku, którego nie ma w podsieci wskazanej przez CIDR. */
+  new: (PreviewRow & { subnetId: string; subnetName: string; cidr: string })[];
+  /** Adres już zarejestrowany — z podpowiedzią podsieci, do której należy. */
+  existing: (PreviewRow & {
+    id: string;
+    status: IpAddressStatus;
+    subnetId: string;
+    subnetName: string;
+  })[];
+  /** Adres spoza wszystkich podsieci — administrator musi wskazać podsieć ręcznie. */
+  unmatched: PreviewRow[];
+  skipped: number;
+};
+
 export type IpamPort = {
   subnet: {
     findMany(): Promise<SubnetRow[]>;
@@ -159,7 +181,11 @@ export type IpamPort = {
      * nie oczekujemy.
      */
     findMany(args?: {
-      where?: { subnetId?: string; address?: string; id?: { in: string[] } };
+      where?: {
+        subnetId?: string | { in: string[] };
+        address?: string;
+        id?: { in: string[] };
+      };
       include?: {
         subnet?: { select: { id: true; name: true; cidr: true } };
         applications?: {

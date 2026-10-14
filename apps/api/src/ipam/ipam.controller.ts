@@ -14,6 +14,7 @@
  * czego szukać.
  */
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -26,12 +27,14 @@ import {
   Put,
 } from '@nestjs/common';
 import { IpamService } from './ipam.service';
+import { NmapXmlError } from './nmap-xml';
 import {
   ClientIp,
   CurrentUser,
   RequirePermission,
   type AuthUser,
 } from '../auth/decorators';
+import { PreviewImportDto } from './dto/import.dto';
 import {
   CreateAddressDto,
   CreateSubnetDto,
@@ -43,6 +46,22 @@ import {
 @Controller('api/ipam')
 export class IpamController {
   constructor(private readonly ipam: IpamService) {}
+
+  // ── Import z pliku nmap ─────────────────────────────────────
+
+  @Post('import/preview')
+  @RequirePermission('ipam:write')
+  @HttpCode(200)
+  async previewImport(@Body() dto: PreviewImportDto) {
+    try {
+      return await this.ipam.previewImport(dto.xml);
+    } catch (e) {
+      if (e instanceof NmapXmlError) {
+        throw new BadRequestException(e.message);
+      }
+      throw e;
+    }
+  }
 
   // ── Podsieci ────────────────────────────────────────────────
 
