@@ -34,6 +34,8 @@
 | Plik | Odpowiedzialność (jedna) |
 |---|---|
 | `apps/api/src/ipam/nmap-xml.ts` | Tekst XML → lista `{ address, hostname }`. Nic nie wie o bazie. |
+| `apps/api/src/ipam/ipam.port.ts` | Poszerzenie kontraktu: `subnetId: { in: [] }` w `findMany` oraz `upsert` (Taski 2–3). |
+| `apps/web/src/lib/audit-fields.ts` | Polska nazwa pola `source` z wpisu audytu importu (Task 3). |
 | `apps/api/test/fixtures/nmap-*.xml` | Małe pliki przykładowe dla testów. |
 | `apps/api/test/nmap-xml.test.ts` | Parsowanie i limity. |
 | `apps/api/test/ipam-import.test.ts` | Podgląd, dopasowanie, zapis, idempotencja. |
@@ -181,6 +183,7 @@ git commit -m "feat(ipam): parser wyników nmap w formacie XML"
 **Files:**
 - Modify: `apps/api/src/ipam/ipam.service.ts`
 - Modify: `apps/api/src/ipam/ipam.controller.ts`
+- Modify: `apps/api/src/ipam/ipam.port.ts`
 - Create: `apps/api/src/ipam/dto/import.dto.ts`
 - Test: `apps/api/test/ipam-import.test.ts`
 
@@ -211,7 +214,7 @@ export type ImportPreview = {
 
 ```ts
 export class ImportSelectionDto {
-  address: string;   // @IsString, @MaxLength(18), @IsIpv4()
+  address: string;   // @IsString, @MaxLength(18), @IsIP('4')
   subnetId: string;  // @IsUUID('4')
   description?: string; // @IsOptional, @IsString, @MaxLength(2000)
 }
@@ -220,16 +223,21 @@ export class ApplyImportDto {
 }
 ```
 
-`@IsIpv4()` jest z `class-validator` — użyj go, nie pisz własnego wzorca.
+Adresu nie waliduj własnym regexem. W `class-validator@0.14.2` **nie ma** `@IsIpv4()` — jest tylko `@IsIP(version)`, więc poprawna postać to `@IsIP('4')`. Alternatywnie `@Validate(...)` z `isValidIpv4` z `cidr.ts`: `cidr.ts` jest jedynym miejscem, w którym repo uznaje adres za poprawny, więc ta druga opcja jest zgodniejsza z resztą katalogu.
 
 - [ ] **Step 2: Napisz testy podglądu**
 
 ```ts
-it('kwalifikuje nowy adres do najwęższej podsieci', async () => {
-  const r = await serwis(port({ podsieci: [subnet('10.20.0.0/16', 'Sieć'), subnet('10.20.5.0/24', 'Serwery')] }))
+// Podsiej `/16` i `/24` naraz nie wchodzi w grę: `assertZakresWolny` w
+// `ipam.service.ts` rzuca `409` dla zakresów zachodzących na siebie. W
+// katalogu nie ma dwóch podsieci zawierających ten sam adres, więc wybór
+// „najwęższej" jest nieosiągalny, a poprzednia wersja tego testu opisywała
+// stan, którego baza nie dopuszcza.
+it('kwalifikuje nowy adres do podsieci, w której leży', async () => {
+  const r = await serwis(port({ podsieci: [subnet('10.20.5.0/24', 'Serwery')] }))
     .previewImport(xmlZHostem('10.20.5.7', 'jenkins'));
   assert.equal(r.new.length, 1);
-  assert.equal(r.new[0].subnetName, 'Serwery'); // nie 'Sieć' — węższa wygrywa
+  assert.equal(r.new[0].subnetName, 'Serwery');
 });
 
 it('kwalifikuje istniejący adres do grupy existing', async () => {
@@ -261,13 +269,23 @@ Expected: brak metody `previewImport`.
 
 - [ ] **Step 4: Zaimplementuj `previewImport`**
 
-Wczytaj wszystkie podsieci raz i zmapuj je przez `parseCidr`. Wczytaj adresy tylko dla podsieci, w których cokolwiek dopasowano (mniejsze zapytanie niż „wszystkie adresy"). Dla każdego hosta: `findContainingSubnet(address, cidry)` — **funkcja z planu katalogu zwraca najwęższą podsieć**, więc nie powtarzaj tu wyboru. Brak dopasowania → `unmatched`. Dopasowanie bez istniejącego rekordu → `new`, z dopasowaniem → `existing`.
+Wczytaj wszystkie podsieci raz i zmapuj je przez `parseCidr`, **zachowując równoległą tablicę `Cidr` → `SubnetRow`**: `findContainingSubnet` zwraca `Cidr`, a odpowiedź potrzebuje `subnetId` i `subnetName`. Mapowanie po `Cidr.text` jest jednoznaczne, bo `assertZakresWolny` nie dopuszcza duplikatu zakresu.
+
+Wczytaj adresy **jednym** `ipAddress.findMany` z `where: { subnetId: { in: [...] } }` dla podsieci, w których cokolwiek dopasowano. Wymaga to rozszerzenia `IpamPort` — obecny port przyjmuje tylko jeden `subnetId`, a pętla po podsieciach oznaczałaby setki zapytań na podgląd. Dla każdego hosta: `findContainingSubnet(address, cidry)`. Brak dopasowania → `unmatched`. Dopasowanie bez istniejącego rekordu → `new`, z dopasowaniem → `existing`.
 
 `previewImport` **nie zapisuje niczego** — to jest cała wartość tego kroku.
 
 - [ ] **Step 5: Dodaj trasę**
 
-`@Post('import/preview')` z `@RequirePermission('ipam:write')`, `@Body('xml') xml: string`, limit rozmiaru sprawdzany w `parseNmapXml`. Złapanie `NmapXmlError` → `BadRequestException(e.message)`. Uwaga na trasę: `@Post('import/preview')` musi być zadeklarowane **przed** trasami z `:id`, inaczej Fastify potraktuje `import` jako identyfikator.
+`@Post('import/preview')` z `@RequirePermission('ipam:write')` i `PreviewImportDto` zamiast gołego `@Body('xml')`. Globalny `ValidationPipe` ma `forbidNonWhitelisted: true`, a przy właściwości bez klasy DTO walidacja jest całkowicie pomijana — limit pilnuje `parseNmapXml`, ale spójnie z resztą kontrolera ładunek powinien mieć swój kształt:
+
+```ts
+export class PreviewImportDto {
+  xml: string; // @IsString, @MaxLength(MAX_XML_BYTES)
+}
+```
+
+Złapanie `NmapXmlError` → `BadRequestException(e.message)`. Uwaga na trasę: `@Post('import/preview')` musi być zadeklarowane **przed** trasami z `:id`, inaczej Fastify potraktuje `import` jako identyfikator.
 
 - [ ] **Step 6: Uruchom testy**
 
@@ -288,6 +306,8 @@ git commit -m "feat(ipam): podgląd importu z pliku nmap bez zapisu"
 **Files:**
 - Modify: `apps/api/src/ipam/ipam.service.ts`
 - Modify: `apps/api/src/ipam/ipam.controller.ts`
+- Modify: `apps/api/src/ipam/ipam.port.ts`
+- Modify: `apps/web/src/lib/audit-fields.ts`
 - Modify: `apps/api/test/ipam-import.test.ts`
 
 **Interfaces:**
@@ -345,9 +365,21 @@ Expected: brak `applyImport`.
 
 `description` przy `update` ustawiaj tylko wtedy, gdy w ładunku jest podane. Inaczej ponowne wgranie pliku **wyczyściłoby ręcznie opisane adresy** — cichy niszczenie danych przy najczęstszej operacji.
 
+`IpamPort.ipAddress` **nie ma dziś `upsert`** — są tylko `findMany`, `findUnique`, `create`, `update`, `delete`, `updateMany`, `count`. Dodaj do portu, inaczej implementacja nie skompiluje się:
+
+```ts
+upsert(args: {
+  where: { subnetId_address: { subnetId: string; address: string } };
+  create: IpAddressCreateData;
+  update: { lastSeenAt: Date } & Partial<IpAddressCreateData>;
+}): Promise<IpAddressRow>;
+```
+
 - [ ] **Step 4: Dodaj trasę i wpis audytu**
 
-`@Post('import/apply')` z `@RequirePermission('ipam:write')`, `@CurrentUser() actor`, `@ClientIp() ip`. Audyt: `entity: 'Subnet'`, `action: 'ip_addresses.import'`, `changes: { count: { from: null, to: N }, source: { from: null, to: 'nmap-xml' } }`. **Bez listy adresów** — przy 500 hostach przekroczyłaby limit wartości w dzienniku i zaśmieciła listę zdarzeń.
+`@Post('import/apply')` z `@RequirePermission('ipam:write')`, `@CurrentUser() actor`, `@ClientIp() ip`. Audyt: `entity: 'Subnet'`, `action: 'ip_addresses.import'`, `changes: { count: { from: null, to: N }, source: { from: null, to: 'nmap-xml' } }`. **Bez listy adresów** — przy 500 hostach przekroczyłaby limit wartości w dzienniku i zaśmieciła listę zdarzeń. `action` mieści się w `AuditLog.action` (`@db.VarChar(40)`, 18 znaków).
+
+Wpisz w `apps/web/src/lib/audit-fields.ts` etykietę `source: 'źródło'`: bez niej `AuditPage` pokaże surowy angielski klucz w polskim zdaniu — dokładnie ten problem, przed którym powstał `audit-field-labels.test.ts` (`count` jest już opisane).
 
 - [ ] **Step 5: Uruchom testy**
 
@@ -382,7 +414,7 @@ git commit -m "feat(ipam): zapis zatwierdzonego importu z pliku nmap"
 
 - [ ] **Step 2: Dodaj trasę przed parametrami**
 
-W `router.tsx`, wewnątrz gałęzi `RequireAuth`, **przed** `{ path: 'ipam/:id' }` dodaj `ipam/import` z `RequirePermission permission="ipam:write"`. Kolejność jest tu kwestią działania, nie stylu: `ipam/import` za trasą z parametrem nigdy by się nie otworzyło.
+W `router.tsx`, wewnątrz gałęzi `RequireAuth`, dodaj `ipam/import` (`RequirePermission permission="ipam:write"`) obok `nowa`. Ustawienie go przed `{ path: ':id' }` nic nie zmienia — React Router 8 nadaje segmentowi statycznemu wyższy priorytet niż dynamicznemu — ale trzymaj się tej kolejności, bo czyta się jako reguła, a nie przypadek.
 
 - [ ] **Step 3: Napisz `ImportPage`**
 
