@@ -239,6 +239,27 @@ Bez `make` wystarczą odpowiedniki: `docker compose ps`,
 Logi kontenerów są limitowane (10 MB × 3 na kontener), więc nie rosną
 w nieskończoność. Przy dużym ruchu warto je wyeksportować.
 
+## Narzędzia administratora — import adresów z pliku nmap
+
+Katalog IPAM pozwala zasilić podsieci wynikiem skanu `nmap` bez udziału
+serwera aplikacji w skanowaniu sieci:
+
+1. Na stacji roboczej lub serwerze mającym dostęp do badanej podsieci
+   zainstaluj pakiet `nmap`.
+2. Wykonaj szybki przegląd hostów z zapisem do pliku XML (pełne wykrywanie
+   ARP/ICMP wymaga uprawnień administracyjnych na stacji skanującej):
+   ```bash
+   sudo nmap -sn -oX wynik.xml 10.20.0.0/24
+   ```
+3. W interfejsie aplikacji przejdź do **Adresy IP → Importuj z nmap**,
+   wskaż plik `wynik.xml`, przejrzyj podgląd trzech grup (nowe, istniejące,
+   nieprzypisane) i zatwierdź wybrane pozycje.
+
+Konto administratora systemu na serwerze `web-inv` nie jest do tego
+potrzebne — kontener API nie wykonuje `nmap`, a plik powstaje na stacji,
+do której administrator sieci ma dostęp, i trafia przez przeglądarkę jako
+zwykły formularz.
+
 ## Aktualizacja
 
 ```bash
