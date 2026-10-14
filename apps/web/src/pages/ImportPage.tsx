@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   useApplyImport,
   useImportPreview,
@@ -382,15 +382,24 @@ export function ImportPage() {
 
           {/* Grupa 3: Nieprzypisane */}
           <section className="card overflow-hidden">
-            <div className="px-4 py-3 border-b border-line">
-              <h2 className="text-sm font-semibold text-fg">
-                Nieprzypisane do żadnej podsieci ({preview.unmatched.length})
-              </h2>
-              <p className="meta-text">
-                Adresy spoza wszystkich zarejestrowanych zakresów CIDR. Aby
-                zapisać pozycję z tej grupy, zaznacz ją i wskaż podsieć
-                docelową ręcznie.
-              </p>
+            <div className="px-4 py-3 border-b border-line flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-fg">
+                  Nieprzypisane do żadnej podsieci ({preview.unmatched.length})
+                </h2>
+                <p className="meta-text">
+                  Adresy spoza wszystkich zarejestrowanych zakresów CIDR. Aby
+                  zapisać pozycję z tej grupy, wskaż podsieć obejmującą ten
+                  zakres (jeśli jeszcze jej nie ma w katalogu, najpierw dodaj
+                  podsieć).
+                </p>
+              </div>
+              <Link
+                to="/ipam/nowa"
+                className="text-xs font-medium text-brand-600 hover:underline"
+              >
+                + Dodaj brakującą podsieć
+              </Link>
             </div>
             {preview.unmatched.length === 0 ? (
               <p className="p-4 text-sm text-fg-muted">

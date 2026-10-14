@@ -66,6 +66,15 @@ describe('nginx — polityka CSP', () => {
     assert.equal(styleSrc, "'self'");
   });
 
+  it('client_max_body_size dopuszcza 5 MB plik importu nmap (>= 6m)', () => {
+    const match = /client_max_body_size\s+(\d+)m;/.exec(serverConf);
+    assert.ok(match, 'brak client_max_body_size w nginx/default.conf');
+    assert.ok(
+      Number(match[1]) >= 6,
+      `client_max_body_size (${match[1]}m) jest mniejsze niż 6m wymagane przez import nmap`,
+    );
+  });
+
   it('nie używa upgrade-insecure-requests przy wdrożeniu HTTP', () => {
     // Dyrektywa przepisywałaby zasoby na https:// i wycięłaby
     // dostęp do wdrożenia, w którym nie ma TLS.

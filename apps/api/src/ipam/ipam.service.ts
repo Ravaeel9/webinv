@@ -688,11 +688,27 @@ export class IpamService {
       podsiecPoCidr.set(cidr.text, wiersz);
     }
 
-    const dopasowania = hosts.map((host) => {
+    let pominieteSpecjalne = 0;
+    const dopasowania: Array<{
+      host: { address: string; hostname: string | null };
+      podsiec: SubnetRow | null;
+    }> = [];
+
+    for (const host of hosts) {
       const trafiony = findContainingSubnet(host.address, cidry);
+      if (trafiony && trafiony.prefix <= 30) {
+        const numer = ipToNumber(host.address);
+        if (
+          numer !== null &&
+          (numer === trafiony.first || numer === trafiony.broadcast)
+        ) {
+          pominieteSpecjalne += 1;
+          continue;
+        }
+      }
       const podsiec = trafiony ? (podsiecPoCidr.get(trafiony.text) ?? null) : null;
-      return { host, podsiec };
-    });
+      dopasowania.push({ host, podsiec });
+    }
 
     const trafioneSubnetIds = [
       ...new Set(
@@ -718,7 +734,7 @@ export class IpamService {
       new: [],
       existing: [],
       unmatched: [],
-      skipped,
+      skipped: skipped + pominieteSpecjalne,
     };
 
     for (const { host, podsiec } of dopasowania) {
@@ -771,10 +787,31 @@ export class IpamService {
     actor: AuthUser,
     ip?: string,
   ): Promise<{ imported: number }> {
-    const selections = dto.selections ?? [];
-    if (selections.length === 0) {
+    const surowe = dto.selections ?? [];
+    if (surowe.length === 0) {
       return { imported: 0 };
     }
+
+    const unikalne = new Map<
+      string,
+      { address: string; subnetId: string; description?: string }
+    >();
+    for (const sel of surowe) {
+      const klucz = `${sel.subnetId}:${sel.address}`;
+      const poprz = unikalne.get(klucz);
+      if (poprz) {
+        if (
+          (!poprz.description || poprz.description.trim().length === 0) &&
+          sel.description &&
+          sel.description.trim().length > 0
+        ) {
+          poprz.description = sel.description;
+        }
+      } else {
+        unikalne.set(klucz, { ...sel });
+      }
+    }
+    const selections = [...unikalne.values()];
 
     return this.prisma.$transaction(async () => {
       const wszystkiePodsieci = await this.prisma.subnet.findMany();

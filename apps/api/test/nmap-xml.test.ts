@@ -86,4 +86,25 @@ describe('parseNmapXml', () => {
     const xml = `<nmaprun>${'<host><address addr="10.20.5.7" addrtype="ipv4"/></host>'.repeat(MAX_HOSTS + 1)}</nmaprun>`;
     assert.throws(() => parseNmapXml(xml), /10 000/);
   });
+
+  it('deduplikuje powtórzone adresy IPv4 i zachowuje niepusty hostname', () => {
+    const xml =
+      '<nmaprun>' +
+      '<host><status state="up"/><address addr="10.20.5.7" addrtype="ipv4"/></host>' +
+      '<host><status state="up"/><address addr="10.20.5.7" addrtype="ipv4"/><hostnames><hostname name="jenkins"/></hostnames></host>' +
+      '</nmaprun>';
+    const r = parseNmapXml(xml);
+    assert.deepEqual(r.hosts, [{ address: '10.20.5.7', hostname: 'jenkins' }]);
+  });
+
+  it('pomija hosty ze statusem state="down"', () => {
+    const xml =
+      '<nmaprun>' +
+      '<host><status state="down"/><address addr="10.20.5.1" addrtype="ipv4"/></host>' +
+      '<host><status state="up"/><address addr="10.20.5.7" addrtype="ipv4"/></host>' +
+      '</nmaprun>';
+    const r = parseNmapXml(xml);
+    assert.deepEqual(r.hosts, [{ address: '10.20.5.7', hostname: null }]);
+    assert.equal(r.skipped, 1);
+  });
 });

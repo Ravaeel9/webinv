@@ -82,7 +82,12 @@ type RawHostname = {
   '@_name'?: unknown;
 };
 
+type RawStatus = {
+  '@_state'?: unknown;
+};
+
 type RawHost = {
+  status?: RawStatus | RawStatus[];
   address?: RawAddress | RawAddress[];
   hostnames?:
     | { hostname?: RawHostname | RawHostname[] }
@@ -140,11 +145,24 @@ export function parseNmapXml(xml: string): ParseResult {
     );
   }
 
-  const hosts: ScannedHost[] = [];
+  const byAddress = new Map<string, ScannedHost>();
   let skipped = 0;
 
   for (const rawHost of rawHosts) {
     if (!rawHost || typeof rawHost !== 'object') {
+      skipped++;
+      continue;
+    }
+
+    const statuses = asArray<RawStatus>(rawHost.status);
+    const hasNonUpStatus = statuses.some(
+      (s) =>
+        s &&
+        typeof s === 'object' &&
+        typeof s['@_state'] === 'string' &&
+        s['@_state'] !== 'up',
+    );
+    if (hasNonUpStatus) {
       skipped++;
       continue;
     }
@@ -184,12 +202,21 @@ export function parseNmapXml(xml: string): ParseResult {
       }
     }
 
-    hosts.push({
-      address: ipv4Entry['@_addr'],
-      hostname,
-    });
+    const addr = ipv4Entry['@_addr'];
+    const existing = byAddress.get(addr);
+    if (existing) {
+      if (!existing.hostname && hostname) {
+        existing.hostname = hostname;
+      }
+    } else {
+      byAddress.set(addr, {
+        address: addr,
+        hostname,
+      });
+    }
   }
 
+  const hosts = [...byAddress.values()];
   hosts.sort(
     (a, b) => (ipToNumber(a.address) ?? 0) - (ipToNumber(b.address) ?? 0),
   );

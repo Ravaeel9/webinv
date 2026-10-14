@@ -235,6 +235,24 @@ describe('IpamService.previewImport', () => {
     assert.equal(zestaw.wywolania.update.length, 0);
     assert.equal(zestaw.wywolania.upsert.length, 0);
   });
+
+  it('pomija adres sieciowy i rozgłoszeniowy podsieci podczas podglądu', async () => {
+    const r = await serwis(
+      port({ podsieci: [subnet('10.20.5.0/24', 'Serwery')] }),
+    ).previewImport(
+      '<nmaprun>' +
+        '<host><address addr="10.20.5.0" addrtype="ipv4"/></host>' +
+        '<host><address addr="10.20.5.7" addrtype="ipv4"/></host>' +
+        '<host><address addr="10.20.5.255" addrtype="ipv4"/></host>' +
+        '</nmaprun>',
+    );
+    assert.deepEqual(
+      r.new.map((x) => x.address),
+      ['10.20.5.7'],
+    );
+    assert.equal(r.unmatched.length, 0);
+    assert.equal(r.skipped, 2);
+  });
 });
 
 const AKTOR = {
@@ -311,5 +329,21 @@ describe('IpamService.applyImport', () => {
     await serwis(zestaw).applyImport({ selections: trzyPozycje }, AKTOR);
     assert.equal(zestaw.zdarzenia.length, 1);
     assert.equal(zestaw.zdarzenia[0]?.action, 'ip_addresses.import');
+  });
+
+  it('deduplikuje powtórzone pozycje w applyImport i zapisuje unikalną liczbę w audycie', async () => {
+    const zestaw = port({ podsieci: [subnet('10.20.0.0/16', 'Sieć')] });
+    const wynik = await serwis(zestaw).applyImport(
+      {
+        selections: [
+          { address: '10.20.5.7', subnetId: PODNET_ID },
+          { address: '10.20.5.7', subnetId: PODNET_ID, description: 'jenkins' },
+        ],
+      },
+      AKTOR,
+    );
+    assert.equal(wynik.imported, 1);
+    assert.equal(zestaw.wywolania.upsert.length, 1);
+    assert.equal(zestaw.adresy[0]?.description, 'jenkins');
   });
 });
