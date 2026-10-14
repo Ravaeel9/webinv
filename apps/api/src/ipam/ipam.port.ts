@@ -216,7 +216,7 @@ export type IpamPort = {
      * administratora (albo skanera z zadania 10).
      */
     updateMany(args: {
-      where: { id: { in: string[] } };
+      where: { id: { in: string[] }; status?: IpAddressStatus };
       data: { status: IpAddressStatus };
     }): Promise<number>;
     count(args: { where: { subnetId: string } }): Promise<number>;

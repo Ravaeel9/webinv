@@ -65,6 +65,7 @@ function port(stan: StanImportu = {}) {
     create: [] as unknown[],
     update: [] as unknown[],
     upsert: [] as unknown[],
+    updateMany: [] as unknown[],
     findManySubnetIds: [] as unknown[],
   };
 
@@ -136,6 +137,23 @@ function port(stan: StanImportu = {}) {
         };
         adresy.push(nowy);
         return { ...nowy };
+      },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: { in: string[] }; status?: IpAddressStatus };
+        data: { status: IpAddressStatus };
+      }) => {
+        wywolania.updateMany.push({ where, data });
+        let n = 0;
+        for (const a of adresy) {
+          if (!where.id.in.includes(a.id)) continue;
+          if (where.status !== undefined && a.status !== where.status) continue;
+          a.status = data.status;
+          n += 1;
+        }
+        return n;
       },
     },
     $transaction: async <T>(fn: () => Promise<T>): Promise<T> => fn(),
@@ -345,5 +363,47 @@ describe('IpamService.applyImport', () => {
     assert.equal(wynik.imported, 1);
     assert.equal(zestaw.wywolania.upsert.length, 1);
     assert.equal(zestaw.adresy[0]?.description, 'jenkins');
+  });
+
+  it('nowo zaimportowany adres ma status IN_USE', async () => {
+    const zestaw = port({ podsieci: [subnet('10.20.0.0/16', 'Sieć')] });
+    await serwis(zestaw).applyImport(
+      { selections: [{ address: '10.20.5.7', subnetId: PODNET_ID }] },
+      AKTOR,
+    );
+    assert.equal(zestaw.adresy[0]?.status, 'IN_USE');
+  });
+
+  it('istniejący adres FREE przechodzi w IN_USE, a IN_USE i DEPRECATED zostają nietknięte', async () => {
+    const zestaw = port({
+      podsieci: [subnet('10.20.0.0/16', 'Sieć')],
+      ipAddresses: [
+        adres('10.20.5.7', null, PODNET_ID, 'FREE'),
+        adres('10.20.5.8', null, PODNET_ID, 'IN_USE'),
+        adres('10.20.5.9', null, PODNET_ID, 'DEPRECATED'),
+      ],
+    });
+    await serwis(zestaw).applyImport(
+      {
+        selections: [
+          { address: '10.20.5.7', subnetId: PODNET_ID },
+          { address: '10.20.5.8', subnetId: PODNET_ID },
+          { address: '10.20.5.9', subnetId: PODNET_ID },
+        ],
+      },
+      AKTOR,
+    );
+    assert.equal(
+      zestaw.adresy.find((a) => a.address === '10.20.5.7')?.status,
+      'IN_USE',
+    );
+    assert.equal(
+      zestaw.adresy.find((a) => a.address === '10.20.5.8')?.status,
+      'IN_USE',
+    );
+    assert.equal(
+      zestaw.adresy.find((a) => a.address === '10.20.5.9')?.status,
+      'DEPRECATED',
+    );
   });
 });

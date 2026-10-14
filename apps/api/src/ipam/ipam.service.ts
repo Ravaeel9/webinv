@@ -830,12 +830,13 @@ export class IpamService {
       }
 
       const teraz = new Date();
+      const zapisaneIds: string[] = [];
       for (const sel of selections) {
         const maOpis =
           sel.description !== undefined && sel.description.trim().length > 0;
         const opis = maOpis ? sel.description!.trim() : undefined;
 
-        await this.prisma.ipAddress.upsert({
+        const wiersz = await this.prisma.ipAddress.upsert({
           where: {
             subnetId_address: {
               subnetId: sel.subnetId,
@@ -845,7 +846,7 @@ export class IpamService {
           create: {
             subnetId: sel.subnetId,
             address: sel.address,
-            status: 'FREE',
+            status: 'IN_USE',
             description: opis ?? null,
             lastSeenAt: teraz,
           },
@@ -853,6 +854,14 @@ export class IpamService {
             opis !== undefined
               ? { lastSeenAt: teraz, description: opis }
               : { lastSeenAt: teraz },
+        });
+        zapisaneIds.push(wiersz.id);
+      }
+
+      if (zapisaneIds.length > 0) {
+        await this.prisma.ipAddress.updateMany({
+          where: { id: { in: zapisaneIds }, status: 'FREE' },
+          data: { status: 'IN_USE' },
         });
       }
 

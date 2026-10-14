@@ -255,7 +255,7 @@ sam katalog, a nie zasób `/api/applications`.
 | `GET` | `/ipam/applications/:appId/ip-addresses` | `app:read` | `{ addresses }` — adresy z `subnet { id, name, cidr }`; nieznany `appId` zwraca `200` z pustą listą (świadomie — patrz komentarz w kontrolerze) |
 | `PUT` | `/ipam/applications/:appId/ip-addresses` | `app:write` | `{ ipAddressIds }` — patrz semantyka poniżej |
 | `POST` | `/ipam/import/preview` | `ipam:write` | `{ xml }` → `{ new, existing, unmatched, skipped }` — parsuje plik `nmap -oX` (maks. 5 MB i 10 000 hostów), dopasowuje adresy po CIDR i **niczego nie zapisuje** |
-| `POST` | `/ipam/import/apply` | `ipam:write` | `{ selections: [{ address, subnetId, description? }] }` → `{ imported }` — zapisuje wybrane pozycje w transakcji (`upsert` po `(subnetId, address)`, ustawia `lastSeenAt`, loguje jeden wpis audytu `ip_addresses.import`) |
+| `POST` | `/ipam/import/apply` | `ipam:write` | `{ selections: [{ address, subnetId, description? }] }` → `{ imported }` — zapisuje wybrane pozycje w transakcji (`upsert` po `(subnetId, address)`, ustawia `lastSeenAt`, nowym i dotychczas wolnym adresom nadaje status `IN_USE`, loguje jeden wpis audytu `ip_addresses.import`) |
 
 Lista adresów (`GET .../subnets/:id/addresses` i `addresses` w karcie
 `GET .../subnets/:id`) niesie w każdym wierszu `applications: [{ id, name }]`
