@@ -206,6 +206,71 @@ describe('wiersz nagłówka tabeli aplikacji', () => {
     );
   });
 
+  /**
+   * Kolejność kolumn w nagłówku i w wierszu.
+   *
+   * Osobna klasa błędu niż widoczność: nagłówek renderuje jedna lista
+   * `SORT_COLUMNS`, a komórki `ApplicationRow` pisze ręcznie jedna po
+   * drugiej. Nic w kodzie nie powiązuje tych dwóch miejsc, więc wpisanie
+   * „Wniosek o dostęp" w złym miejscu liście nie przeszkadza — nic się
+   * nie kompiluje, nic nie pada. Tabela po prostu pokazuje „Właściciel"
+   * nad cudzymi danymi.
+   *
+   * Objaw widać tylko po zalogowaniu: trzy kolumny ukrytych pól renderuje
+   * `ApplicationRow` warunkowo na `showRestricted`, więc u gościa nagłówek
+   * i wiersz zgadzają się przypadkiem, a rozjazd wychodzi dopiero tam, gdzie
+   * kolumny są. Dlatego sam test widoczności u góry tego pliku tego nie
+   * wychwycił.
+   */
+  it('nagłówek i wiersz mają tę samą kolejność kolumn', () => {
+    const zrodlo = strona();
+
+    // Etykiety w kolejności deklaracji w `SORT_COLUMNS`. „Akcje" doklejamy
+    // z ręki: to nagłówek bez danych, renderowany poza tą listą.
+    const blok = zrodlo.match(/const SORT_COLUMNS[^=]*=\s*\[([\s\S]*?)^\];/m);
+    assert.ok(blok, 'nie znaleziono listy SORT_COLUMNS w ApplicationsListPage.tsx');
+
+    const naglowek: string[] = [];
+    for (const wpis of blok[1]!.split('\n')) {
+      const etykieta = wpis.match(/label:\s*'([^']+)'/);
+      if (etykieta) naglowek.push(etykieta[1]!);
+    }
+    assert.ok(naglowek.length > 0, 'lista SORT_COLUMNS nie zawiera żadnej etykiety');
+    naglowek.push('Akcje');
+
+    // Kolejność kolumn w wierszu, odczytana z `ApplicationRow`. Każdy
+    // znacznik wskazuje inną komórkę — `Nazwa` renderuje się pierwsza i jest
+    // jedyną bez własnego, bo jako jedyna nie potrzebuje warunku.
+    const wiersz = zrodlo.slice(zrodlo.indexOf('function ApplicationRow'));
+    const komorki: Array<{ nazwa: string; znacznik: RegExp }> = [
+      { nazwa: 'Nazwa', znacznik: /<td/ },
+      { nazwa: 'Dostarczanie', znacznik: /DELIVERY_TYPE_TONES\[app\.deliveryType\]/ },
+      { nazwa: 'Status', znacznik: /STATUS_TONES\[app\.status\]/ },
+      { nazwa: 'Wniosek o dostęp', znacznik: /app\.accessRequestRequired/ },
+      { nazwa: 'Bezpieczeństwo', znacznik: /app\.securityClass/ },
+      { nazwa: 'Krytyczność', znacznik: /app\.criticality/ },
+      { nazwa: 'Właściciel', znacznik: /app\.ownerEmail/ },
+      { nazwa: 'Akcje', znacznik: /<RowActions/ },
+    ];
+
+    for (const komorka of komorki) {
+      assert.ok(
+        wiersz.search(komorka.znacznik) >= 0,
+        `nie znaleziono komórki „${komorka.nazwa}" w ApplicationRow — test nie ` +
+          'potrafi odczytać kolejności kolumn, więc porównanie byłoby pozorne',
+      );
+    }
+
+    assert.deepEqual(
+      naglowek,
+      komorki.map((k) => k.nazwa),
+      'kolejność kolumn w nagłówku nie zgadza się z kolejnością komórek ' +
+        `w wierszu — nagłówek pokazuje inną etykietę niż dane pod nim. ` +
+        `Nagłówek: ${naglowek.join(', ')}. ` +
+        `Wiersz: ${komorki.map((k) => k.nazwa).join(', ')}.`,
+    );
+  });
+
   it('dane ukrytych pól nie wracają z publicznej odpowiedzi', () => {
     // Ostatnia linia obrony: nawet gdyby kolumna wyciekła, wartości
     // nie ma w odpowiedzi dla gościa, więc nic poufnego nie pokaże.

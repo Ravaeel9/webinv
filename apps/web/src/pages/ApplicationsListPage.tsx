@@ -51,20 +51,36 @@ import { ApiError } from '../lib/api';
 const PAGE_SIZE = 25;
 
 /**
- * Kolumny sortowalne — nazwy pól muszą pokrywać się z białą listą
- * `SORTABLE` w API. Pilnuje tego `apps/api/test/sort-kolumn.test.ts`,
- * bo API ignoruje nieznane pole po cichu: strzałek by się nie ruszyła,
- * a użytkownik nie miałby pojęcia, dlaczego.
+ * Kolejność kolumn w tabeli — **musi odpowiadać kolejności `<td>` w
+ * `ApplicationRow`**. Te dwa miejsca są jedynym kontraktem: nagłówek
+ * renderuje ta lista, a komórki pisze ręcznie jedna po drugiej.
+ * Rozjazd między nimi nie przeszkadza w kompilacji ani w testach — tabela
+ * po prostu pokazuje inną etykietę niż dane pod nią. Pilnuje tego
+ * `apps/api/test/sort-kolumn.test.ts`.
+ *
+ * Nazwy pól sortowalnych muszą pokrywać się z białą listą `SORTABLE`
+ * w API — API ignoruje nieznane pole po cichu: strzałek by się nie
+ * ruszyła, a użytkownik nie miałby pojęcia, dlaczego.
+ *
+ * Wpis bez `sortBy` to kolumna niesortowalna: `SortableTh` renderuje
+ * wtedy zwykły `<Th>`, a `<th>` dostaje tę samą klasę `.table-head`, więc
+ * wygląda identycznie jak sortowalne.
  *
  * `guestHidden` = kolumna znika u gościa razem ze strzałką. Pola
  * bezpieczeństwa, krytyczności i właściciela nie są w jego widoku, więc
  * kolejność wierszy zdradziłaby ukrytą wartość — API i tak odrzuca takie
  * sortowanie (`GUEST_SORTABLE`).
  */
-const SORT_COLUMNS = [
+type Kolumna = { label: string; sortBy?: string; guestHidden?: boolean };
+
+const SORT_COLUMNS: Kolumna[] = [
   { label: 'Nazwa', sortBy: 'name' },
   { label: 'Dostarczanie', sortBy: 'deliveryType' },
   { label: 'Status', sortBy: 'status' },
+  // Niesortowalna: pola nie ma w modelu, a „Wniosek o dostęp" ma własny,
+  // niezależny mechanizm. Stoi tu, a nie na końcu listy, bo stoi tak
+  // w wierszu — czwarte miejsce, między statusem a klasyfikacjami.
+  { label: 'Wniosek o dostęp' },
   { label: 'Bezpieczeństwo', sortBy: 'securityClass', guestHidden: true },
   { label: 'Krytyczność', sortBy: 'criticality', guestHidden: true },
   { label: 'Właściciel', sortBy: 'ownerEmail', guestHidden: true },
@@ -433,7 +449,7 @@ export function ApplicationsListPage() {
                       (k) => !isGuest || !('guestHidden' in k) || !k.guestHidden,
                     ).map((kolumna) => (
                       <SortableTh
-                        key={kolumna.sortBy}
+                        key={kolumna.label}
                         label={kolumna.label}
                         sortBy={kolumna.sortBy}
                         currentSort={filters.sort}
@@ -441,9 +457,6 @@ export function ApplicationsListPage() {
                         className={kolumna.label === 'Nazwa' ? 'w-[26%]' : ''}
                       />
                     ))}
-                    {/* Brak sortowania: pole nie istnieje w modelu, a
-                        „Wniosek o dostęp" ma własny, niezależny mechanizm. */}
-                    <Th>Wniosek o dostęp</Th>
                     <Th className="w-10">
                       <span className="sr-only">Akcje</span>
                     </Th>

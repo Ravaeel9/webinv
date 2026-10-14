@@ -43,6 +43,11 @@ export function SortableTh({
   const negated = currentSort === `-${sortBy}`;
   const active = currentSort === sortBy || negated;
   const next = active && !negated ? `-${sortBy}` : sortBy;
+  // Kierunek bierzemy z `next`, nie z `negated`: etykieta opisuje **klik**,
+  // a `negated` mówi, jak **jest** teraz. Dla kolumny jeszcze nietkniętej
+  // oba wynoszą fałsz, ale klik zawsze daje `next` bez minusa, czyli
+  // rosnąco — czytanie `negated` kazałoby tam „malejąco".
+  const nextNegated = next.startsWith('-');
 
   return (
     <Th
@@ -58,7 +63,7 @@ export function SortableTh({
                    dark:focus-visible:outline-brand-400"
         // Sam strzałek mówi czytnikowi mniej niż zdanie; bez tego
         // „Sortuj po statusie rosnąco" nie da się odszykać.
-        aria-label={`Sortuj po „${label}” ${negated ? 'rosnąco' : 'malejąco'}`}
+        aria-label={`Sortuj po „${label}” ${nextNegated ? 'malejąco' : 'rosnąco'}`}
       >
         <span>{label}</span>
         {/* Strzałek pokazujemy tylko dla kolumny aktywnej: przy każdej
