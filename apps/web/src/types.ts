@@ -585,11 +585,17 @@ export const IP_STATUS_LABELS: Record<IpStatus, string> = {
 
 /**
  * Ton dobierany tak samo jak przy statusach aplikacji: `FREE` się odsuwa,
- * `IN_USE` niesie „to jest zajęte", `DEPRECATED` prosi o uwagi.
+ * `IN_USE` niesie „to jest zajęty", `DEPRECATED` prosi o uwagi.
+ *
+ * `IN_USE` ma ton `danger`, nie `ok` (zieleń): adres wskazany przez skan
+ * nmap jest zajęty, a zielona odznaka mówiłaby „wolny i wszystko gra".
+ * Odwrócenie znaczenia dotyczy też drugiego źródła `IN_USE` — importu
+ * z nmap, gdzie status oznacza „host odpowiada", a nie „wolne miejsce
+ * czeka do przydziału”.
  */
 export const IP_STATUS_TONES: Record<IpStatus, Tone> = {
   FREE: 'neutral',
-  IN_USE: 'ok',
+  IN_USE: 'danger',
   DEPRECATED: 'warn',
 };
 
