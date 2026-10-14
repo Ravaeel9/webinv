@@ -133,15 +133,6 @@ i **[docs/WDROZENIE.md](docs/WDROZENIE.md)**. Reszta:
 | [SECURITY.md](SECURITY.md) | model bezpieczeństwa, świadome ograniczenia, checklista przed wystawieniem |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | konwencje, przegląd zmian, migracje, wydanie |
 
-## Dane i prywatność
-
-- `.env`, `backups/` i `graphify-out/` **nigdy nie trafiają do repozytorium**
-  (patrz `.gitignore` i `.dockerignore`).
-- Repozytorium jest **prywatne**; w obrazach kontenerów nie ma dokumentacji ani
-  sekretów.
-- Kopie zapasowe bazy (`backups/*.sql.gz`) zawierają komplet danych rejestru —
-  traktuj je jak dane wrażliwe.
-
 ## Licencja
 
 Brak. Kod jest własnością organizacji; repozytorium prywatne, bez pliku
