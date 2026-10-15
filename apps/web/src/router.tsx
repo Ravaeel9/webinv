@@ -169,13 +169,11 @@ export const router = createBrowserRouter([
                 ),
               },
 
+              // Stary adres dziennika — przekierowanie, żeby zakładki nie
+              // lądowały w 404 po przeniesieniu widoku pod Ustawienia.
               {
                 path: 'audyt',
-                element: (
-                  <RequirePermission permission="audit:read">
-                    <AuditPage />
-                  </RequirePermission>
-                ),
+                element: <Navigate to="/ustawienia/dziennik" replace />,
               },
 
               {
@@ -184,11 +182,11 @@ export const router = createBrowserRouter([
                 // a nie o nazwie roli — zmiana roli nie powinna
                 // obchodzić trasy.
                 path: 'ustawienia',
-                element: (
-                  <RequirePermission permission="settings:write">
-                    <SettingsPage />
-                  </RequirePermission>
-                ),
+                element: <RequirePermission permission="settings:write" />,
+                children: [
+                  { index: true, element: <SettingsPage /> },
+                  { path: 'dziennik', element: <AuditPage /> },
+                ],
               },
 
               {

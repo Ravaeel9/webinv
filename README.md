@@ -110,9 +110,9 @@ Konto zakłada administrator (`admin` na starcie). Role:
 
 | Rola | Co może |
 |---|---|
-| **Obserwator** | przeglądać rejestr, katalog IP, dziennik zdarzeń i konta |
+| **Obserwator** | przeglądać rejestr, katalog IP i konta |
 | **Administrator** | j.w. plus edycja rejestru, katalogu IP i macierzy uprawnień oraz zarządzanie kontami |
-| **Super administrator** | j.w. plus panel ustawień (m.in. tryb demonstracyjny i kasowanie danych) |
+| **Super administrator** | j.w. plus panel ustawień (tryb demonstracyjny, kasowanie danych i dziennik zdarzeń) |
 
 Konto z hasłem nadanym przez administratora wchodzi wyłącznie na stronę „Moje
 konto" i musi ustawić własne hasło.

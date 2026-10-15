@@ -60,6 +60,7 @@ export function AuditPage() {
             ? undefined
             : `${total} ${total === 1 ? 'zdarzenie' : 'zdarzeń'}`
         }
+        back={{ to: '/ustawienia', label: 'Wróć do ustawień' }}
       />
 
       <div className="card mb-4 px-4 py-3">

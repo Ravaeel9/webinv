@@ -26,7 +26,7 @@ wymóg sesji — brak endpointu nie oznacza braku ochrony.
 
 | Rola | Uprawnienia |
 |---|---|
-| `VIEWER` (Obserwator) | `app:read`, `user:read`, `audit:read`, `ipam:read` |
+| `VIEWER` (Obserwator) | `app:read`, `user:read`, `ipam:read` |
 | `ADMIN` (Administrator) | `app:read`, `app:write`, `user:read`, `audit:read`, `ipam:read`, `ipam:write`, `access:read`, `access:write` |
 | `SUPER_ADMIN` (Super administrator) | wszystkie powyższe plus `user:write` i `settings:write` |
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { useAuth } from '../lib/auth';
 import {
   useDeleteDemoData,
@@ -6,10 +7,10 @@ import {
   useSetDemoMode,
 } from '../lib/queries';
 import { PageHeader } from '../components/layout/AppLayout';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClass } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ErrorMessage } from '../components/ui/Feedback';
-import { IconGear, IconTrash } from '../components/ui/icons';
+import { IconGear, IconHistory, IconTrash } from '../components/ui/icons';
 
 /**
  * Ustawienia systemowe.
@@ -147,6 +148,37 @@ export function SettingsPage() {
               <ErrorMessage error={kasuj.error} />
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="card-section mb-5">
+        <div className="card-section-header">
+          <span className="section-icon tone-info">
+            <IconHistory />
+          </span>
+          <h2 className="section-title">Dziennik zdarzeń</h2>
+        </div>
+
+        <div className="card-section-body">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-fg">
+                Historia operacji w systemie
+              </div>
+              <p className="mt-1 max-w-prose text-xs text-fg-muted">
+                Zapis kto, co i kiedy zmienił — z dokładną różnicą przed i po
+                edycji, filtrowaniem po encji, akcji i użytkowniku.
+              </p>
+            </div>
+
+            <Link
+              to="/ustawienia/dziennik"
+              className={`${buttonClass('secondary')} shrink-0`}
+            >
+              <IconHistory className="size-4" />
+              Otwórz dziennik zdarzeń
+            </Link>
+          </div>
         </div>
       </section>
 

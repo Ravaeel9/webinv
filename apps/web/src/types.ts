@@ -415,7 +415,7 @@ export type DemoModeState = {
 
 /** Uprawnienia — lustrzane odbicie apps/api/src/auth/permissions.ts */
 export const PERMISSIONS = {
-  VIEWER: ['app:read', 'user:read', 'audit:read', 'ipam:read'],
+  VIEWER: ['app:read', 'user:read', 'ipam:read'],
   ADMIN: [
     'app:read',
     'app:write',

@@ -6,7 +6,7 @@
  * przez zwykłego panel admina) i renderować UI bez duplikowania logiki.
  */
 export const PERMISSIONS = {
-  VIEWER: ['app:read', 'user:read', 'audit:read', 'ipam:read'],
+  VIEWER: ['app:read', 'user:read', 'ipam:read'],
   ADMIN: [
     'app:read',
     'app:write',

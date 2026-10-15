@@ -10,7 +10,6 @@ import {
   IconChevronLeft,
   IconGauge,
   IconGear,
-  IconHistory,
   IconLogout,
   IconMenu,
   IconNetwork,
@@ -40,7 +39,6 @@ const NAV = [
   // to ewidencja osób spoza panelu, a nie kont — mylenie ich w jednej liście
   // sugerowałoby, że każda osoba z dostępem ma też konto.
   { to: '/uprawnienia', label: 'Uprawnienia', icon: IconShield, permission: 'access:read', requiresAuth: true },
-  { to: '/audyt', label: 'Dziennik zdarzeń', icon: IconHistory, permission: 'audit:read', requiresAuth: true },
   // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo
   // i skasować 30 przykładowych rekordów naraz.
   { to: '/ustawienia', label: 'Ustawienia', icon: IconGear, permission: 'settings:write', requiresAuth: true },
