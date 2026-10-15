@@ -423,6 +423,10 @@ export const PERMISSIONS = {
     'audit:read',
     'ipam:read',
     'ipam:write',
+    // Macierz uprawnień do aplikacji — dane osobowe osób spoza panelu.
+    // Lustrzane odbicie `apps/api/src/auth/permissions.ts`.
+    'access:read',
+    'access:write',
   ],
   SUPER_ADMIN: [
     'app:read',
@@ -438,6 +442,10 @@ export const PERMISSIONS = {
     // adresy i podsieci to dane operacyjne, nie konfiguracja systemu.
     'ipam:read',
     'ipam:write',
+    // Macierz uprawnień do aplikacji — dane osobowe osób spoza panelu.
+    // Lustrzane odbicie `apps/api/src/auth/permissions.ts`.
+    'access:read',
+    'access:write',
   ],
 } as const satisfies Record<Role, readonly string[]>;
 
