@@ -317,7 +317,13 @@ export class AccessService {
     actor: AuthUser,
     ip?: string,
   ): Promise<AccessGrantDto> {
-    await this.requireApplication(applicationId);
+    const aplikacja = await this.requireApplication(applicationId);
+
+    if (aplikacja.deliveryType === 'GENERAL_USE') {
+      throw new BadRequestException(
+        'Aplikacje ogólnego użytku nie mają macierzy uprawnień.',
+      );
+    }
 
     const email = this.walidujEmail(dto.email);
 

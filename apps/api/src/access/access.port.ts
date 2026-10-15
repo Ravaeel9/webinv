@@ -72,11 +72,14 @@ export type AccessGrantWithRelations = AccessGrantWithPerson & {
   application: ApplicationRefRow;
 };
 
-/** Aplikacja w wersji okrojonej — nazwa i identyfikator wystarczą w macierzy. */
+export type DeliveryTypeName = 'GENERAL_USE' | 'SELF_HOSTED' | 'SAAS' | 'VENDOR_MANAGED';
+
+/** Aplikacja w wersji okrojonej — nazwa, identyfikator i typ dostarczenia wystarczą w macierzy. */
 export type ApplicationRefRow = {
   id: string;
   name: string;
   deletedAt: Date | null;
+  deliveryType?: DeliveryTypeName;
 };
 
 /** Warunek „pole zawiera tekst", tak jak go rozumie Prisma. */

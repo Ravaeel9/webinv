@@ -720,8 +720,8 @@ function useAccessInvalidate() {
 export function useGrantAccess() {
   const invalidate = useAccessInvalidate();
   return useMutation({
-    mutationFn: (wejscie: { applicationId: string } & Record<string, unknown>) =>
-      api.post<{ grant: ApplicationGrant }>(`/access/applications/${wejscie.applicationId}`, wejscie),
+    mutationFn: ({ applicationId, ...body }: { applicationId: string; [key: string]: unknown }) =>
+      api.post<{ grant: ApplicationGrant }>(`/access/applications/${applicationId}`, body),
     onSuccess: (_wynik, wejscie) => invalidate(wejscie.applicationId),
   });
 }

@@ -98,3 +98,44 @@ describe('Klucze zapytań modułu access', () => {
     }
   });
 });
+
+describe('Macierz uprawnień w interfejsie — wybór z katalogu i wyłączenie GENERAL_USE', () => {
+  const detail = read('apps', 'web', 'src', 'pages', 'ApplicationDetailPage.tsx');
+  const accessPage = read('apps', 'web', 'src', 'pages', 'AccessPage.tsx');
+  const modal = read('apps', 'web', 'src', 'components', 'access', 'PersonAccessModal.tsx');
+
+  it('karta szczegółów aplikacji ukrywa macierz uprawnień dla GENERAL_USE', () => {
+    assert.ok(
+      /can\('access:read'\)\s*&&\s*app\.deliveryType\s*!==\s*'GENERAL_USE'\s*&&[\s\S]*?<ApplicationAccessSection/.test(
+        detail,
+      ),
+      'ApplicationDetailPage musi chować <ApplicationAccessSection /> dla GENERAL_USE',
+    );
+  });
+
+  it('filtr aplikacji w zakładce Macierz pomija aplikacje GENERAL_USE', () => {
+    assert.ok(
+      accessPage.includes("deliveryType !== 'GENERAL_USE'"),
+      'MatrixTab w AccessPage musi odfiltrować aplikacje GENERAL_USE z listy wyboru',
+    );
+  });
+
+  it('PersonAccessModal pozwala wybierać wiele osób z listy i blokuje nieaktywne oraz mające już dostęp', () => {
+    assert.ok(
+      modal.includes('useApplicationAccess('),
+      'modal musi znać obecne przypisania aplikacji, aby wyłączyć osoby z dostępem',
+    );
+    assert.ok(
+      modal.includes('type="checkbox"'),
+      'modal musi mieć checkboxy do zaznaczania osób z listy',
+    );
+    assert.ok(
+      modal.includes('!osoba.isActive'),
+      'modal musi blokować zaznaczenie osób nieaktywnych',
+    );
+    assert.ok(
+      modal.includes('Dodaj nową osobę'),
+      'modal musi zachować awaryjny przełącznik do dodania nowej osoby spoza katalogu',
+    );
+  });
+});

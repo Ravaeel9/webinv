@@ -230,11 +230,13 @@ function MatrixTab() {
           }
         >
           <option value="">wszystkie</option>
-          {(aplikacje?.items ?? []).map((aplikacja) => (
-            <option key={aplikacja.id} value={aplikacja.id}>
-              {aplikacja.name}
-            </option>
-          ))}
+          {(aplikacje?.items ?? [])
+            .filter((aplikacja) => aplikacja.deliveryType !== 'GENERAL_USE')
+            .map((aplikacja) => (
+              <option key={aplikacja.id} value={aplikacja.id}>
+                {aplikacja.name}
+              </option>
+            ))}
         </Select>
         <TextInput
           label="Dział"

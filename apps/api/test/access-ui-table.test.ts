@@ -27,6 +27,7 @@ const PLIKI_ACCESS = [
   ['apps', 'web', 'src', 'pages', 'PersonDetailPage.tsx'],
   ['apps', 'web', 'src', 'components', 'access', 'ApplicationAccessSection.tsx'],
   ['apps', 'web', 'src', 'components', 'access', 'ImportPersonsModal.tsx'],
+  ['apps', 'web', 'src', 'components', 'access', 'PersonAccessModal.tsx'],
 ] as const;
 
 const table = read('apps', 'web', 'src', 'components', 'ui', 'Table.tsx');

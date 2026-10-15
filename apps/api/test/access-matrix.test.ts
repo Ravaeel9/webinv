@@ -204,6 +204,29 @@ describe('AccessService — macierz uprawnień', () => {
     );
   });
 
+  it('odrzuca nadanie dostępu dla aplikacji ogólnego użytku (GENERAL_USE)', async () => {
+    const aplikacja = {
+      id: randomUUID(),
+      name: '7-Zip',
+      deletedAt: null,
+      deliveryType: 'GENERAL_USE' as const,
+    };
+    const { port, osoby, granty } = fakeDb([aplikacja]);
+    const serwis = new AccessService(port, fakeAudit() as never);
+
+    await assert.rejects(
+      () =>
+        serwis.grantAccess(
+          aplikacja.id,
+          { email: 'a.x@firma.pl', firstName: 'Anna', lastName: 'X' },
+          actor,
+        ),
+      BadRequestException,
+    );
+    assert.equal(osoby.length, 0, 'nie wolno utworzyć osoby przy odrzuconym nadaniu');
+    assert.equal(granty.length, 0);
+  });
+
   it('zmiana poziomu i notatki nie rusza daty nadania', async () => {
     const { port, aplikacja } = zAplikacja();
     const serwis = new AccessService(port, fakeAudit() as never);

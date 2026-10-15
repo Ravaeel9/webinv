@@ -47,7 +47,7 @@ export function ApplicationAccessSection({ applicationId }: { applicationId: str
         {canWrite && (
           <Button size="sm" className="ml-auto" onClick={() => setDodawanie(true)}>
             <IconPlus className="size-4" />
-            Dodaj osobę
+            Wybierz osoby
           </Button>
         )}
       </div>
@@ -60,12 +60,12 @@ export function ApplicationAccessSection({ applicationId }: { applicationId: str
         {!isLoading && grants.length === 0 && (
           <EmptyState
             title="Nikt nie ma tu jeszcze dostępu"
-            description="Dodaj osoby mające dostęp do tej aplikacji — ich dane są ewidencją, a nie kontem do panelu."
+            description="Wybierz z katalogu osoby mające dostęp do tej aplikacji — ich dane są ewidencją, a nie kontem do panelu."
             action={
               canWrite ? (
                 <Button onClick={() => setDodawanie(true)}>
                   <IconPlus className="size-4" />
-                  Dodaj osobę
+                  Wybierz osoby
                 </Button>
               ) : undefined
             }

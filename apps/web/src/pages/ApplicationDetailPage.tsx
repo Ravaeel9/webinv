@@ -330,10 +330,12 @@ export function ApplicationDetailPage() {
         )}
 
         {/* Matryca uprawnień — tylko dla roli z `access:read` (ADMIN i
-            SUPER_ADMIN). Sekcja nie jest montowana u gościa ani u VIEWERA,
-            więc nie powstaje żądanie skończone 401, a na karcie nie ma
-            pustego nagłówka, do którego nie ma nic. */}
-        {can('access:read') && <ApplicationAccessSection applicationId={app.id} />}
+            SUPER_ADMIN) oraz dla usług (poza `GENERAL_USE`). Sekcja nie jest
+            montowana u gościa, u VIEWERA ani dla programów ogólnego użytku,
+            więc nie powstaje żądanie skończone 401 i nie ma pustej karty. */}
+        {can('access:read') && app.deliveryType !== 'GENERAL_USE' && (
+          <ApplicationAccessSection applicationId={app.id} />
+        )}
 
         {/* Adresy IP — ta sama reguła usługowa co wyżej (`SELF_HOSTED`),
             plus warunek sesji: `ipam:read` ma każda rola zalogowana
