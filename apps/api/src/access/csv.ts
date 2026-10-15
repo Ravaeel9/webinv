@@ -17,8 +17,14 @@ export const MAX_PERSON_ROWS = 2000;
 /** Pola osoby, które da się wypełnić z pliku. */
 export type PersonField = 'email' | 'firstName' | 'lastName' | 'position' | 'department' | 'isActive';
 
-/** Mapowanie: pole osoby → nazwa kolumny w pliku (pusta = brak). */
-export type HeaderMapping = Record<PersonField, string>;
+/**
+ * Mapowanie: pole osoby → nazwa kolumny w pliku.
+ *
+ * Pola opcjonalne, bo mapowanie przychodzi z DTO, gdzie administrator
+ * może zostawić pole puste: „ta kolumna nie wypełnia tego pola" i „brak
+ * klucza" znaczą tu dokładnie to samo.
+ */
+export type HeaderMapping = Partial<Record<PersonField, string>>;
 
 export type ParsedPersonRow = {
   line: number;
@@ -160,14 +166,14 @@ export function parseCsv(text: string): { header: string[]; rows: string[][] } {
 
 /** Dopasowuje nagłówki do pól osoby. */
 export function detectMapping(header: string[]): HeaderMapping {
-  const mapa = {
+  const mapa: HeaderMapping = {
     email: '',
     firstName: '',
     lastName: '',
     position: '',
     department: '',
     isActive: '',
-  } as HeaderMapping;
+  };
 
   for (const naglowek of header) {
     const klucz = normalizuj(naglowek);
@@ -233,11 +239,14 @@ export function parsePersonsCsv(text: string, mapping?: HeaderMapping): ParsedPe
     );
   }
 
-  const przypisane = new Set(Object.values(mapa).filter(Boolean));
+  const przypisane = new Set(Object.values(mapa).filter(Boolean) as string[]);
   const unmapped = header.filter((n) => !przypisane.has(n));
 
   const indeksy = Object.fromEntries(
-    (Object.keys(mapa) as PersonField[]).map((pole) => [pole, mapa[pole] ? header.indexOf(mapa[pole]) : -1]),
+    (Object.keys(mapa) as PersonField[]).map((pole) => {
+      const naglowek = mapa[pole];
+      return [pole, naglowek ? header.indexOf(naglowek) : -1];
+    }),
   ) as Record<PersonField, number>;
 
   const statusOdwrotny = KOLUMNY_ODWROTNE.has(normalizuj(mapa.isActive || ''));

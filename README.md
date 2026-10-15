@@ -16,6 +16,13 @@ kosztują i kiedy mają zostać wycofane.
   środowisku i typie dostarczenia; filtry zapisują się w adresie URL, więc
   widok można udostępnić koledze.
 - **Eksport CSV** — bieżący zbiór wyników, razem z zastosowanymi filtrami.
+- **Matryca uprawnień do aplikacji** — kto ma dostęp do której aplikacji i
+  na jakim poziomie (właściciel, administrator, użytkownik, tylko odczyt),
+  z datą nadania i wygaśnięcia. Osoby mające dostęp nie muszą mieć konta
+  w panelu: wystarczy imię, nazwisko, stanowisko i dział. To **ewidencja** —
+  dostęp nadaje się w narzędziu IAM, rejestr pokazuje, komu go nadano.
+- **Import osób z CSV** — np. eksport z Google Workspace; podgląd z podziałem
+  na nowe osoby, aktualizacje i błędy przed zapisem.
 - **Dziennik zdarzeń** — kto, co i kiedy zmienił, z dokładną różnicą.
 - **Import adresów z pliku nmap** — uzupełnienie katalogu IP wynikiem skanu.
 - **Motyw jasny i ciemny** — przełącznik w prawym górnym rogu.
@@ -27,11 +34,15 @@ kosztują i kiedy mają zostać wycofane.
   dostarczenia i wsparcia. Dzięki temu dostawca albo audytor sprawdzi, czy dana
   aplikacja w ogóle u nas jest, bez znajomości loginu i hasła.
 - **Panel** (po zalogowaniu) — pełne dane, edycja, pulpit, katalog IP,
-  zarządzanie kontami, dziennik zdarzeń i eksport CSV.
+  macierz uprawnień do aplikacji, zarządzanie kontami, dziennik zdarzeń
+  i eksport CSV.
 
 Granica jest egzekwowana **po stronie serwera** — brak sesji oznacza brak danych,
 filtra i sortowania po polach poufnych, a nie tylko ich ukrycie w interfejsie.
 Katalog IP należy wyłącznie do panelu: gość nie widzi nawet liczby podsieci.
+Także macierz uprawnień — zawiera dane osobowe osób spoza panelu, więc
+widzą ją tylko role z uprawnieniem `access:read` (administrator
+i super administrator).
 
 ## Szybki start
 
@@ -100,7 +111,7 @@ Konto zakłada administrator (`admin` na starcie). Role:
 | Rola | Co może |
 |---|---|
 | **Obserwator** | przeglądać rejestr, katalog IP, dziennik zdarzeń i konta |
-| **Administrator** | j.w. plus edycja rejestru i katalogu IP oraz zarządzanie kontami |
+| **Administrator** | j.w. plus edycja rejestru, katalogu IP i macierzy uprawnień oraz zarządzanie kontami |
 | **Super administrator** | j.w. plus panel ustawień (m.in. tryb demonstracyjny i kasowanie danych) |
 
 Konto z hasłem nadanym przez administratora wchodzi wyłącznie na stronę „Moje

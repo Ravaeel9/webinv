@@ -284,8 +284,10 @@ export class AccessService {
     applicationId: string,
     dto: {
       email: string;
-      firstName: string;
-      lastName: string;
+      // Opcjonalne: istniejącą osobę dodajemy samym e-mailem.
+      // Wymagamy ich dopiero wtedy, gdy naprawdę musimy utworzyć osobę.
+      firstName?: string;
+      lastName?: string;
       position?: string;
       department?: string;
       level?: AccessLevelName;
@@ -307,6 +309,13 @@ export class AccessService {
     }
 
     if (!osoba) {
+      // Osoba spoza katalogu: bez imienia i nazwiska nie da się jej zapisać,
+      // a komunikat ma powiedzieć wprost, czego brakuje.
+      if (!dto.firstName?.trim() || !dto.lastName?.trim()) {
+        throw new BadRequestException(
+          'Ta osoba nie ma jeszcze wpisu w katalogu — podaj też imię i nazwisko.',
+        );
+      }
       osoba = await this.prisma.person.create({
         data: this.walidujOsobe({
           firstName: dto.firstName,
