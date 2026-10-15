@@ -20,6 +20,8 @@ const TRASY: Array<[metoda: string, sciezka: string, uprawnienie: string]> = [
   ['Patch', 'applications/:id/:personId', 'access:write'],
   ['Delete', 'applications/:id/:personId', 'access:write'],
   ['Get', 'matrix', 'access:read'],
+  ['Post', 'import/preview', 'access:write'],
+  ['Post', 'import/apply', 'access:write'],
   ['Get', 'persons', 'access:read'],
   ['Get', 'persons/:id', 'access:read'],
   ['Post', 'persons', 'access:write'],

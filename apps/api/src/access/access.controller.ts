@@ -25,6 +25,10 @@ import {
   UpdateGrantDto,
   UpdatePersonDto,
 } from './dto/access.dto';
+import {
+  ApplyPersonsImportDto,
+  PreviewPersonsImportDto,
+} from './dto/import.dto';
 
 /**
  * Macierz uprawnień i katalog osób.
@@ -89,6 +93,26 @@ export class AccessController {
   @RequirePermission('access:read')
   async matrix(@Query() query: MatrixQueryDto) {
     return { rows: await this.access.matrix(query) };
+  }
+
+  // ─── Import osób z CSV ──────────────────────────────────────
+
+  /** Podgląd importu: klasyfikuje wiersze, nic nie zapisuje. */
+  @Post('import/preview')
+  @RequirePermission('access:write')
+  async previewImport(@Body() dto: PreviewPersonsImportDto) {
+    return this.access.previewPersonsImport(dto.csv, dto.mapping);
+  }
+
+  /** Zapis wybranych wierszy — serwis waliduje je ponownie. */
+  @Post('import/apply')
+  @RequirePermission('access:write')
+  async applyImport(
+    @Body() dto: ApplyPersonsImportDto,
+    @CurrentUser() actor: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return { result: await this.access.applyPersonsImport(dto.rows, actor, ip) };
   }
 
   // ─── Katalog osób ───────────────────────────────────────────

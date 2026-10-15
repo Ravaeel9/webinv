@@ -21,6 +21,12 @@ import {
   type PersonWhere,
   type PersonWithCounts,
 } from './access.port';
+import {
+  CsvError,
+  MAX_PERSON_ROWS,
+  parsePersonsCsv,
+  type HeaderMapping,
+} from './csv';
 
 /**
  * Katalog osób i macierz uprawnień do aplikacji.
@@ -488,6 +494,136 @@ export class AccessService {
     }));
   }
 
+  // ─── Import osób z CSV ──────────────────────────────────────
+
+  /**
+   * Podgląd importu: klasyfikuje każdy wiersz jako `NEW`, `UPDATE` lub
+   * `ERROR`. Nic tu nie jest zapisywane — podgląd ma być bezpieczny do
+   * klikania w kółko.
+   */
+  async previewPersonsImport(text: string, mapping?: HeaderMapping) {
+    const wczytany = this.wczytajCsv(text, mapping);
+
+    const rows = await Promise.all(
+      wczytany.rows.map(async (wiersz) => {
+        if (wiersz.errors.length > 0) {
+          return { ...wiersz, status: 'ERROR' as const, existingPersonId: null };
+        }
+        const istniejaca = await this.prisma.person.findFirst({
+          where: { email: wiersz.email },
+        });
+        return {
+          ...wiersz,
+          status: istniejaca ? ('UPDATE' as const) : ('NEW' as const),
+          existingPersonId: istniejaca?.id ?? null,
+        };
+      }),
+    );
+
+    return {
+      rows,
+      mapping: wczytany.mapping,
+      unmapped: wczytany.unmapped,
+      summary: {
+        total: rows.length,
+        create: rows.filter((r) => r.status === 'NEW').length,
+        update: rows.filter((r) => r.status === 'UPDATE').length,
+        invalid: rows.filter((r) => r.status === 'ERROR').length,
+      },
+    };
+  }
+
+  /**
+   * Zapis importu. Każdy wiersz jest walidowany od nowa — podgląd i zapis
+   * rozdziela przerwa w pracy, więc payload z przeglądarki traktujemy jako
+   * niezaufany. Wiersz, którego nie da się zapisać, jest pomijany
+   * i zliczany; pozostałe przechodzą.
+   */
+  async applyPersonsImport(
+    rows: ImportRowInput[],
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<{ created: number; updated: number; skipped: number }> {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException('Import nie zawiera żadnego wiersza.');
+    }
+    if (rows.length > MAX_PERSON_ROWS) {
+      throw new BadRequestException(
+        `Import przekracza limit ${MAX_PERSON_ROWS} wierszy.`,
+      );
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const wiersz of rows) {
+      let dane: ReturnType<AccessService['walidujOsobe']>;
+      try {
+        dane = this.walidujOsobe(wiersz);
+      } catch {
+        // Śmieciowy wiersz nie może wywracać całego importu — pomijamy
+        // go i pokazujemy licznik, z którego administrator widzi,
+        // że coś trzeba poprawić w pliku.
+        skipped++;
+        continue;
+      }
+
+      const istniejaca = await this.prisma.person.findFirst({
+        where: { email: dane.email },
+      });
+
+      if (istniejaca) {
+        await this.prisma.person.update({
+          where: { id: istniejaca.id },
+          data: {
+            firstName: dane.firstName,
+            lastName: dane.lastName,
+            // `undefined` znaczy „pliku tu nie było, nie ruszaj pola” —
+            // nadpisanie `null` skasowałoby ręcznie uzupełniony dział.
+            ...(dane.position !== undefined ? { position: dane.position } : {}),
+            ...(dane.department !== undefined ? { department: dane.department } : {}),
+            ...(dane.isActive !== undefined ? { isActive: dane.isActive } : {}),
+          },
+        });
+        updated++;
+      } else {
+        await this.prisma.person.create({ data: dane });
+        created++;
+      }
+    }
+
+    // Jeden wpis z liczbami: import tysiąca osób nie może zasypać dziennika
+    // tysiącem wierszy, bo nikt nigdy by go nie przeczytał.
+    await this.audit.record({
+      action: 'person.imported',
+      entity: 'Person',
+      entityId: null,
+      actorId: actor.id,
+      actorName: actor.username,
+      changes: {
+        created: { from: null, to: created },
+        updated: { from: null, to: updated },
+        skipped: { from: null, to: skipped },
+      },
+      ip,
+    });
+
+    return { created, updated, skipped };
+  }
+
+  /** Parser z ujednoliconym tłumaczeniem błędów wejścia na 400. */
+  private wczytajCsv(text: string, mapping?: HeaderMapping) {
+    try {
+      return parsePersonsCsv(text, mapping);
+    } catch (blad) {
+      if (blad instanceof CsvError) {
+        throw new BadRequestException(blad.message);
+      }
+      throw blad;
+    }
+  }
+
   /** Aplikacja musi istnieć i nie być oznaczona jako usunięta. */
   private async requireApplication(applicationId: string) {
     const aplikacja = await this.prisma.application.findUnique({
@@ -609,3 +745,17 @@ export class AccessService {
     return obcieta;
   }
 }
+/**
+ * Wiersz importu przychodzący od przeglądarki.
+ *
+ * Osobny typ od `ParsedPersonRow`, bo to dane niezaufane — serwis nie może
+ * użyć pola `errors` z podglądu zamiast walidować wiersz od nowa.
+ */
+export type ImportRowInput = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  position?: string;
+  department?: string;
+  isActive?: boolean;
+};
