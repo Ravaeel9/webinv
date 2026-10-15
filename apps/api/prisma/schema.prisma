@@ -17,6 +17,17 @@ enum Role {
   VIEWER // tylko odczyt
 }
 
+// ─── Macierz uprawnień do aplikacji ───────────────────────────
+// Poziom dostępu osoby do aplikacji. Inny niż `Role`: `Role` opisuje,
+// co ktoś może robić w panelu, a ten poziom — co dostał w samej aplikacji.
+// Nadajemy go w narzędziu IAM, a tutaj tylko ewidencjonujemy.
+enum AccessLevel {
+  OWNER     // właściciel
+  ADMIN     // administrator
+  USER      // użytkownik
+  READ_ONLY // tylko odczyt
+}
+
 // ─── Klasyfikacja bezpieczeństwa ──────────────────────────────
 enum SecurityClass {
   PUBLIC
@@ -205,6 +216,8 @@ model Application {
 
   // Środowiska
   environments ApplicationEnvironment[]
+  // Macierz uprawnień: kto ma dostęp do tej aplikacji
+  accessGrants ApplicationAccess[] @relation("AppAccess")
   // Adresy IP, pod którymi aplikacja odpowiada
   ipAddresses  ApplicationIpAddress[]
 
@@ -242,6 +255,64 @@ model Application {
   // Indeks częściowy `WHERE is_demo = true` — migracja go tworzy ręcznie,
   // bo Prisma nie umie deklarować indeksu częściowego w `@@index`.
   @@map("applications")
+}
+
+// ─── Osoby mające dostęp do aplikacji ──────────────────────────
+// Osobno od `User`, bo większość osób z ewidencji nie ma konta w panelu
+// i nie musi się logować — dostęp nadaje się w narzędziu IAM, a my
+// tylko zapisujemy, komu go nadano. Powiązanie z `User` byłoby więc
+// zmyśloną zależnością dla większości wierszy.
+model Person {
+  id        String @id @default(uuid()) @db.Uuid
+  firstName String @map("first_name") @db.VarChar(100)
+  lastName  String @map("last_name") @db.VarChar(100)
+  // Klucz tożsamości osoby. `@db.Citext` sprawia, że `Jan.Kowalski@firma.pl`
+  // i `jan.kowalski@firma.pl` to jeden adres — inaczej ta sama osoba
+  // wchodziłaby do katalogu dwa razy pod dwoma adresami.
+  email      String  @unique @db.Citext
+  // Stanowisko i dział jako wolny tekst: struktura organizacyjna zmienia się
+  // częściej niż schemat bazy, a słowniki wymuszałyby migrację przy każdej
+  // reorganizacji działów.
+  position   String? @db.VarChar(150)
+  department String? @db.VarChar(150)
+  // Nie kasujemy osoby, tylko ją wyłączamy — jej przypisania w macierzach
+  // innych aplikacji muszą zostać czytelne i widoczne.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  access ApplicationAccess[]
+
+  @@index([lastName])
+  @@map("persons")
+}
+
+// Jedno przypisanie: ta osoba ma dostęp do tej aplikacji na tym poziomie.
+// Klucz złożony zabrania wpisania tej samej osoby dwa razy do tej samej
+// aplikacji — to była najczęstsza pomyłka przy ręcznym prowadzeniu ewidencji.
+model ApplicationAccess {
+  applicationId String      @map("application_id") @db.Uuid
+  personId      String      @map("person_id") @db.Uuid
+  level         AccessLevel @default(USER)
+  grantedOn     DateTime    @default(now()) @map("granted_on") @db.Date
+  // Dostęp tymczasowy. Data wygasania nie kasuje wiersza — historia
+  // nadania zostaje, a wiersz oznacza w macierzy jako wygasły.
+  expiresOn DateTime? @map("expires_on") @db.Date
+  note      String?   @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  application Application @relation("AppAccess", fields: [applicationId], references: [id], onDelete: Cascade)
+  // onDelete: Cascade przy osobie też jest bezpieczne: dezaktywację robimy
+  // przez `isActive=false`, więc kasowanie zdarza się tylko przy naprawdę
+  // błędnym wpisie — i wtedy jego przypisania są już nieaktualne.
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([applicationId, personId])
+  @@index([personId])
+  @@index([expiresOn])
+  @@map("application_access")
 }
 
 // ─── Podsieci i adresy IP ──────────────────────────────────────
