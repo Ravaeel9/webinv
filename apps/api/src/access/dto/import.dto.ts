@@ -12,28 +12,6 @@ import {
 import { MAX_CSV_BYTES, MAX_PERSON_ROWS } from '../csv';
 
 /**
- * Import CSV.
- *
- * Plik leci jako **tekst w JSON**, a nie jako `multipart` — dokładnie tak,
- * jak przy imporcie nmap. Dzięki temu nie ma jednorazowych plików na dysku,
- * a limit rozmiaru jest zwykłym `@MaxLength`.
- */
-export class PreviewPersonsImportDto {
-  @IsString()
-  @MaxLength(MAX_CSV_BYTES, { message: 'Plik przekracza maksymalny rozmiar 2 MB.' })
-  csv!: string;
-
-  /**
-   * Poprawione przez administratora przypisanie kolumn. Pusta wartość pola
-   * znaczy „ta kolumna nie wypełnia tego pola”, a nie „wyczyść”.
-   */
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => HeaderMappingDto)
-  mapping?: HeaderMappingDto;
-}
-
-/**
  * Mapowanie kolumn: pole osoby → nagłówek z pliku.
  *
  * Nagłówek to obcy tekst, więc jest walidowany jako tekst, a nie jako nazwa
@@ -57,6 +35,37 @@ export class HeaderMappingDto {
 
   @IsOptional() @IsString() @MaxLength(200)
   isActive?: string;
+}
+
+/**
+ * Import CSV.
+ *
+ * Plik leci jako **tekst w JSON**, a nie jako `multipart` — dokładnie tak,
+ * jak przy imporcie nmap. Dzięki temu nie ma jednorazowych plików na dysku,
+ * a limit rozmiaru jest zwykłym `@MaxLength`.
+ *
+ * `HeaderMappingDto` jest zadeklarowane **wyżej** w tym pliku celowo:
+ * TypeScript przy dekoratorach `@Type(() => X)` emituje `design:type: X`
+ * w emitowanym kodzie, a `X` musi wtedy już istnieć. Klasy deklarowanej niżej
+ * nie ma jeszcze w zmiennych modułu w chwili, gdy liczy się metadane — i
+ * produkcyjny obraz padał na `Cannot access 'HeaderMappingDto' before
+ * initialization`, podczas gdy testy przez `tsx` przechodziły (esbuild nie
+ * emituje `design:type`). Kolejność deklaracji pilnuje test w
+ * `access-dto.test.ts`.
+ */
+export class PreviewPersonsImportDto {
+  @IsString()
+  @MaxLength(MAX_CSV_BYTES, { message: 'Plik przekracza maksymalny rozmiar 2 MB.' })
+  csv!: string;
+
+  /**
+   * Poprawione przez administratora przypisanie kolumn. Pusta wartość pola
+   * znaczy „ta kolumna nie wypełnia tego pola”, a nie „wyczyść”.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => HeaderMappingDto)
+  mapping?: HeaderMappingDto;
 }
 
 /**

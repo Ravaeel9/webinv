@@ -14,6 +14,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { read } from './helpers/repo';
 import {
   CreatePersonDto,
   UpdatePersonDto,
