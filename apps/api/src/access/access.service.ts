@@ -82,10 +82,21 @@ export class AccessService {
       ];
     }
 
-    return this.prisma.person.findMany({
+    const osoby = await this.prisma.person.findMany({
       where,
       orderBy: this.sortOsoby(filters.sort),
-    });
+      // `_count` jest jedynym sposobem, żeby kolumna „Aplikacje” w katalogu
+      // osób miała prawdziwą wartość zamiast `undefined` — jedno zapytanie
+      // jest tańsze niż pobranie przypisań i policzenie ich w serwisie.
+      include: { _count: { select: { access: true } } },
+    } as never);
+
+    // Prisma zwraca licznik jako `_count.access`; nazwa, której używa
+    // interfejs, to dopiero wynik tego przeniesienia. Bez tego katalog osób
+    // pokazywałby w kolumnie „Aplikacje” wartość `undefined`.
+    return (osoby as unknown as Array<PersonRow & { _count?: { access: number } }>).map(
+      (osoba) => ({ ...osoba, accessCount: osoba._count?.access ?? 0 }),
+    );
   }
 
   /**
@@ -94,8 +105,10 @@ export class AccessService {
    * dokładnie jak w `SORTABLE` modułu aplikacji.
    */
   private sortOsoby(sort?: string): PersonOrderBy {
-    const dozwolone: PersonOrderBy[] = ['lastName', 'department', 'createdAt'];
-    return dozwolone.includes(sort as PersonOrderBy) ? (sort as PersonOrderBy) : 'lastName';
+    const dozwolone = ['lastName', 'department', 'createdAt'];
+    const pole = dozwolone.includes(sort ?? '') ? sort! : 'lastName';
+    // Obiekt, nie nazwa pola: Prisma odrzuca goły napis w `orderBy`.
+    return { [pole]: 'asc' };
   }
 
   async getPerson(id: string): Promise<PersonRow> {
@@ -165,6 +178,12 @@ export class AccessService {
     ip?: string,
   ): Promise<PersonRow> {
     const przed = await this.getPerson(id);
+
+    // Nazwy przez tę samą walidację co przy tworzeniu. `@MinLength(1)` w DTO
+    // przepuszcza ciąg samych spacji, a w katalogu i w macierzy zostałaby
+    // osoba widoczna jako samo „Nazwisko".
+    if (dto.firstName !== undefined) this.wymagajTekstu(dto.firstName, 'Imię');
+    if (dto.lastName !== undefined) this.wymagajTekstu(dto.lastName, 'Nazwisko');
 
     const data: Partial<PersonRow> = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName.trim();
@@ -242,7 +261,8 @@ export class AccessService {
     await this.requireApplication(applicationId);
     const granty = (await this.prisma.applicationAccess.findMany({
       where: { applicationId },
-      orderBy: 'person',
+      include: { person: true },
+      orderBy: { person: { lastName: 'asc' } },
     })) as AccessGrantWithPerson[];
     return granty.map((g) => this.formatGrant(g, g.person));
   }
@@ -300,6 +320,13 @@ export class AccessService {
     await this.requireApplication(applicationId);
 
     const email = this.walidujEmail(dto.email);
+
+    // Walidacja daty wygaśnięcia **przed** jakimkolwiek zapisem. Jeśli później,
+    // to odrzucone nadanie zostawiałoby w katalogu osobę utworzoną „w trakcie”
+    // albo nadpisywało dział osoby istniejącej — a administrator widziałby 400
+    // i nie wiedziałby, że katalog jednak się zmienił.
+    const expiresOn = this.walidujWygasanie(dto.expiresOn, true);
+
     let osoba = await this.prisma.person.findFirst({ where: { email } });
 
     if (osoba && !osoba.isActive) {
@@ -338,15 +365,13 @@ export class AccessService {
     }
 
     const istniejace = await this.prisma.applicationAccess.findUnique({
-      where: { applicationId, personId: osoba.id },
+      where: { applicationId_personId: { applicationId, personId: osoba.id } },
     });
     if (istniejace) {
       throw new ConflictException(
         `Ta osoba ma już dostęp do tej aplikacji (poziom ${istniejace.level}).`,
       );
     }
-
-    const expiresOn = this.walidujWygasanie(dto.expiresOn, true);
 
     const grant = await this.prisma.applicationAccess.create({
       data: {
@@ -386,7 +411,7 @@ export class AccessService {
     ip?: string,
   ): Promise<AccessGrantDto> {
     const przed = await this.prisma.applicationAccess.findUnique({
-      where: { applicationId, personId },
+      where: { applicationId_personId: { applicationId, personId } },
     });
     if (!przed) throw new NotFoundException('To przypisanie nie istnieje.');
 
@@ -399,7 +424,7 @@ export class AccessService {
     if (dto.note !== undefined) data.note = dto.note === null ? null : this.walidujNotatke(dto.note);
 
     const grant = await this.prisma.applicationAccess.update({
-      where: { applicationId, personId },
+      where: { applicationId_personId: { applicationId, personId } },
       data: data as never,
     });
 
@@ -431,12 +456,14 @@ export class AccessService {
     ip?: string,
   ): Promise<void> {
     const grant = await this.prisma.applicationAccess.findUnique({
-      where: { applicationId, personId },
+      where: { applicationId_personId: { applicationId, personId } },
     });
     if (!grant) throw new NotFoundException('To przypisanie nie istnieje.');
 
     const osoba = await this.prisma.person.findUnique({ where: { id: personId } });
-    await this.prisma.applicationAccess.delete({ where: { applicationId, personId } });
+    await this.prisma.applicationAccess.delete({
+      where: { applicationId_personId: { applicationId, personId } },
+    });
 
     await this.audit.record({
       action: 'access.revoked',
@@ -468,12 +495,14 @@ export class AccessService {
     if (filters.applicationId) where.applicationId = filters.applicationId;
     if (filters.personId) where.personId = filters.personId;
     if (filters.level) where.level = filters.level;
-    if (filters.department) where.person = { isActive: undefined };
 
     const granty = (await this.prisma.applicationAccess.findMany({
       where,
-      include: { application: true },
-      orderBy: 'person',
+      // Oba warunki są konieczne: bez `person` wiersz nie ma nazwiska,
+      // a bez `application` nie ma nazwy aplikacji. Prisma nie dołącza
+      // relacji domyślnie — jawny `include` albo 500 przy `undefined`.
+      include: { person: true, application: true },
+      orderBy: [{ application: { name: 'asc' } }, { person: { lastName: 'asc' } }],
     })) as AccessGrantWithRelations[];
 
     // Filtr działu jedziemy po stronie serwisu: dział to wolny tekst bez
@@ -566,7 +595,21 @@ export class AccessService {
     let updated = 0;
     let skipped = 0;
 
+    // Duplikaty w **jednym** payloadzie. Podgląd je wykrywa, ale między
+    // podglądem a zapisem payload może trafić z innego klienta (albo zostać
+    // podmieniony) — bez tego sprawdzenia drugi wiersz z tym samym e-mailem
+    // nadpisałby pierwszy po cichu („ostatni wygrywa").
+    const widziane = new Set<string>();
+    let duplikaty = 0;
+
     for (const wiersz of rows) {
+      const klucz = (wiersz.email ?? '').trim().toLowerCase();
+      if (klucz && widziane.has(klucz)) {
+        duplikaty++;
+        continue;
+      }
+      if (klucz) widziane.add(klucz);
+
       let dane: ReturnType<AccessService['walidujOsobe']>;
       try {
         dane = this.walidujOsobe(wiersz);
@@ -601,6 +644,10 @@ export class AccessService {
         created++;
       }
     }
+
+    // Duplikaty z payloadu liczymy jako pominięte — administrator widzi
+    // w liczniku, że plik wymaga poprawki.
+    skipped += duplikaty;
 
     // Jeden wpis z liczbami: import tysiąca osób nie może zasypać dziennika
     // tysiącem wierszy, bo nikt nigdy by go nie przeczytał.
@@ -656,7 +703,11 @@ export class AccessService {
     if (Number.isNaN(data.getTime())) {
       throw new BadRequestException(`„${wartosc}" nie jest datą.`);
     }
-    if (odrzucPrzeszle && data.getTime() < Date.now()) {
+    // Porównanie **po dacie**, nie po znaczniku czasu: `new Date('RRRR-MM-DD')`
+    // to północ UTC, więc „wygaśnie dzisiaj" (kolumna `@db.Date`, bez godziny)
+    // wypadałoby wcześniej niż `Date.now()` i zostałoby odrzucone jako
+    // „w przeszłości". Dostęp do końca dziś jest normalnym wyborem.
+    if (odrzucPrzeszle && this.data(data) < this.data(new Date())) {
       throw new BadRequestException('Data wygaśnięcia nie może być w przeszłości.');
     }
     return data;
@@ -741,6 +792,16 @@ export class AccessService {
       throw new BadRequestException('Adres e-mail ma maksymalnie 200 znaków.');
     }
     return wartosc;
+  }
+
+  /** Wymaga niepustej wartości — pusty tekst po trimowaniu jest błędem. */
+  private wymagajTekstu(wartosc: string, etykieta: string): void {
+    if (!wartosc || !wartosc.trim()) {
+      throw new BadRequestException(`Podaj ${etykieta.toLowerCase()}.`);
+    }
+    if (wartosc.trim().length > 100) {
+      throw new BadRequestException(`${etykieta} ma maksymalnie 100 znaków.`);
+    }
   }
 
   /** Pole opcjonalne: brak to `null`, nie pusty tekst. */

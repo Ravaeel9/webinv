@@ -70,6 +70,21 @@ const ALIASY: Record<PersonField, string[]> = {
   isActive: ['suspended', 'archived', 'status', 'nieaktywny', 'aktywnosc', 'zawieszony', 'disabled'],
 };
 
+/**
+ * Aliasy znormalizowane raz, przy definicji.
+ *
+ * `normalizuj` zdejmuje diakrytyki z **nagłówka z pliku**, ale lista aliasów
+ * jest pisana bez polskich znaków (`dzial`, `zespol`). Gdyby porównanie szło
+ * surowym tekstem, nagłówek „Dział" nigdy nie pasowałby do aliasu `dzial` —
+ * a plik polskiego eksportu przestałby wypełniać dział po cichu.
+ */
+const ALIASY_ZNORMALIZOWANE: Record<PersonField, string[]> = Object.fromEntries(
+  (Object.entries(ALIASY) as Array<[PersonField, string[]]>).map(([pole, aliasy]) => [
+    pole,
+    aliasy.map(normalizuj),
+  ]),
+) as Record<PersonField, string[]>;
+
 /** Wartości kolumny statusu, które oznaczają osobę aktywną. */
 const AKTYWNE = ['', 'true', 'yes', 'tak', 'aktywny', 'aktywna', 'aktywne', '1'];
 /** …a te — nieaktywną. */
@@ -79,10 +94,14 @@ function normalizuj(naglowek: string): string {
   return naglowek
     .trim()
     .toLowerCase()
-    // Polskie znaki z „Adres e‑mail" w UTF-8 i z Windows-1250 muszą dać
+    // Polskie znaki z „Adres e-mail" w UTF-8 i z Windows-1250 muszą dać
     // ten sam klucz, inaczej jedna kopia pliku przestaje się rozpoznawać.
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
+    // `ł` nie rozkłada się w NFD — to litera z kreską, a nie znak łączący.
+    // Bez tej zamiany nagłówek „Dział" nigdy nie pasowałby do aliasu `dzial`
+    // i polski eksport wypełniałby dział po cichu.
+    .replace(/ł/g, 'l')
     .replace(/\s+/g, ' ');
 }
 
@@ -177,8 +196,11 @@ export function detectMapping(header: string[]): HeaderMapping {
 
   for (const naglowek of header) {
     const klucz = normalizuj(naglowek);
-    for (const [pole, aliasy] of Object.entries(ALIASY) as Array<[PersonField, string[]]>) {
-      if (mapa[pole] === '' && aliasy.some((alias) => normalizuj(alias) === klucz)) {
+    for (const [pole, aliasy] of Object.entries(ALIASY_ZNORMALIZOWANE) as Array<[
+      PersonField,
+      string[],
+    ]>) {
+      if (mapa[pole] === '' && aliasy.includes(klucz)) {
         mapa[pole] = naglowek;
       }
     }

@@ -200,17 +200,28 @@ export function AuditPage() {
 
 /** Odznika zdarzenia: czerwień dla operacji nieudanych. */
 function ActionTone({ action }: { action: string }) {
-  const failed = action.includes('failed') || action.includes('revoked');
+  // `revoked` to nie błąd — administrator zamknął sesje albo odebrał
+  // dostęp do aplikacji, celem i z podziękowaniem, więc ton neutralny.
+  // Wcześniej oba przypadki miały tę samą klasę sklepaną ręcznie, co
+  // oznaczało przezroczyste `dark:bg-rose-500/15`, którego kontrastu nie
+  // da się policzyć.
+  //
+  // Odznaka nazywa to, co **zdarzenie** zrobiło: „odebrano dostęp” przy
+  // macierzy, „sesje zamknięte” przy kontach. Jedna etykieta dla obu
+  // sugerowałaby, że odebranie uprawnień to zamknięcie sesji.
+  if (action.includes('failed')) {
+    return (
+      <Badge tone="danger" dot={false}>
+        niepowodzenie
+      </Badge>
+    );
+  }
 
-  if (!failed) return null;
+  if (!action.includes('revoked')) return null;
 
-  // `revoked` to nie błąd — administrator zamknął sesje celem, więc ton
-  // neutralny. Wcześniej oba przypadki miały tę samą klasę sklepaną
-  // ręcznie, co oznaczało przezroczyste `dark:bg-rose-500/15`, którego
-  // kontrastu nie da się policzyć.
   return (
-    <Badge tone={action.includes('failed') ? 'danger' : 'neutral'} dot={false}>
-      {action.includes('failed') ? 'niepowodzenie' : 'sesje zamknięte'}
+    <Badge tone="neutral" dot={false}>
+      {action.startsWith('access.') ? 'dostęp odebrany' : 'sesje zamknięte'}
     </Badge>
   );
 }

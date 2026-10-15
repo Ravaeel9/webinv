@@ -1,3 +1,12 @@
+-- Rozszerzenie CITEXT dla kolumny `persons.email`.
+--
+-- W instalacji dockerowej tworzy je `docker/init/10-extensions.sql`, ale
+-- tylko przy pierwszym `initdb`. Bez tego polecenia migracja padała na
+-- `type "citext" does not exist` wszędzie indziej: odtworzony backup na
+-- świeżym Postgresie, baza deweloperska postawiona ręcznie, managed DB.
+-- `IF NOT EXISTS` czyni je idempotentnym.
+CREATE EXTENSION IF NOT EXISTS citext;
+
 -- CreateEnum
 CREATE TYPE "AccessLevel" AS ENUM ('OWNER', 'ADMIN', 'USER', 'READ_ONLY');
 

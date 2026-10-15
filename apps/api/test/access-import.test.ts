@@ -175,6 +175,23 @@ describe('Import osób — zapis', () => {
     assert.equal(osoby.length, 1);
   });
 
+  it('ten sam e-mail w payloadzie jest pomijany, nie nadpisuje po cichu', async () => {
+    const { serwis, osoby } = zSerwisem();
+
+    const wynik = await serwis.applyPersonsImport(
+      [
+        { email: 'anna.zalewska@firma.pl', firstName: 'Anna', lastName: 'Zalewska', department: 'IT' },
+        { email: 'ANNA.ZALEWSKA@firma.pl', firstName: 'Druga', lastName: 'Wersja', department: 'Kadry' },
+      ],
+      actor,
+    );
+
+    assert.deepEqual(wynik, { created: 1, updated: 0, skipped: 1 });
+    assert.equal(osoby.length, 1);
+    assert.equal(osoby[0]!.firstName, 'Anna');
+    assert.equal(osoby[0]!.department, 'IT');
+  });
+
   it('pusty payload jest błędem, a nie „importem 0 osób"', async () => {
     const { serwis } = zSerwisem();
     await assert.rejects(() => serwis.applyPersonsImport([], actor), BadRequestException);

@@ -113,6 +113,21 @@ describe('AccessService — katalog osób', () => {
     await assert.rejects(() => serwis.deactivatePerson(randomUUID(), actor), NotFoundException);
   });
 
+  it('edycja odrzuca nazwę składającą się z samej spacji', async () => {
+    const { port } = fakeDb();
+    const serwis = new AccessService(port, fakeAudit() as never);
+    const osoba = await serwis.createPerson(JAN, actor);
+
+    await assert.rejects(
+      () => serwis.updatePerson(osoba.id, { firstName: '   ' }, actor),
+      BadRequestException,
+    );
+    await assert.rejects(
+      () => serwis.updatePerson(osoba.id, { lastName: '' }, actor),
+      BadRequestException,
+    );
+  });
+
   it('lista osób zwraca liczbę przypisań i filtruje po aktywności', async () => {
     const { port } = fakeDb();
     const serwis = new AccessService(port, fakeAudit() as never);
@@ -128,6 +143,13 @@ describe('AccessService — katalog osób', () => {
 
     const aktywni = await serwis.listPersons({ includeInactive: false });
     assert.deepEqual(aktywni.map((o) => o.email), ['jan.kowalski@firma.pl']);
+
+    // Licznik musi być liczbą także wtedy, gdy dopiero co dodano przypisanie:
+    // na żywej bazie `_count.access` wraca z Prisma jako obiekt i bez jawnego
+    // przeniesienia kolumna „Aplikacje” pokazywała `undefined`.
+    const zGrantem = await serwis.listPersons({ includeInactive: true });
+    assert.equal(typeof zGrantem[0]!.accessCount, 'number');
+    assert.equal(zGrantem[0]!.accessCount, 0);
   });
 
   it('szukanie po nazwisku nie zwraca osób z innego działu', async () => {

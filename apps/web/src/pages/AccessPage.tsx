@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useAccessMatrix, usePersons } from '../lib/queries';
+import { useAccessMatrix, useApplications, usePersons } from '../lib/queries';
 import { accessMatrixCsv } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
@@ -174,10 +174,18 @@ function PersonsTab() {
   );
 }
 
-/** Macierz zbiorcza: osoba × aplikacja × poziom, plus eksport CSV. */
+/**
+ * Macierz zbiorcza: osoba × aplikacja × poziom, plus eksport CSV.
+ *
+ * Filtr aplikacji jest listą rozwijaną zasilaną z rejestru, a nie wolnym
+ * tekstem na identyfikator — pytanie brzmi „dostęp do czego", nie „jaki UUID".
+ */
 function MatrixTab() {
   const [filters, setFilters] = useState<AccessMatrixFilters>({});
   const { data, isLoading, error } = useAccessMatrix(filters);
+  // Pełna lista tylko po nazwy; limit wystarczy na filtr, a pobieranie
+  // wszystkich stron rejestru dla jednego selecta byłoby niepotrzebne.
+  const { data: aplikacje } = useApplications({ offset: 0, limit: 500 });
 
   const rows = data?.rows ?? [];
 
@@ -191,12 +199,28 @@ function MatrixTab() {
     kotwica.click();
     // Adres obiektu trzymamy w pamięci przeglądarki, więc trzeba go zwolnić
     // po kliknięciu — inaczej plik zostaje w pamięci do odświeżenia strony.
-    URL.revokeObjectURL(adres);
+    // Nie natychmiast: w części przeglądarek natychmiastowe unieważnienie
+    // anuluje pobieranie, które dopiero co wystartowało.
+    setTimeout(() => URL.revokeObjectURL(adres), 1000);
   };
 
   return (
     <>
       <div className="card mb-4 flex flex-wrap items-end gap-3 px-4 py-3">
+        <Select
+          label="Aplikacja"
+          value={filters.applicationId ?? ''}
+          onChange={(e) =>
+            setFilters((f) => ({ ...f, applicationId: e.target.value || undefined }))
+          }
+        >
+          <option value="">wszystkie</option>
+          {(aplikacje?.items ?? []).map((aplikacja) => (
+            <option key={aplikacja.id} value={aplikacja.id}>
+              {aplikacja.name}
+            </option>
+          ))}
+        </Select>
         <TextInput
           label="Dział"
           value={filters.department ?? ''}

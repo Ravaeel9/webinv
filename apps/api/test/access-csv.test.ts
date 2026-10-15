@@ -83,6 +83,25 @@ describe('detectMapping', () => {
     assert.equal(mapa.position, 'Stanowisko');
   });
 
+  it('polskie nagłówki z diakrytykami trafiają do właściwych pól', () => {
+    const mapa = detectMapping(['E-mail', 'Imię', 'Nazwisko', 'Dział', 'Stanowisko']);
+    assert.deepEqual(mapa, {
+      email: 'E-mail',
+      firstName: 'Imię',
+      lastName: 'Nazwisko',
+      department: 'Dział',
+      position: 'Stanowisko',
+      isActive: '',
+    });
+
+    const { rows } = parsePersonsCsv(
+      'E-mail;Imię;Nazwisko;Dział;Stanowisko\na@f.pl;Jan;Kowalski;Księgowość;Księgowy\n',
+    );
+    assert.deepEqual(rows[0]!.errors, []);
+    assert.equal(rows[0]!.department, 'Księgowość');
+    assert.equal(rows[0]!.position, 'Księgowy');
+  });
+
   it('nieznane nagłówki nie są przypisywane do pól', () => {
     const mapa = detectMapping(['Email', 'Imię', 'Nazwisko', 'Kod kosztu']);
     assert.equal(mapa.position, '', 'nieznany nagłówek nie trafia do żadnego pola');

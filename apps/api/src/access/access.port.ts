@@ -29,7 +29,13 @@ export type PersonRow = {
   updatedAt: Date;
 };
 
-/** Osoba wraz z liczbą przypisań — do katalogu osób. */
+/**
+ * Osoba wraz z liczbą przypisań — do katalogu osób.
+ *
+ * Licznik pochodzi z `_count` w zapytaniu, nie z liczenia w serwisie:
+ * jedno zapytanie z `_count` jest tańsze niż pobranie wszystkich
+ * przypisań i zsumowanie ich w pamięci.
+ */
 export type PersonWithCounts = PersonRow & { accessCount: number };
 
 /** Wiersz `ApplicationAccess` — pola skalarny modelu, bez relacji. */
@@ -89,8 +95,13 @@ export type PersonWhere = {
   }>;
 };
 
-/** Sortowanie dozwolone w katalogu — nazwa pola z UI musi tu pasować. */
-export type PersonOrderBy = 'lastName' | 'department' | 'createdAt';
+/**
+ * Sortowanie dozwolone w katalogu — nazwa pola z UI musi tu pasować.
+ *
+ * Wartość to obiekt Prisma (`{ lastName: 'asc' }`), a nie nazwa pola:
+ * Prisma przyjmuje obiekt albo tablicę obiektów i **odrzuca** goły napis.
+ */
+export type PersonOrderBy = Record<string, 'asc' | 'desc'>;
 
 export type PersonFindManyArgs = {
   where?: PersonWhere;
@@ -119,16 +130,30 @@ export interface PersonDelegate {
   count(args: { where?: PersonWhere }): Promise<number>;
 }
 
+/**
+ * Klucz złożony przypisania.
+ *
+ * Prisma nie przyjmuje płaskiego `{ applicationId, personId }` dla klucza
+ * głównego złożonego — trzeba podać go jako jedno pole
+ * `applicationId_personId`. Płaska postać wygląda naturalnie, więc błąd
+ * wychodzi dopiero na żywej bazie, jako 500.
+ */
+export type GrantKey = {
+  applicationId_personId: { applicationId: string; personId: string };
+};
+
 export interface GrantDelegate {
   findMany(args: {
     where?: GrantWhere;
-    include?: { person?: false; application?: true };
-    orderBy?: 'person';
+    /** Relacje do dołączenia — `person` i `application` są zawsze potrzebne. */
+    include?: { person: true; application?: true };
+    /** Sortowanie: obiekt albo tablica obiektów — Prisma odrzuca goły napis. */
+    orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
   }): Promise<AccessGrantWithPerson[] | AccessGrantWithRelations[]>;
-  findUnique(args: { where: { applicationId: string; personId: string } }): Promise<ApplicationAccessRow | null>;
+  findUnique(args: { where: GrantKey }): Promise<ApplicationAccessRow | null>;
   create(args: { data: Omit<ApplicationAccessRow, 'createdAt' | 'grantedOn'> }): Promise<ApplicationAccessRow>;
-  update(args: { where: { applicationId: string; personId: string }; data: Partial<ApplicationAccessRow> }): Promise<ApplicationAccessRow>;
-  delete(args: { where: { applicationId: string; personId: string } }): Promise<ApplicationAccessRow>;
+  update(args: { where: GrantKey; data: Partial<ApplicationAccessRow> }): Promise<ApplicationAccessRow>;
+  delete(args: { where: GrantKey }): Promise<ApplicationAccessRow>;
   count(args: { where?: GrantWhere }): Promise<number>;
 }
 

@@ -32,6 +32,7 @@ export function PersonDetailPage() {
   const deactivate = useDeactivatePerson();
   const revoke = useRevokeGrant();
 
+  const [localError, setLocalError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState<string | null>(null);
   const [lastName, setLastName] = useState<string | null>(null);
   const [position, setPosition] = useState<string | null>(null);
@@ -62,18 +63,47 @@ export function PersonDetailPage() {
         description={osoba.email}
         back={{ to: '/uprawnienia', label: 'Wróć do uprawnień' }}
         actions={
-          canWrite && osoba.isActive ? (
+          canWrite &&
+          (osoba.isActive ? (
             <Button
               variant="secondary"
+              loading={deactivate.isPending}
               onClick={async () => {
-                await deactivate.mutateAsync(osoba.id);
+                setLocalError(null);
+                try {
+                  await deactivate.mutateAsync(osoba.id);
+                } catch {
+                  // Błąd bez komunikatu wygląda jak „nie udało się zapisać",
+                  // a administrator odchodzi z wnioskiem, że kliknął i działa.
+                  setLocalError('Nie udało się zdezaktywować osoby.');
+                }
               }}
             >
               Dezaktywuj
             </Button>
-          ) : undefined
+          ) : (
+            // Bez tego osoby nie da się przywrócić z poziomu interfejsu:
+            // komunikat o błudzie przy nadaniu mówi „najpierw aktywuj ją
+            // w katalogu osób", a jedynym przyciskiem było „Dezaktywuj".
+            <Button
+              variant="secondary"
+              loading={update.isPending}
+              onClick={async () => {
+                setLocalError(null);
+                try {
+                  await update.mutateAsync({ id: osoba.id, isActive: true });
+                } catch {
+                  setLocalError('Nie udało się aktywować osoby.');
+                }
+              }}
+            >
+              Aktywuj
+            </Button>
+          ))
         }
       />
+
+      {localError && <ErrorMessage error={new Error(localError)} className="mb-4" />}
 
       <section className="card mb-5 px-4 py-4">
         <h2 className="section-title mb-3">Dane osoby</h2>
@@ -115,17 +145,22 @@ export function PersonDetailPage() {
               disabled={!zmienione}
               loading={update.isPending}
               onClick={async () => {
-                await update.mutateAsync({
-                  id: osoba.id,
-                  firstName: imie,
-                  lastName: nazwisko,
-                  ...(stanowisko ? { position: stanowisko } : {}),
-                  ...(dzial ? { department: dzial } : {}),
-                });
-                setFirstName(null);
-                setLastName(null);
-                setPosition(null);
-                setDepartment(null);
+                setLocalError(null);
+                try {
+                  await update.mutateAsync({
+                    id: osoba.id,
+                    firstName: imie,
+                    lastName: nazwisko,
+                    ...(stanowisko ? { position: stanowisko } : {}),
+                    ...(dzial ? { department: dzial } : {}),
+                  });
+                  setFirstName(null);
+                  setLastName(null);
+                  setPosition(null);
+                  setDepartment(null);
+                } catch {
+                  setLocalError('Nie udało się zapisać danych osoby.');
+                }
               }}
             >
               Zapisz zmiany
@@ -175,10 +210,15 @@ export function PersonDetailPage() {
                           size="sm"
                           variant="ghost"
                           onClick={async () => {
-                            await revoke.mutateAsync({
-                              applicationId: grant.application.id,
-                              personId: osoba.id,
-                            });
+                            setLocalError(null);
+                            try {
+                              await revoke.mutateAsync({
+                                applicationId: grant.application.id,
+                                personId: osoba.id,
+                              });
+                            } catch {
+                              setLocalError('Nie udało się odebrać dostępu.');
+                            }
                           }}
                         >
                           Odebraj

@@ -486,6 +486,23 @@ export interface PersonDetailResponse {
   grants: AccessMatrixRow[];
 }
 
+/**
+ * Osoba w macierzy.
+ *
+ * Osobny typ bez `accessCount`: API w macierzy liczby nie zwraca (licznik
+ * pojawia się tylko w katalogu osób), a udawanie, że jest, kończyłoby się
+ * kolumną `undefined` w miejscu, które wygląda na liczbę.
+ */
+export interface AccessPerson {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  position: string | null;
+  department: string | null;
+  isActive: boolean;
+}
+
 /** Przypisanie w macierzy aplikacji — osoba wraz z poziomem i datami. */
 export interface ApplicationGrant {
   applicationId: string;
@@ -494,21 +511,13 @@ export interface ApplicationGrant {
   grantedOn: string;
   expiresOn: string | null;
   note: string | null;
-  person: Person;
+  person: AccessPerson;
 }
 
 /** Wiersz macierzy zbiorczej: osoba, aplikacja i poziom. */
 export interface AccessMatrixRow {
   application: { id: string; name: string };
-  person: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    position: string | null;
-    department: string | null;
-    isActive: boolean;
-  };
+  person: AccessPerson;
   level: AccessLevel;
   grantedOn: string;
   expiresOn: string | null;

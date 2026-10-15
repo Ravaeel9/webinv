@@ -10,7 +10,6 @@ import { randomUUID } from 'node:crypto';
 import type {
   AccessPort,
   PersonRow,
-  PersonWithCounts,
   ApplicationAccessRow,
   AccessGrantWithPerson,
   AccessGrantWithRelations,
@@ -45,15 +44,65 @@ export type FakeDb = {
   aplikacje: ApplicationRefRow[];
 };
 
+/**
+ * Atrapa jest **celowo niepobłażliwa**: odrzuca argumenty, których prawdziwy
+ * Prisma nie przyjmuje.
+ *
+ * Pierwsza wersja przyjmowała wszystko — płaski `where: { applicationId,
+ * personId }` zamiast złożonego klucza oraz `orderBy: 'lastName'` zamiast
+ * obiektu. Wszystkie 863 testy przechodziły, a moduł zwracał 500 przy
+ * każdym odczycie i zapisie. Atrapa, która akceptuje wywołanie, którego baza
+ * odrzuci, jest gorsza niż brak testu: daje zielone przejście i fałszywy
+ * spokój. Dlatego kształt argumentów jest tu pilnowany tak samo jak wynik.
+ */
+function kluczZlozony(where: unknown): { applicationId: string; personId: string } {
+  const zagniezdzone = (where as { applicationId_personId?: { applicationId: string; personId: string } })
+    ?.applicationId_personId;
+  if (!zagniezdzone) {
+    throw new Error(
+      'atrapa: oczekiwano złożonego klucza `applicationId_personId`, ' +
+        'tak jak wymaga Prisma dla klucza głównego złożonego',
+    );
+  }
+  return zagniezdzone;
+}
+
+/** `orderBy` w Prisma to obiekt lub tablica obiektów, nie nazwa pola. */
+function poleOrderBy(orderBy: unknown): [string, 'asc' | 'desc'] {
+  if (typeof orderBy === 'string') {
+    throw new Error(
+      `atrapa: orderBy="${orderBy}" — Prisma przyjmuje obiekt, np. { ${orderBy}: 'asc' }`,
+    );
+  }
+  // Tablica obiektów to poprawna postać w Prisma (`[{ a: 'asc' }, { b: 'asc' }]`);
+  // bierzemy pierwszy klucz, bo atrapa sortuje jednym polem.
+  if (Array.isArray(orderBy)) {
+    if (orderBy.length === 0) throw new Error('atrapa: pusta tablica orderBy');
+    return poleOrderBy(orderBy[0]);
+  }
+  const obiekt = (orderBy ?? {}) as Record<string, 'asc' | 'desc'>;
+  const klucz = Object.keys(obiekt)[0];
+  if (!klucz) throw new Error('atrapa: brak orderBy');
+  return [klucz, obiekt[klucz] ?? 'asc'];
+}
+
 export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
   const osoby: PersonRow[] = [];
   const granty: ApplicationAccessRow[] = [];
   const aplikacjeMap = new Map(aplikacje.map((a) => [a.id, a]));
 
-  function zLicznikiem(osoba: PersonRow): PersonWithCounts {
+  /**
+   * Licznik w takim kształcie, w jakim zwraca go Prisma przy
+   * `include: { _count: { select: { access: true } } }` — czyli jako `_count.access`.
+   *
+   * Atrapa, która sama dokładała `accessCount`, sprawiała, że serwis wyglądał
+   * na działający, a na żywej bazie kolumna „Aplikacje” w katalogu osób
+   * pokazywała `undefined`.
+   */
+  function zLicznikiem(osoba: PersonRow) {
     return {
       ...osoba,
-      accessCount: granty.filter((g) => g.personId === osoba.id).length,
+      _count: { access: granty.filter((g) => g.personId === osoba.id).length },
     };
   }
 
@@ -80,7 +129,7 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
             ),
           );
         }
-        if (args?.orderBy) wynik.sort(wgOrderBy(args.orderBy, osoby));
+        if (args?.orderBy) wynik.sort(wgOrderBy(args.orderBy));
         return wynik.map(zLicznikiem);
       },
       findFirst: async (args: any) => {
@@ -150,13 +199,11 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         return zOsoba;
       },
       findUnique: async (args: any) => {
-        const where = args?.where ?? {};
+        const where = kluczZlozony(args?.where);
         return (
           granty.find(
             (g) =>
-              Object.entries(where).every(
-                ([k, v]) => (g as Record<string, unknown>)[k] === v,
-              ),
+              g.applicationId === where.applicationId && g.personId === where.personId,
           ) ?? null
         );
       },
@@ -173,16 +220,18 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         return grant;
       },
       update: async (args: any) => {
+        const where = kluczZlozony(args.where);
         const i = granty.findIndex(
-          (g) => g.applicationId === args.where.applicationId && g.personId === args.where.personId,
+          (g) => g.applicationId === where.applicationId && g.personId === where.personId,
         );
         if (i === -1) throw new Error('update: brak grantu');
         granty[i] = { ...granty[i]!, ...args.data };
         return granty[i]!;
       },
       delete: async (args: any) => {
+        const where = kluczZlozony(args.where);
         const i = granty.findIndex(
-          (g) => g.applicationId === args.where.applicationId && g.personId === args.where.personId,
+          (g) => g.applicationId === where.applicationId && g.personId === where.personId,
         );
         if (i === -1) throw new Error('delete: brak grantu');
         const [usuniety] = granty.splice(i, 1);
@@ -208,10 +257,15 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
 }
 
 /** Sortowanie po jednej nazwie pola; wystarczy dla testów. */
-function wgOrderBy(orderBy: string | undefined, _osoby: PersonRow[]) {
+function wgOrderBy(orderBy: unknown) {
+  const [klucz, kierunek] = poleOrderBy(orderBy);
   return (a: PersonRow, b: PersonRow) => {
-    const klucz = (orderBy ?? 'lastName') as keyof PersonRow;
-    const rekord = (osoba: PersonRow) => String(osoba[klucz] ?? '');
-    return rekord(a).localeCompare(rekord(b));
+    // `person.lastName` z macierzy sortuje po nazwisku osoby — taka sama
+    // semantyka, jaką daje Prisma przy `orderBy: { person: { lastName } }`.
+    const sciezka = klucz.split('.');
+    const wartosc = (osoba: PersonRow) =>
+      String((osoba as Record<string, unknown>)[sciezka[sciezka.length - 1]!] ?? '');
+    const wynik = wartosc(a).localeCompare(wartosc(b));
+    return kierunek === 'desc' ? -wynik : wynik;
   };
 }

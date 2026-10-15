@@ -141,6 +141,16 @@ const ACTION_LABELS: Record<string, string> = {
   'user.password_reset': 'Reset hasła użytkownika',
   'user.password_change_required': 'Wymuszono zmianę hasła',
   'user.sessions_revoked': 'Zamknięto sesje użytkownika',
+  // Macierz uprawnień: bez tych etykiet dziennik pokazywałby surowe
+  // identyfikatory zdarzeń, a to właśnie dziennik ma być dowodem,
+  // komu i kiedy nadano dostęp.
+  'access.granted': 'Nadano dostęp do aplikacji',
+  'access.updated': 'Zmieniono dostęp do aplikacji',
+  'access.revoked': 'Odebrano dostęp do aplikacji',
+  'person.created': 'Dodano osobę do katalogu',
+  'person.updated': 'Zmieniono dane osoby',
+  'person.deactivated': 'Dezaktywowano osobę',
+  'person.imported': 'Zaimportowano osoby z pliku',
 };
 
 export function describeAction(action: string): string {

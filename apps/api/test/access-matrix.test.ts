@@ -39,6 +39,61 @@ function zAplikacja() {
 }
 
 describe('AccessService — macierz uprawnień', () => {
+  it('odrzucone nadanie nie zostawia w katalogu osoby ani nie zmienia danych istniejącej', async () => {
+    const { port, osoby, aplikacja } = zAplikacja();
+    const serwis = new AccessService(port, fakeAudit() as never);
+    await serwis.createPerson(
+      { firstName: 'Anna', lastName: 'X', email: 'a.x@firma.pl', department: 'Księgowość' },
+      actor,
+    );
+    const przed = { ...osoby[0]! };
+
+    await assert.rejects(
+      () =>
+        serwis.grantAccess(
+          aplikacja.id,
+          {
+            email: 'a.x@firma.pl',
+            firstName: 'Anna',
+            lastName: 'X',
+            department: 'IT',
+            expiresOn: '2020-01-01',
+          },
+          actor,
+        ),
+      BadRequestException,
+    );
+    assert.deepEqual(osoby[0], przed, 'odrzucone nadanie nie może zmienić danych osoby');
+
+    await assert.rejects(
+      () =>
+        serwis.grantAccess(
+          aplikacja.id,
+          { email: 'nowa@firma.pl', firstName: 'Nowa', lastName: 'Osoba', expiresOn: '2020-01-01' },
+          actor,
+        ),
+      BadRequestException,
+    );
+    assert.equal(
+      osoby.filter((p) => p.email === 'nowa@firma.pl').length,
+      0,
+      'osoba utworzona przy odrzuconym nadaniu zostaje w katalogu na zawsze',
+    );
+  });
+
+  it('dostęp wygasa dzisiaj, nie dopiero jutro', async () => {
+    const { port, aplikacja } = zAplikacja();
+    const serwis = new AccessService(port, fakeAudit() as never);
+
+    const grant = await serwis.grantAccess(
+      aplikacja.id,
+      { email: 'a.x@firma.pl', firstName: 'Anna', lastName: 'X', expiresOn: dzis() },
+      actor,
+    );
+
+    assert.equal(grant.expiresOn, dzis());
+  });
+
   it('nadaje dostęp osobie spoza panelu i tworzy ją przy okazji', async () => {
     const { port, osoby, granty, aplikacja } = zAplikacja();
     const serwis = new AccessService(port, fakeAudit() as never);
@@ -256,3 +311,7 @@ describe('AccessService — macierz uprawnień', () => {
     assert.equal(wiersze[0]!.expiresOn, '2020-01-01');
   });
 });
+/** Dzisiejsza data w formacie `RRRR-MM-DD`. */
+function dzis(): string {
+  return new Date().toISOString().slice(0, 10);
+}

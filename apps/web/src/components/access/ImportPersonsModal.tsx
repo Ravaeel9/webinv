@@ -10,6 +10,42 @@ import { Modal } from '../ui/Modal';
 import { Th } from '../ui/Table';
 import type { HeaderMapping, ImportRowStatus } from '../../types';
 
+/** Trzy bajty BOM w UTF-8. */
+const BOM_UTF8 = [0xef, 0xbb, 0xbf];
+
+/**
+ * Odczyt pliku CSV z kodowaniem, którego administrator nie deklaruje.
+ *
+ * Kolejność: BOM w UTF-8 → próba UTF-8 (`fatal: true`, bo „cicho zepsute"
+ * dekodowanie daje tekst z krzakami) → Windows-1250, typowy dla polskiego
+ * eksportu z Excela.
+ *
+ * Ostatni krok usuwa BOM zdekodowany jako znaki: `TextDecoder('windows-1250')`
+ * nie zna BOM (to instrukcja dla UTF-8), więc bajty `EF BB BF` stają się
+ * trzema literami `ď»ż` i pierwsza kolumna pliku przestaje się rozpoznawać.
+ */
+function odczytajPlik(bajty: ArrayBuffer): { tresc: string; tryb: 'utf-8' | 'windows-1250' } {
+  const surowe = new Uint8Array(bajty);
+  const maBom = BOM_UTF8.every((b, i) => surowe[i] === b);
+
+  if (maBom) {
+    return {
+      tresc: new TextDecoder('utf-8').decode(surowe.subarray(BOM_UTF8.length)),
+      tryb: 'utf-8',
+    };
+  }
+
+  try {
+    return { tresc: new TextDecoder('utf-8', { fatal: true }).decode(surowe), tryb: 'utf-8' };
+  } catch {
+    const zBom = new TextDecoder('windows-1250').decode(surowe);
+    return {
+      tresc: zBom.startsWith('\u010f\u00bb\u017e') ? zBom.slice(3) : zBom,
+      tryb: 'windows-1250',
+    };
+  }
+}
+
 const ETYKIETY: Array<[keyof HeaderMapping, string]> = [
   ['email', 'Adres e-mail'],
   ['firstName', 'Imię'],
@@ -75,20 +111,14 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
     setMapping(null);
     setWybrane({});
     try {
-      const bajty = await plik.arrayBuffer();
-      let tresc: string;
-      let tryb: 'utf-8' | 'windows-1250';
-      try {
-        tresc = new TextDecoder('utf-8', { fatal: true }).decode(bajty);
-        tryb = 'utf-8';
-      } catch {
-        tresc = new TextDecoder('windows-1250').decode(bajty);
-        tryb = 'windows-1250';
-      }
+      const { tresc, tryb } = odczytajPlik(await plik.arrayBuffer());
       setTekst(tresc);
       setKodowanie(tryb);
       setNazwa(plik.name);
       const wynik = await preview.mutateAsync({ csv: tresc });
+      // Mapowanie z odpowiedzi, nie tylko z DTO: bez niego nie mielibyśmy
+      // czego poprawiać w razie nierozpoznanych kolumn.
+      setMapping(wynik.mapping);
       setWybrane(Object.fromEntries(
         wynik.rows.filter((w) => w.status !== 'ERROR').map((w) => [w.line, true]),
       ));
@@ -119,7 +149,7 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
           lastName: wiersz.lastName,
           ...(wiersz.position ? { position: wiersz.position } : {}),
           ...(wiersz.department ? { department: wiersz.department } : {}),
-          isActive: wiersz.isActive,
+          ...(plikMaStatus ? { isActive: wiersz.isActive } : {}),
         })),
       );
       onClose();
@@ -128,7 +158,18 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const naglowki = Object.values(mapping ?? ({} as HeaderMapping)).filter(Boolean);
+  // Lista kolumn do ręcznego przypisania to **wszystkie** nagłówki pliku,
+  // nie tylko rozpoznane: nierozpoznana kolumna jest dokładnie tą, którą
+  // administrator chce przypisać do pola.
+  const naglowki = podglad ? Object.values(podglad.mapping).filter(Boolean) : [];
+  const wszystkieNaglowki = useMemo(
+    () => [...new Set([...naglowki, ...(podglad?.unmapped ?? [])])],
+    [naglowki, podglad],
+  );
+  // `isActive` wysyłamy tylko wtedy, gdy plik ma kolumnę statusu. Bez tego
+  // import pliku bez `Suspended` przywróciłby `isActive=true` osobom, które
+  // administrator świadomie zdezaktywował.
+  const plikMaStatus = Boolean(podglad?.mapping.isActive);
 
   return (
     <Modal
@@ -184,23 +225,25 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
         {/* 2. Podgląd i mapowanie kolumn */}
         {podglad && (
           <>
-            {podglad.unmapped.length > 0 && (
+            {(podglad.unmapped.length > 0 || !podglad.mapping.email) && (
               <div className="alert alert-warn flex-col items-start gap-2">
                 <span className="text-xs">
-                  Nie rozpoznaję kolumn: {podglad.unmapped.join(', ')}. Możesz je
-                  przypisać do pól poniżej.
+                  {podglad.unmapped.length > 0
+                    ? `Nie rozpoznaję kolumn: ${podglad.unmapped.join(', ')}.`
+                    : 'Nie wykryłem kolumny z adresem e-mail.'}{' '}
+                  Przypisz je do pól poniżej — podgląd odświeży się.
                 </span>
-                {Object.entries(mapping ?? {}).map(([pole, naglowek]) => (
+                {(Object.keys(ETYKIETY) as Array<keyof HeaderMapping>).map((pole) => (
                   <Select
                     key={pole}
-                    label={etykietaPola(pole as keyof HeaderMapping)}
-                    value={naglowek}
-                    onChange={(e) => void poprawMapowanie(pole as keyof HeaderMapping, e.target.value)}
+                    label={etykietaPola(pole)}
+                    value={podglad.mapping[pole] ?? ''}
+                    onChange={(e) => void poprawMapowanie(pole, e.target.value)}
                   >
                     <option value="">— nie używaj —</option>
-                    {naglowki.map((naglowek2) => (
-                      <option key={naglowek2} value={naglowek2}>
-                        {naglowek2}
+                    {wszystkieNaglowki.map((naglowek) => (
+                      <option key={naglowek} value={naglowek}>
+                        {naglowek}
                       </option>
                     ))}
                   </Select>
