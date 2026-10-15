@@ -31,6 +31,10 @@ export function fakeAudit() {
     record: async (wpis: FakeAuditEntry) => {
       wpisy.push(wpis);
     },
+    /** Czyści zapis, żeby test mógł patrzeć tylko na własną operację. */
+    wpisypierwszyReset: () => {
+      wpisy.length = 0;
+    },
   };
 }
 

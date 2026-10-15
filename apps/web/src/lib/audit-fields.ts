@@ -61,6 +61,19 @@ export const FIELD_LABELS: Record<string, string> = {
   mustChangePassword: 'wymuszona zmiana hasła',
   lastLoginAt: 'ostatnie logowanie',
 
+  // Osoby i macierz uprawnień
+  firstName: 'imię',
+  lastName: 'nazwisko',
+  position: 'stanowisko',
+  department: 'dział',
+  // `person` nie jest polem tabeli, tylko nazwą osoby w tekście zmiany —
+  // bez etykiety dziennik pokazałby obok różnicy surowe słowo klucza.
+  person: 'osoba',
+  level: 'poziom dostępu',
+  grantedOn: 'data nadania',
+  expiresOn: 'data wygaśnięcia',
+  note: 'notatka',
+
   // Pozostałe zdarzenia
   count: 'liczba',
   source: 'źródło',
