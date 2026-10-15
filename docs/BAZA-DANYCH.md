@@ -200,13 +200,54 @@ ich **nie** odtwarza — administrator dopina adresy ponownie.
 `setApplicationIpAddresses` zapisuje samą różnicę (`deleteMany` +
 `createMany` tylko na pozycjach, które odeszły lub doszły).
 
+### `persons`
+
+Osoba mająca dostęp do aplikacji — **nie konto panelu**. Większość osób
+w tej tabeli nie loguje się do systemu, a dostęp nadaje się w narzędziu
+poza nim; tutaj zapisujemy, komu go nadano.
+
+| Pole | Typ | Uwagi |
+|---|---|---|
+| `id` | `uuid` | |
+| `first_name` | `varchar(100)` | |
+| `last_name` | `varchar(100)` | |
+| `email` | `citext` | **unikalny** — tożsamość osoby; `citext` sprawia, że `Jan.Kowalski@firma.pl` i `jan.kowalski@firma.pl` to jeden adres |
+| `position` | `varchar(150)?` | stanowisko, wolny tekst |
+| `department` | `varchar(150)?` | dział, wolny tekst |
+| `is_active` | `boolean` | `false` = osoba wyłączona; **nie kasujemy** — jej przypisania w macierzach muszą zostać czytelne |
+| `created_at` / `updated_at` | `timestamptz` | |
+
+Indeks: `last_name` — sortowanie katalogu.
+
+Stanowisko i dział to celowo wolny tekst, a nie słowniki: struktura
+organizacyjna zmienia się częściej niż schemat bazy.
+
+### `application_access`
+
+Jedno przypisanie: ta osoba ma dostęp do tej aplikacji na tym poziomie.
+
+| Pole | Typ | Uwagi |
+|---|---|---|
+| `application_id` | `uuid` | FK → `applications`, `Cascade` |
+| `person_id` | `uuid` | FK → `persons`, `Cascade` |
+| `level` | `AccessLevel` | `OWNER`, `ADMIN`, `USER`, `READ_ONLY`; domyślnie `USER` |
+| `granted_on` | `date` | data nadania, domyślnie dziś |
+| `expires_on` | `date?` | wygasanie; **nie kasuje wiersza** — dostęp wygasły zostaje widoczny z ostrzeżeniem |
+| `note` | `text?` | np. „dostęp tymczasowy do końca projektu" |
+| `created_at` | `timestamptz` | |
+
+Klucz główny złożony `(application_id, person_id)` — ta sama osoba nie może
+wejść do tej samej aplikacji dwa razy. Indeksy: `person_id` (katalog osób →
+przypisania), `expires_on` (wygasłe).
+
+
 ### `audit_logs`
 
 | Pole | Typ | Uwagi |
 |---|---|---|
 | `id` | `uuid` | |
 | `action` | `varchar(40)` | np. `app.updated` |
-| `entity` | `varchar(60)` | `User`, `Session`, `Application`, `Subnet`, `IpAddress` |
+| `entity` | `varchar(60)` | `User`, `Session`, `Application`, `Subnet`, `IpAddress`, `Person`, `ApplicationAccess` |
 | `entity_id` | `uuid?` | rekord, którego dotyczy zdarzenie |
 | `actor_id` | `uuid?` | FK → `users`, `SetNull` (historia przeżywa usunięcie konta) |
 | `actor_name` | `varchar(200)?` | kopia nazwy — czytelna nawet po usunięciu konta |
@@ -230,6 +271,7 @@ zdarzeń i filtrowanie po encji. Kolumna `entity_id` jest indeksowana, ale
 | `DeliveryType` | `GENERAL_USE`, `SELF_HOSTED`, `SAAS`, `VENDOR_MANAGED` | program na stanowisku czy usługa hostowana |
 | `SupportOwnerType` | `INTERNAL`, `VENDOR` | kto prowadzi wsparcie |
 | `SupportChannel` | `EMAIL`, `PHONE`, `PORTAL`, `CHAT`, `ON_SITE` | główny kanał zgłoszeń |
+| `AccessLevel` | `OWNER`, `ADMIN`, `USER`, `READ_ONLY` | poziom dostępu osoby do aplikacji — inny niż `Role`, który opisuje prawa w panelu |
 | `IpStatus` | `FREE`, `IN_USE`, `DEPRECATED` | status adresu w katalogu: wolny (lub zarezerwowany bez aplikacji), zajęty, wycofywany — dlaczego na adresie, patrz `ip_addresses` |
 
 ## Rozszerzenia

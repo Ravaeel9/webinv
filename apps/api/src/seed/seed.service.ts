@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { appConfig } from '../config/configuration';
 import { hashPassword, validatePasswordStrength } from '../auth/password';
 import { seedDemoApplications } from './demo-applications';
+import { seedDemoAccess } from './demo-access';
 import { SettingsService } from '../settings/settings.service';
 
 type AppCfg = ConfigType<typeof appConfig>;
@@ -87,8 +88,13 @@ export class SeedService implements OnApplicationBootstrap {
     }
 
     const count = await seedDemoApplications(this.prisma);
+
+    // Osoby i przypisania po tym samym seedzie aplikacji: przypisania
+    // wskazują aplikacje po nazwie, więc muszą powstać po nich.
+    const macierz = await seedDemoAccess(this.prisma);
     this.logger.log(
-      `Dane demonstracyjne: ${count} rekordów (upsert). ` +
+      `Dane demonstracyjne: ${count} rekordów (upsert), ` +
+        `${macierz.persons} osób i ${macierz.grants} przypisań. ` +
         'Wyłącz tryb demo w Ustawieniach albo SEED_DEMO_APPS, ' +
         'aby przestały wracać przy starcie.',
     );

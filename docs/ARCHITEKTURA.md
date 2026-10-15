@@ -374,7 +374,42 @@ aplikację po wdrożeniu).
 | Walidacja bloku wsparcia miękka (wsystko opcjonalne) | rejestr ma opisywać to, co wiemy; brak kontaktu do wsparcia nie może blokować zapisu | nie wymusimy kompletności opisu usługi — jakość zależy od użytkownika |
 | Brak roli „gość” w bazie | gość nie ma sesji, więc nie ma użytkownika | brak śladu, kto oglądał publiczny widok (celowo — to nie jest wymagane) |
 
-## 11. Granice systemu
+## 11. Macierz uprawnień
+
+Moduł `apps/api/src/access/` trzyma katalog osób (`persons`) i macierz
+przypisań (`application_access`) — kto ma dostęp do której aplikacji
+i na jakim poziomie.
+
+Granica zakresu jest tu zasadnicza: **to ewidencja, nie mechanizm nadania
+dostępu.** System nie wystawia tokenów, nie tworzy kont osobom z macierzy
+i nie umawia im niczego w narzędziu IAM. Osoba z ewidencji nie ma konta
+w panelu i nie musi się logować. Dostęp nadaje się poza systemem, a rejestr
+odpowiada na pytanie „komu go nadano i kiedy".
+
+Dwie konsekwencje tej granicy, widoczne w kodzie:
+
+- **Osoby to osobna tabela, nie `users`.** Konto panelu ma login, hasło,
+  rolę i sesje — nic z tego nie dotyczy osoby z ewidencji. Trzymanie ich
+  w jednej tabeli wymuszałoby wypełnianie pustych pól i gniecenie historii
+  przy kasowaniu, dlatego osobę **dezaktywujemy** (`isActive=false`),
+  a jej przypisania zostają widoczne.
+- **Wygasłe przypisanie zostaje w macierzy.** `expiresOn` to data wygasania,
+  nie usunięcie: wiersz z datą w przeszłości jest historią nadania i pokazuje
+  się z ostrzeżeniem.
+
+Serwis rozmawia z bazą przez wąski port `AccessPort` (`access.port.ts`), tak
+samo jak IPAM przez `IpamPort` — dzięki temu cała logika (kolejność sprawdzeń,
+walidacja, budowa `changes` dla dziennika) testuje się bez bazy. W produkcji
+pod port podawany jest `PrismaService` przez token `ACCESS_PORT`.
+
+Import osób z CSV (`access/csv.ts`, endpointy `import/preview` i `import/apply`)
+wypełnia **tylko katalog osób**. Dostęp do aplikacji nadaje się ręcznie,
+bo plik z eksportu Workspace nie jest wiarygodnym źródłem uprawnień.
+Podgląd klasyfikuje wiersze (`NEW` / `UPDATE` / `ERROR`), a zapis waliduje je
+ponownie — między krokami jest przerwa w pracy, w której dane mogą się
+zmienić.
+
+## 12. Granice systemu
 
 Czego tu **nie ma** świadomie (szczegóły i rekomendacje:
 [../SECURITY.md](../SECURITY.md)):
@@ -387,4 +422,7 @@ Czego tu **nie ma** świadomie (szczegóły i rekomendacje:
 - powiadomienia o nadchodzącym wycofaniu (jest licznik na pulpicie, brak
   e-maili/webhooków);
 - mechanizm zgłoszeń o dostęp do aplikacji — flaga
-  `accessRequestRequired` jest informacją, nie procesem.
+  `accessRequestRequired` jest informacją, nie procesem;
+- nadawanie dostępu do aplikacji z poziomu systemu — macierz jest
+  ewidencją (patrz [11. Macierz uprawnień](#11-macierz-uprawnień));
+  brak integracji z IAM, eksportu do IAM i mechanizmu zatwierdzania.

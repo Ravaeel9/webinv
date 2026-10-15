@@ -27,12 +27,16 @@ wymóg sesji — brak endpointu nie oznacza braku ochrony.
 | Rola | Uprawnienia |
 |---|---|
 | `VIEWER` (Obserwator) | `app:read`, `user:read`, `audit:read`, `ipam:read` |
-| `ADMIN` (Administrator) | `app:read`, `app:write`, `user:read`, `audit:read`, `ipam:read`, `ipam:write` |
+| `ADMIN` (Administrator) | `app:read`, `app:write`, `user:read`, `audit:read`, `ipam:read`, `ipam:write`, `access:read`, `access:write` |
 | `SUPER_ADMIN` (Super administrator) | wszystkie powyższe plus `user:write` i `settings:write` |
 
 Adresy IP to mapa infrastruktury — dlatego `ipam:*` są oddzielnymi
 uprawnieniami, nie pochodnymi `app:*`; katalog wymaga sesji, a gość nie widzi
 nawet liczby podsieci.
+
+`access:read` i `access:write` dotyczą macierzy uprawnień. Osobne, a nie
+pochodne `app:*`, bo zawierają dane osobowe osób **spoza panelu** — rola
+`VIEWER` nie ma do nich wglądu, choć czyta cały rejestr aplikacji.
 
 ## Format błędów
 
@@ -357,6 +361,82 @@ Zdarzenia występujące w systemie:
 | `address.created` / `address.updated` / `address.deleted` | `IpAddress` | zapis katalogu adresów |
 | `user.created` / `user.updated` / `user.deleted` | `User` | zarządzanie kontami |
 | `user.sessions_revoked` | `User` | unieważnienie sesji po zmianie roli lub wyłączeniu |
+
+## Macierz uprawnień `/api/access`
+
+Ewidencja osób mających dostęp do aplikacji. **Nie mechanizm nadania** —
+system nie wystawia tokenów ani haseł i nie tworzy kont osobom z ewidencji.
+Dostęp nadaje się w narzędziu poza systemem; rejestr pokazuje, komu go
+nadano. Osoba nie ma konta w panelu i nie musi się logować.
+
+Wszystkie trasy wymagają sesji i uprawnienia `access:read` albo
+`access:write`; żadna nie jest `@Public()`, bo zawiera dane osobowe.
+
+| Metoda | Ścieżka | Uprawnienie | Zastosowanie |
+|---|---|---|---|
+| GET | `/api/access/applications/:id` | `access:read` | macierz jednej aplikacji |
+| POST | `/api/access/applications/:id` | `access:write` | nadanie dostępu osobie |
+| PATCH | `/api/access/applications/:id/:personId` | `access:write` | zmiana poziomu, daty wygaśnięcia, notatki |
+| DELETE | `/api/access/applications/:id/:personId` | `access:write` | odebranie dostępu (osoba zostaje) |
+| GET | `/api/access/matrix` | `access:read` | macierz zbiorcza (raport) |
+| GET | `/api/access/persons` | `access:read` | katalog osób |
+| GET | `/api/access/persons/:id` | `access:read` | osoba i jej przypisania |
+| POST | `/api/access/persons` | `access:write` | nowa osoba w katalogu |
+| PATCH | `/api/access/persons/:id` | `access:write` | edycja danych osoby |
+| DELETE | `/api/access/persons/:id` | `access:write` | **dezaktywacja** (`isActive=false`), nie kasowanie |
+
+`GET /api/access/matrix` przyjmuje filtry `applicationId`, `personId`,
+`department`, `level` i zwraca płaską listę wierszy
+`{ application, person, level, grantedOn, expiresOn, note }`. Wygasłe
+przypisania zostają w wyniku — macierz pokazuje stan nadania, nie stan
+bieżący.
+
+### Nadanie dostępu
+
+```json
+POST /api/access/applications/<id aplikacji>
+{
+  "email": "jan.kowalski@firma.pl",
+  "firstName": "Jan",
+  "lastName": "Kowalski",
+  "position": "Analityk",
+  "department": "IT",
+  "level": "ADMIN",
+  "expiresOn": "2026-12-31",
+  "note": "Dostęp do raportów"
+}
+```
+
+`firstName` i `lastName` są wymagane tylko wtedy, gdy osoby nie ma jeszcze
+w katalogu — istniejącą dodajemy samym e-mailem. Reguły:
+
+- ponowny e-mail w katalogu → `409` z `id` istniejącej osoby;
+- ta sama osoba dwa razy w tej samej aplikacji → `409`;
+- osoba nieaktywna → `400` (jej dotychczasowe przypisania zostają);
+- `expiresOn` w przeszłości → `400` przy nadaniu, dopuszczalne przy edycji.
+
+### Import z CSV
+
+| Metoda | Ścieżka | Uprawnienie | Zastosowanie |
+|---|---|---|---|
+| POST | `/api/access/import/preview` | `access:write` | podgląd: klasyfikacja wierszy, bez zapisu |
+| POST | `/api/access/import/apply` | `access:write` | zapis wybranych wierszy |
+
+Plik leci jako **tekst w JSON** (`{ "csv": "..." }`), nie jako `multipart` —
+tak samo jak przy imporcie nmap. Limit: 2000 wierszy i 2 MB. Rozpoznawane są
+nagłówki polskie i angielskie (eksport Google Workspace: `Email`, `First name`,
+`Last name`, `Department`, `Job title`, `Suspended`, …); nierozpoznane można
+przypisać do pól przez `mapping`. Kolumna o znaczeniu negatywnym
+(`Suspended`, `Archived`, `Disabled`) steruje `isActive`.
+
+Podgląd zwraca dla każdego wiersza `NEW`, `UPDATE` albo `ERROR` z powodem.
+Zapis **waliduje wiersze od nowa** i pomija złe (licznik `skipped`), a istniejący
+e-mail aktualizuje zamiast duplikować. Osoby nieobecnej w pliku nie dezaktywuje —
+brak w pliku niczego nie znaczy.
+
+Import dotyczy wyłącznie katalogu osób. Dostęp do aplikacji nadaje się ręcznie
+w macierzy, bo plik nie jest wiarygodnym źródłem uprawnień.
+
 
 ## Limit zapytań
 

@@ -9,6 +9,8 @@ import { ApplicationsListPage } from './pages/ApplicationsListPage';
 import { ApplicationFormPage } from './pages/ApplicationFormPage';
 import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { UsersPage } from './pages/UsersPage';
+import { AccessPage } from './pages/AccessPage';
+import { PersonDetailPage } from './pages/PersonDetailPage';
 import { AuditPage } from './pages/AuditPage';
 import { IpamListPage } from './pages/IpamListPage';
 import { ImportPage } from './pages/ImportPage';
@@ -65,6 +67,33 @@ export const router = createBrowserRouter([
             children: [
               { path: 'pulpit', element: <DashboardPage /> },
               { path: 'konto', element: <AccountPage /> },
+
+              // ─── Macierz uprawnień do aplikacji ──────────────
+              //
+              // Cały blok pod `RequirePermission access:read` (ADMIN i
+              // SUPER_ADMIN): macierz zawiera dane osobowe osób spoza
+              // panelu, więc nie jest treścią widoczną dla roli VIEWER.
+              {
+                path: 'uprawnienia',
+                children: [
+                  {
+                    index: true,
+                    element: (
+                      <RequirePermission permission="access:read">
+                        <AccessPage />
+                      </RequirePermission>
+                    ),
+                  },
+                  {
+                    path: 'osoby/:id',
+                    element: (
+                      <RequirePermission permission="access:read">
+                        <PersonDetailPage />
+                      </RequirePermission>
+                    ),
+                  },
+                ],
+              },
 
               {
                 path: 'aplikacje',

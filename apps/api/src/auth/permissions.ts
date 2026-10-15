@@ -14,6 +14,11 @@ export const PERMISSIONS = {
     'audit:read',
     'ipam:read',
     'ipam:write',
+    // Macierz uprawnień do aplikacji — dane osobowe osób, które nie mają
+    // konta w panelu. Osobne uprawnienia, bo dziś tożsame z `app:write`,
+    // ale pozwalają kiedyś oddać sam odczyt osobom z rolą VIEWER.
+    'access:read',
+    'access:write',
   ],
   SUPER_ADMIN: [
     'app:read',
@@ -32,6 +37,11 @@ export const PERMISSIONS = {
     // zastrzeżone dla operacji nieodwracalnych.
     'ipam:read',
     'ipam:write',
+    // Macierz uprawnień — ta sama co w ADMIN: edycja macierzy jest
+    // operacją na istniejącej aplikacji, więc nie jest zarezerwowana
+    // dla super administratora.
+    'access:read',
+    'access:write',
   ],
 } as const;
 
@@ -57,6 +67,8 @@ export const ALL_PERMISSIONS = [
   'settings:write',
   'ipam:read',
   'ipam:write',
+  'access:read',
+  'access:write',
 ] as const satisfies readonly Permission[];
 
 /** Uprawnienia nadane roli, w kolejności z `PERMISSIONS`. */

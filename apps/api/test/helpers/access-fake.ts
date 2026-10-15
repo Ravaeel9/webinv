@@ -1,0 +1,271 @@
+/**
+ * Atrapa `AccessPort` dla testów serwisu macierzy.
+ *
+ * Serwis rozmawia z bazą przez port (jak `IpamService` przez `IpamPort`),
+ * więc całą jego logikę — walidację, kolejność sprawdzeń, budowę
+ * `changes` dla dziennika — da się sprawdzić bez bazy. Atrapa jest
+ * świadomie uproszczona: liczy tylko to, czego testy faktycznie dotykają.
+ */
+import { randomUUID } from 'node:crypto';
+import type {
+  AccessPort,
+  PersonRow,
+  ApplicationAccessRow,
+  AccessGrantWithPerson,
+  AccessGrantWithRelations,
+  ApplicationRefRow,
+} from '../../src/access/access.port';
+
+export type FakeAuditEntry = {
+  action: string;
+  entity: string;
+  entityId: string | null;
+  changes: Record<string, { from: unknown; to: unknown }> | null;
+};
+
+export function fakeAudit() {
+  const wpisy: FakeAuditEntry[] = [];
+  return {
+    wpisy,
+    record: async (wpis: FakeAuditEntry) => {
+      wpisy.push(wpis);
+    },
+    /** Czyści zapis, żeby test mógł patrzeć tylko na własną operację. */
+    wpisypierwszyReset: () => {
+      wpisy.length = 0;
+    },
+  };
+}
+
+export type FakeDb = {
+  port: AccessPort;
+  osoby: PersonRow[];
+  granty: ApplicationAccessRow[];
+  aplikacje: ApplicationRefRow[];
+};
+
+/**
+ * Atrapa jest **celowo niepobłażliwa**: odrzuca argumenty, których prawdziwy
+ * Prisma nie przyjmuje.
+ *
+ * Pierwsza wersja przyjmowała wszystko — płaski `where: { applicationId,
+ * personId }` zamiast złożonego klucza oraz `orderBy: 'lastName'` zamiast
+ * obiektu. Wszystkie 863 testy przechodziły, a moduł zwracał 500 przy
+ * każdym odczycie i zapisie. Atrapa, która akceptuje wywołanie, którego baza
+ * odrzuci, jest gorsza niż brak testu: daje zielone przejście i fałszywy
+ * spokój. Dlatego kształt argumentów jest tu pilnowany tak samo jak wynik.
+ */
+function kluczZlozony(where: unknown): { applicationId: string; personId: string } {
+  const zagniezdzone = (where as { applicationId_personId?: { applicationId: string; personId: string } })
+    ?.applicationId_personId;
+  if (!zagniezdzone) {
+    throw new Error(
+      'atrapa: oczekiwano złożonego klucza `applicationId_personId`, ' +
+        'tak jak wymaga Prisma dla klucza głównego złożonego',
+    );
+  }
+  return zagniezdzone;
+}
+
+/** `orderBy` w Prisma to obiekt lub tablica obiektów, nie nazwa pola. */
+function poleOrderBy(orderBy: unknown): [string, 'asc' | 'desc'] {
+  if (typeof orderBy === 'string') {
+    throw new Error(
+      `atrapa: orderBy="${orderBy}" — Prisma przyjmuje obiekt, np. { ${orderBy}: 'asc' }`,
+    );
+  }
+  // Tablica obiektów to poprawna postać w Prisma (`[{ a: 'asc' }, { b: 'asc' }]`);
+  // bierzemy pierwszy klucz, bo atrapa sortuje jednym polem.
+  if (Array.isArray(orderBy)) {
+    if (orderBy.length === 0) throw new Error('atrapa: pusta tablica orderBy');
+    return poleOrderBy(orderBy[0]);
+  }
+  const obiekt = (orderBy ?? {}) as Record<string, 'asc' | 'desc'>;
+  const klucz = Object.keys(obiekt)[0];
+  if (!klucz) throw new Error('atrapa: brak orderBy');
+  return [klucz, obiekt[klucz] ?? 'asc'];
+}
+
+export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
+  const osoby: PersonRow[] = [];
+  const granty: ApplicationAccessRow[] = [];
+  const aplikacjeMap = new Map(aplikacje.map((a) => [a.id, a]));
+
+  /**
+   * Licznik w takim kształcie, w jakim zwraca go Prisma przy
+   * `include: { _count: { select: { access: true } } }` — czyli jako `_count.access`.
+   *
+   * Atrapa, która sama dokładała `accessCount`, sprawiała, że serwis wyglądał
+   * na działający, a na żywej bazie kolumna „Aplikacje” w katalogu osób
+   * pokazywała `undefined`.
+   */
+  function zLicznikiem(osoba: PersonRow) {
+    return {
+      ...osoba,
+      _count: { access: granty.filter((g) => g.personId === osoba.id).length },
+    };
+  }
+
+  const port = {
+    person: {
+      findMany: async (args: any = {}) => {
+        const where = args?.where ?? {};
+        let wynik = [...osoby];
+        if (where.email) wynik = wynik.filter((p) => p.email === where.email);
+        if (where.isActive !== undefined) {
+          wynik = wynik.filter((p) => p.isActive === where.isActive);
+        }
+        if (where.department) wynik = wynik.filter((p) => p.department === where.department);
+        if (where.OR) {
+          const warunki = where.OR;
+          wynik = wynik.filter((p) =>
+            warunki.some((w: Record<string, { contains: string }>) =>
+              Object.entries(w).every(([pole, filtr]) => {
+                const wzor = filtr as { contains: string };
+                return String((p as Record<string, unknown>)[pole] ?? '')
+                  .toLowerCase()
+                  .includes(wzor.contains.toLowerCase());
+              }),
+            ),
+          );
+        }
+        if (args?.orderBy) wynik.sort(wgOrderBy(args.orderBy));
+        return wynik.map(zLicznikiem);
+      },
+      findFirst: async (args: any) => {
+        const where = args?.where ?? {};
+        return (
+          osoby.find((p) =>
+            Object.entries(where).every(([k, v]) => (p as Record<string, unknown>)[k] === v),
+          ) ?? null
+        );
+      },
+      findUnique: async (args: any) =>
+        osoby.find((p) => p.id === args?.where?.id) ?? null,
+      create: async (args: any) => {
+        const osoba: PersonRow = {
+          id: randomUUID(),
+          isActive: true,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          updatedAt: new Date('2026-01-01T00:00:00Z'),
+          ...args.data,
+        };
+        osoby.push(osoba);
+        return osoba;
+      },
+      update: async (args: any) => {
+        const i = osoby.findIndex((p) => p.id === args.where.id);
+        if (i === -1) throw new Error('update: brak osoby');
+        osoby[i] = { ...osoby[i]!, ...args.data, updatedAt: new Date('2026-06-01T00:00:00Z') };
+        return osoby[i]!;
+      },
+      count: async (args: any = {}) => {
+        const where = args?.where ?? {};
+        return osoby.filter((p) =>
+          Object.entries(where).every(([k, v]) => (p as Record<string, unknown>)[k] === v),
+        ).length;
+      },
+    },
+    applicationAccess: {
+      findMany: async (args: any = {}) => {
+        const where = args?.where ?? {};
+        let wynik = [...granty];
+        if (where.applicationId) {
+          wynik = wynik.filter((g) => g.applicationId === where.applicationId);
+        }
+        if (where.personId) wynik = wynik.filter((g) => g.personId === where.personId);
+        if (where.level) wynik = wynik.filter((g) => g.level === where.level);
+        if (where.person?.isActive !== undefined) {
+          wynik = wynik.filter(
+            (g) => osoby.find((p) => p.id === g.personId)?.isActive === where.person.isActive,
+          );
+        }
+        const zOsoba = wynik.map((g) => ({
+          ...g,
+          person: osoby.find((p) => p.id === g.personId)!,
+        })) as AccessGrantWithPerson[];
+        if (args?.include?.person === false) {
+          return zOsoba.map(({ person: _p, ...reszta }) => reszta);
+        }
+        if (args?.include?.application) {
+          return zOsoba.map(
+            (g) =>
+              ({
+                ...g,
+                application: aplikacjeMap.get(g.applicationId)!,
+              }) as AccessGrantWithRelations,
+          );
+        }
+        return zOsoba;
+      },
+      findUnique: async (args: any) => {
+        const where = kluczZlozony(args?.where);
+        return (
+          granty.find(
+            (g) =>
+              g.applicationId === where.applicationId && g.personId === where.personId,
+          ) ?? null
+        );
+      },
+      create: async (args: any) => {
+        const grant: ApplicationAccessRow = {
+          grantedOn: new Date('2026-01-01T00:00:00Z'),
+          level: 'USER',
+          note: null,
+          expiresOn: null,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          ...args.data,
+        };
+        granty.push(grant);
+        return grant;
+      },
+      update: async (args: any) => {
+        const where = kluczZlozony(args.where);
+        const i = granty.findIndex(
+          (g) => g.applicationId === where.applicationId && g.personId === where.personId,
+        );
+        if (i === -1) throw new Error('update: brak grantu');
+        granty[i] = { ...granty[i]!, ...args.data };
+        return granty[i]!;
+      },
+      delete: async (args: any) => {
+        const where = kluczZlozony(args.where);
+        const i = granty.findIndex(
+          (g) => g.applicationId === where.applicationId && g.personId === where.personId,
+        );
+        if (i === -1) throw new Error('delete: brak grantu');
+        const [usuniety] = granty.splice(i, 1);
+        return usuniety!;
+      },
+      count: async (args: any = {}) => {
+        const where = args?.where ?? {};
+        return granty.filter((g) =>
+          Object.entries(where).every(([k, v]) => (g as Record<string, unknown>)[k] === v),
+        ).length;
+      },
+    },
+    application: {
+      findUnique: async (args: any) => {
+        const aplikacja = aplikacjeMap.get(args?.where?.id);
+        if (!aplikacja) return null;
+        return { ...aplikacja, deletedAt: args?.where?.deletedAt === null ? null : null };
+      },
+    },
+  } as unknown as AccessPort;
+
+  return { port, osoby, granty, aplikacje };
+}
+
+/** Sortowanie po jednej nazwie pola; wystarczy dla testów. */
+function wgOrderBy(orderBy: unknown) {
+  const [klucz, kierunek] = poleOrderBy(orderBy);
+  return (a: PersonRow, b: PersonRow) => {
+    // `person.lastName` z macierzy sortuje po nazwisku osoby — taka sama
+    // semantyka, jaką daje Prisma przy `orderBy: { person: { lastName } }`.
+    const sciezka = klucz.split('.');
+    const wartosc = (osoba: PersonRow) =>
+      String((osoba as Record<string, unknown>)[sciezka[sciezka.length - 1]!] ?? '');
+    const wynik = wartosc(a).localeCompare(wartosc(b));
+    return kierunek === 'desc' ? -wynik : wynik;
+  };
+}

@@ -14,6 +14,7 @@ import {
   IconLogout,
   IconMenu,
   IconNetwork,
+  IconShield,
   IconUsers,
   IconX,
 } from '../ui/icons';
@@ -35,6 +36,10 @@ const NAV = [
   // publiczną i nie ma widoku dla gościa.
   { to: '/ipam', label: 'Adresy IP', icon: IconNetwork, permission: 'ipam:read', requiresAuth: true },
   { to: '/uzytkownicy', label: 'Użytkownicy', icon: IconUsers, permission: 'user:read', requiresAuth: true },
+  // Macierz uprawnień jest osobną pozycją, nie zakładką w „Użytkownikach":
+  // to ewidencja osób spoza panelu, a nie kont — mylenie ich w jednej liście
+  // sugerowałoby, że każda osoba z dostępem ma też konto.
+  { to: '/uprawnienia', label: 'Uprawnienia', icon: IconShield, permission: 'access:read', requiresAuth: true },
   { to: '/audyt', label: 'Dziennik zdarzeń', icon: IconHistory, permission: 'audit:read', requiresAuth: true },
   // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo
   // i skasować 30 przykładowych rekordów naraz.
