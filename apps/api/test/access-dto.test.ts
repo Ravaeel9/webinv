@@ -22,6 +22,35 @@ import {
   UpdateGrantDto,
 } from '../src/access/dto/access.dto';
 
+describe('Kolejność deklaracji w DTO importu', () => {
+  it('klasa użyta w @Type() jest zadeklarowana wcześniej w pliku', () => {
+    // TypeScript emituje `design:type: X` dla dekoratorów, więc klasa
+    // przekazana do `@Type(() => X)` musi już istnieć w chwili, gdy liczą
+    // się metadane. Klasy deklarowanej niżej nie ma wtedy w zmiennych
+    // modułu, a produkcyjny obraz padał na `Cannot access ... before
+    // initialization` przy starcie kontenera — testy przez `tsx` tego nie
+    // widzą, bo esbuild nie emituje metadanych dekoratorów.
+    const zrodlo = read('apps', 'api', 'src', 'access', 'dto', 'import.dto.ts');
+
+    // Linie komentarzy (` * @Type(() => X)` w dokumentacji) pomijamy —
+    // przykład w komentarzu nie jest deklaracją.
+    const kod = zrodlo
+      .split('\n')
+      .filter((linia) => !linia.trim().startsWith('*') && !linia.trim().startsWith('//'))
+      .join('\n');
+
+    for (const uzycie of kod.matchAll(/@Type\(\(\) => (\w+)\)/g)) {
+      const klasa = uzycie[1]!;
+      const deklaracja = kod.indexOf(`class ${klasa}`);
+      assert.notEqual(deklaracja, -1, `nie znaleziono deklaracji ${klasa}`);
+      assert.ok(
+        deklaracja < uzycie.index!,
+        `${klasa} jest użyta w @Type() przed swoją deklaracją`,
+      );
+    }
+  });
+});
+
 async function bledy(dto: object, cls: new () => object): Promise<string[]> {
   const instancja = plainToInstance(cls as never, dto);
   const wynik = await validate(instancja as object, { whitelist: true, forbidNonWhitelisted: true });
