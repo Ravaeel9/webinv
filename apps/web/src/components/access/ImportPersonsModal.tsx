@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Field';
 import { ErrorMessage, Spinner } from '../ui/Feedback';
 import { Modal } from '../ui/Modal';
-import { Th } from '../ui/Table';
+import { Table, Tbody, Td, Th, Thead } from '../ui/Table';
 import type { HeaderMapping, ImportRowStatus } from '../../types';
 
 /** Trzy bajty BOM w UTF-8. */
@@ -269,9 +269,9 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
               </Button>
             </div>
 
-            <div className="max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border">
+            <div className="card max-h-80 overflow-y-auto">
+              <Table className="min-w-[640px]">
+                <Thead>
                   <tr>
                     <Th className="w-8" />
                     <Th>Wiersz</Th>
@@ -280,11 +280,11 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
                     <Th>Dział</Th>
                     <Th>Status</Th>
                   </tr>
-                </thead>
-                <tbody>
+                </Thead>
+                <Tbody>
                   {podglad.rows.map((wiersz) => (
-                    <tr key={wiersz.line}>
-                      <td className="py-1.5 pr-2">
+                    <tr key={wiersz.line} className="table-row-hover">
+                      <Td>
                         <input
                           type="checkbox"
                           aria-label={`Zaznacz wiersz ${wiersz.line}`}
@@ -297,20 +297,20 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
                             }))
                           }
                         />
-                      </td>
-                      <td className="py-1.5 pr-2 text-fg-subtle">{wiersz.line}</td>
-                      <td className="py-1.5 pr-2 text-fg">
+                      </Td>
+                      <Td className="tabular-nums text-fg-subtle">{wiersz.line}</Td>
+                      <Td className="text-fg">
                         {wiersz.firstName} {wiersz.lastName}
-                      </td>
-                      <td className="py-1.5 pr-2 text-fg-muted">{wiersz.email || '—'}</td>
-                      <td className="py-1.5 pr-2 text-fg-muted">{wiersz.department ?? '—'}</td>
-                      <td className="py-1.5">
+                      </Td>
+                      <Td className="text-fg-muted">{wiersz.email || '—'}</Td>
+                      <Td className="text-fg-muted">{wiersz.department ?? '—'}</Td>
+                      <Td>
                         <StatusImportu status={wiersz.status} errors={wiersz.errors} />
-                      </td>
+                      </Td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
+                </Tbody>
+              </Table>
             </div>
           </>
         )}

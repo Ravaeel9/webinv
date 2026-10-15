@@ -10,7 +10,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Select, TextInput } from '../ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../ui/Feedback';
-import { Th } from '../ui/Table';
+import { Table, Tbody, Td, Th, Thead } from '../ui/Table';
 import { IconPlus, IconShield, IconTrash } from '../ui/icons';
 import { ACCESS_LEVEL_LABELS, type AccessLevel } from '../../types';
 import { PersonAccessModal } from './PersonAccessModal';
@@ -73,31 +73,33 @@ export function ApplicationAccessSection({ applicationId }: { applicationId: str
         )}
 
         {grants.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border">
-                <tr>
-                  <Th>Imię i nazwisko</Th>
-                  <Th>Stanowisko</Th>
-                  <Th>Dział</Th>
-                  <Th>Poziom</Th>
-                  <Th>Nadano</Th>
-                  <Th>Wygasa</Th>
-                  {canWrite && <Th className="w-10" />}
-                </tr>
-              </thead>
-              <tbody>
-                {grants.map((grant) => (
-                  <GrantRow
-                    key={grant.personId}
-                    grant={grant}
-                    canWrite={canWrite}
-                    applicationId={applicationId}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table className="min-w-[760px]">
+            <Thead>
+              <tr>
+                <Th className="w-[22%]">Imię i nazwisko</Th>
+                <Th>Stanowisko</Th>
+                <Th>Dział</Th>
+                <Th>Poziom</Th>
+                <Th>Nadano</Th>
+                <Th>Wygasa</Th>
+                {canWrite && (
+                  <Th className="w-10 text-right">
+                    <span className="sr-only">Akcje</span>
+                  </Th>
+                )}
+              </tr>
+            </Thead>
+            <Tbody>
+              {grants.map((grant) => (
+                <GrantRow
+                  key={grant.personId}
+                  grant={grant}
+                  canWrite={canWrite}
+                  applicationId={applicationId}
+                />
+              ))}
+            </Tbody>
+          </Table>
         )}
 
         <p className="mt-3 text-xs text-fg-subtle">
@@ -160,8 +162,8 @@ function GrantRow({
   };
 
   return (
-    <tr>
-      <td className="py-2 pr-3">
+    <tr className="table-row-hover">
+      <Td>
         <div className="font-medium text-fg">
           {grant.person.firstName} {grant.person.lastName}
         </div>
@@ -170,10 +172,10 @@ function GrantRow({
             {ostrzezenie === 'wygasł' ? 'Dostęp wygasł' : 'Osoba nieaktywna'}
           </Badge>
         )}
-      </td>
-      <td className="py-2 pr-3 text-fg-muted">{grant.person.position ?? '—'}</td>
-      <td className="py-2 pr-3 text-fg-muted">{grant.person.department ?? '—'}</td>
-      <td className="py-2 pr-3">
+      </Td>
+      <Td className="text-fg-muted">{grant.person.position ?? '—'}</Td>
+      <Td className="text-fg-muted">{grant.person.department ?? '—'}</Td>
+      <Td>
         {editing ? (
           <Select
             label="Poziom"
@@ -191,9 +193,9 @@ function GrantRow({
             {ACCESS_LEVEL_LABELS[grant.level]}
           </Badge>
         )}
-      </td>
-      <td className="py-2 pr-3 text-fg-muted">{formatDate(grant.grantedOn)}</td>
-      <td className="py-2 pr-3">
+      </Td>
+      <Td className="whitespace-nowrap text-fg-muted">{formatDate(grant.grantedOn)}</Td>
+      <Td>
         {editing ? (
           <TextInput
             label="Wygasa"
@@ -208,9 +210,9 @@ function GrantRow({
             {grant.expiresOn ? formatDate(grant.expiresOn) : 'bezterminowo'}
           </span>
         )}
-      </td>
+      </Td>
       {canWrite && (
-        <td className="py-2 text-right">
+        <Td className="text-right">
           {editing ? (
             <span className="flex items-center justify-end gap-2">
               <TextInput
@@ -246,7 +248,7 @@ function GrantRow({
               </Button>
             </span>
           )}
-        </td>
+        </Td>
       )}
     </tr>
   );

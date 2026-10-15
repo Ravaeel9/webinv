@@ -12,7 +12,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
-import { Th } from '../components/ui/Table';
+import { Table, Tbody, Td, Th, Thead } from '../components/ui/Table';
 import { formatDate } from '../lib/format';
 import { ACCESS_LEVEL_LABELS } from '../types';
 
@@ -181,31 +181,37 @@ export function PersonDetailPage() {
               description="Dodaj ją przy karcie aplikacji — to jedno miejsce, w którym nadajemy dostęp."
             />
           ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-border">
+            <Table className="min-w-[640px]">
+              <Thead>
                 <tr>
                   <Th>Aplikacja</Th>
                   <Th>Poziom</Th>
                   <Th>Nadano</Th>
                   <Th>Wygasa</Th>
-                  {canWrite && <Th className="w-10" />}
+                  {canWrite && (
+                    <Th className="w-10 text-right">
+                      <span className="sr-only">Akcje</span>
+                    </Th>
+                  )}
                 </tr>
-              </thead>
-              <tbody>
+              </Thead>
+              <Tbody>
                 {grants.map((grant) => (
-                  <tr key={grant.application.id}>
-                    <td className="py-2 pr-3">{grant.application.name}</td>
-                    <td className="py-2 pr-3">
+                  <tr key={grant.application.id} className="table-row-hover">
+                    <Td>{grant.application.name}</Td>
+                    <Td>
                       <Badge tone={grant.level === 'OWNER' ? 'violet' : 'neutral'}>
                         {ACCESS_LEVEL_LABELS[grant.level]}
                       </Badge>
-                    </td>
-                    <td className="py-2 pr-3 text-fg-muted">{formatDate(grant.grantedOn)}</td>
-                    <td className="py-2 text-fg-muted">
+                    </Td>
+                    <Td className="whitespace-nowrap text-fg-muted">
+                      {formatDate(grant.grantedOn)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-fg-muted">
                       {grant.expiresOn ? formatDate(grant.expiresOn) : 'bezterminowo'}
-                    </td>
+                    </Td>
                     {canWrite && (
-                      <td className="py-2 text-right">
+                      <Td className="text-right">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -223,12 +229,12 @@ export function PersonDetailPage() {
                         >
                           Odebraj
                         </Button>
-                      </td>
+                      </Td>
                     )}
                   </tr>
                 ))}
-              </tbody>
-            </table>
+              </Tbody>
+            </Table>
           )}
         </div>
       </section>

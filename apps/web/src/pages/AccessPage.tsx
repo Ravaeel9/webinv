@@ -8,7 +8,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Checkbox, Select, TextInput } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
-import { Th } from '../components/ui/Table';
+import { Table, Tbody, Td, Th, Thead } from '../components/ui/Table';
 import { IconDownload, IconPlus } from '../components/ui/icons';
 import { formatDate } from '../lib/format';
 import { ImportPersonsModal } from '../components/access/ImportPersonsModal';
@@ -132,42 +132,42 @@ function PersonsTab() {
       )}
 
       {osoby.length > 0 && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border">
+        <div className="card overflow-hidden">
+          <Table className="min-w-[760px]">
+            <Thead>
               <tr>
-                <Th>Imię i nazwisko</Th>
+                <Th className="w-[22%]">Imię i nazwisko</Th>
                 <Th>Stanowisko</Th>
                 <Th>Dział</Th>
                 <Th>E-mail</Th>
                 <Th>Aplikacje</Th>
                 <Th>Stan</Th>
               </tr>
-            </thead>
-            <tbody>
+            </Thead>
+            <Tbody>
               {osoby.map((osoba) => (
-                <tr key={osoba.id}>
-                  <td className="py-2 pr-3">
+                <tr key={osoba.id} className="table-row-hover">
+                  <Td>
                     <Link
                       to={`/uprawnienia/osoby/${osoba.id}`}
                       className="font-medium text-brand-600 hover:underline"
                     >
                       {osoba.firstName} {osoba.lastName}
                     </Link>
-                  </td>
-                  <td className="py-2 pr-3 text-fg-muted">{osoba.position ?? '—'}</td>
-                  <td className="py-2 pr-3 text-fg-muted">{osoba.department ?? '—'}</td>
-                  <td className="py-2 pr-3 text-fg-muted">{osoba.email}</td>
-                  <td className="py-2 pr-3 text-fg-muted">{osoba.accessCount}</td>
-                  <td className="py-2">
+                  </Td>
+                  <Td className="text-fg-muted">{osoba.position ?? '—'}</Td>
+                  <Td className="text-fg-muted">{osoba.department ?? '—'}</Td>
+                  <Td className="text-fg-muted">{osoba.email}</Td>
+                  <Td className="tabular-nums text-fg-muted">{osoba.accessCount}</Td>
+                  <Td>
                     <Badge tone={osoba.isActive ? 'ok' : 'neutral'}>
                       {osoba.isActive ? 'aktywna' : 'nieaktywna'}
                     </Badge>
-                  </td>
+                  </Td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+            </Tbody>
+          </Table>
         </div>
       )}
     </>
@@ -263,11 +263,11 @@ function MatrixTab() {
       )}
 
       {rows.length > 0 && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border">
+        <div className="card overflow-hidden">
+          <Table className="min-w-[900px]">
+            <Thead>
               <tr>
-                <Th>Osoba</Th>
+                <Th className="w-[20%]">Osoba</Th>
                 <Th>Stanowisko</Th>
                 <Th>Dział</Th>
                 <Th>Aplikacja</Th>
@@ -275,11 +275,11 @@ function MatrixTab() {
                 <Th>Nadano</Th>
                 <Th>Wygasa</Th>
               </tr>
-            </thead>
-            <tbody>
+            </Thead>
+            <Tbody>
               {rows.map((wiersz) => (
-                <tr key={`${wiersz.application.id}:${wiersz.person.id}`}>
-                  <td className="py-2 pr-3">
+                <tr key={`${wiersz.application.id}:${wiersz.person.id}`} className="table-row-hover">
+                  <Td>
                     <Link
                       to={`/uprawnienia/osoby/${wiersz.person.id}`}
                       className="font-medium text-brand-600 hover:underline"
@@ -291,23 +291,25 @@ function MatrixTab() {
                         nieaktywna
                       </Badge>
                     )}
-                  </td>
-                  <td className="py-2 pr-3 text-fg-muted">{wiersz.person.position ?? '—'}</td>
-                  <td className="py-2 pr-3 text-fg-muted">{wiersz.person.department ?? '—'}</td>
-                  <td className="py-2 pr-3">{wiersz.application.name}</td>
-                  <td className="py-2 pr-3">
+                  </Td>
+                  <Td className="text-fg-muted">{wiersz.person.position ?? '—'}</Td>
+                  <Td className="text-fg-muted">{wiersz.person.department ?? '—'}</Td>
+                  <Td>{wiersz.application.name}</Td>
+                  <Td>
                     <Badge tone={wiersz.level === 'OWNER' ? 'violet' : 'neutral'}>
                       {ACCESS_LEVEL_LABELS[wiersz.level]}
                     </Badge>
-                  </td>
-                  <td className="py-2 pr-3 text-fg-muted">{formatDate(wiersz.grantedOn)}</td>
-                  <td className="py-2 text-fg-muted">
+                  </Td>
+                  <Td className="whitespace-nowrap text-fg-muted">
+                    {formatDate(wiersz.grantedOn)}
+                  </Td>
+                  <Td className="whitespace-nowrap text-fg-muted">
                     {wiersz.expiresOn ? formatDate(wiersz.expiresOn) : 'bezterminowo'}
-                  </td>
+                  </Td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+            </Tbody>
+          </Table>
         </div>
       )}
     </>
