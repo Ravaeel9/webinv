@@ -405,6 +405,35 @@
            ring-[oklch(0.82_0.08_254)];
   }
 
+  /* ─── Zakładki — pozycja aktywna ──────────────────────────────
+   *
+   * Stan „wybrane" w pasku zakładek (Osoby | Macierz uprawnień).
+   *
+   * Tu **nie ma wypełnienia `brand-600`**: taki kolor to wygląd przycisku
+   * głównego, a zakładka aktywna stoi na stronie cały czas — w trybie
+   * jasnym czytała się jako CTA, nie jako element nawigacji. Wypełnienie
+   * jest miękkim tintem, a krawędź niesie obramowanie; odwrotnie niż przy
+   * odznakach, gdzie odcień ma być widoczny sam, bo leży na karcie.
+   *
+   * Wartości w `oklch`, a nie tokeny `brand-*`, celowo: to klasa stanu
+   * kontrastowego, a `ui-contrast.test.ts` liczy pary kolorów właśnie
+   * z `index.css`. Tokeny zostałyby poza zasięgiem testu.
+   *
+   * W trybie jasnym wypełnienie bierze dokładnie wartość `.nav-item-active`
+   * (1.21:1 wobec białego nieaktywnego kafelka). Pierwsza wersja brała
+   * `brand-50`, czyli oklch(0.97 …) — różnica 1.09:1, czyli na ekranie
+   * żadna: aktywna zakładka wyglądała jak nieaktywna i zgłoszenie braku
+   * zmiany było uzasadnione. Ten przypadek pilnuje tego progiem 1.15:1
+   * w `apps/api/test/ui-contrast.test.ts`.
+   */
+  .tab-active {
+    @apply ring-1 ring-inset
+           dark:bg-[oklch(0.295_0.065_254)] dark:text-[oklch(0.85_0.12_254)]
+           dark:ring-[oklch(0.42_0.11_254)]
+           bg-[oklch(0.935_0.03_254)] text-[oklch(0.48_0.19_254)]
+           ring-[oklch(0.82_0.08_254)];
+  }
+
   /* Karta treści */
   .card {
     @apply rounded-xl border border-line bg-surface shadow-sm;

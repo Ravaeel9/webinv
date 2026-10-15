@@ -404,6 +404,92 @@ describe('Nawigacja — pozycja aktywna', () => {
   });
 });
 
+describe('Zakładki — pozycja aktywna', () => {
+  /**
+   * Klasa `.tab-active` — stan wybranej zakładki na stronie „Uprawnienia".
+   *
+   * Osobny przypadek obok nawigacji, nie część `describe` o `.nav-item-active`:
+   * pozycja w pasku leży na `bg-surface`, a zakładka na `bg-page`, więc ten sam
+   * próg „odcina się od podłoża" dawałby tu inny wynik niż tam.
+   */
+  function tab(): Tone {
+    const t = readTone('.tab-active');
+    assert.ok(t, 'brak klasy .tab-active w index.css');
+    return t;
+  }
+
+  it('.tab-active ma jawną parę kolorów na oba motywy', () => {
+    const t = tab();
+    for (const [mode, ratio] of [
+      ['jasnym', contrast(t.lightText, t.light)],
+      ['ciemnym', contrast(t.darkText, t.dark)],
+    ] as const) {
+      assert.ok(
+        ratio >= 4.5,
+        `.tab-active w trybie ${mode}: ${ratio.toFixed(2)}:1 — potrzeba 4.5:1`,
+      );
+    }
+  });
+
+  it('.tab-active: ma oba warianty tła, tekstu i obramowania', () => {
+    const body = classBody('.tab-active') ?? '';
+    assert.notEqual(body, '', 'brak klasy .tab-active');
+
+    const list = utilities(body);
+    const light = colorValues(list.filter((u) => !u.startsWith('dark:')));
+    const dark = colorValues(list.filter((u) => u.startsWith('dark:')));
+
+    for (const property of ['bg', 'text', 'ring']) {
+      assert.ok(light.has(property), `brak jasnego ${property}`);
+      assert.ok(dark.has(property), `brak ciemnego ${property}`);
+    }
+  });
+
+  it('.tab-active ma krawędź czytelną na tle strony', () => {
+    // W trybie jasnym wypełnienie od `--c-page` odróżnia się słabo
+    // (1.02:1) i to świadome: granicę niesie `ring`, a akcentem jest tekst.
+    // Bez tego przypadku granica zniknęłaby razem z obramowaniem i nikt
+    // nie zauważyłby, że zakładka przestała się odcinać od strony.
+    const list = utilities(classBody('.tab-active') ?? '');
+    for (const [mode, dark] of [
+      ['jasnym', false],
+      ['ciemnym', true],
+    ] as const) {
+      const found = colorValues(list.filter((u) => u.startsWith('dark:') === dark));
+      const ring = found.get('ring');
+      assert.ok(ring, `brak obramowania w trybie ${mode}`);
+
+      const ratio = contrast(oklch(ring), token('c-page', dark));
+      assert.ok(
+        ratio >= 1.3,
+        `.tab-active: krawędź vs --c-page w trybie ${mode}: ` +
+          `${ratio.toFixed(2)}:1 — zakładka zlewa się ze stroną`,
+      );
+    }
+  });
+
+  it('.tab-active różni się od nieaktywnego kafelka', () => {
+    // Nieaktywna zakładka to `bg-surface` (`--c-surface`). Aktywna ma swój
+    // odcień, bo inaczej stan wybrania zniknąłby — a wrócenie do `bg-surface`
+    // przeszłoby po cichu.
+    // W trybie jasnym granicę niesie `ring`, a akcentem jest tekst, więc
+    // wypełnienie jestblade — ale nie na tyle, żeby zakładka przestała się
+    // różnić od nieaktywnej.
+    const t = tab();
+    for (const [mode, fill, inactive] of [
+      ['jasnym', t.light, token('c-surface', false)],
+      ['ciemnym', t.dark, token('c-surface', true)],
+    ] as const) {
+      const delta = contrast(fill, inactive);
+      assert.ok(
+        delta >= 1.15,
+        `.tab-active vs nieaktywna zakładka w trybie ${mode}: ` +
+          `${delta.toFixed(2)}:1 — zakładki wyglądają identycznie`,
+      );
+    }
+  });
+});
+
 describe('Tokeny tekstu — kontrast na karcie', () => {
   for (const name of ['c-fg', 'c-fg-muted', 'c-fg-subtle']) {
     it(`--${name} czytelny na karcie w obu motywach`, () => {

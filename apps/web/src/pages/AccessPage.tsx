@@ -56,7 +56,19 @@ export function AccessPage() {
         }
       />
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-surface-2 p-1">
+      {/* Zakładki jako kafelki, nie szary pasek: `bg-surface-2` w panelu
+          zarezerwowany jest dla pasm nagłówków (`thead`, `.card-section-header`),
+          a duże tło pod kontrolką wychodziło poza resztę stron. Wzorzec
+          przejęty ze środowisk w formularzu aplikacji — dwa kafelki obok siebie
+          wyglądają jak dwa elementy, a nie jak jeden szary blok. Stan aktywny
+          to `.tab-active` (tint + krawędź), a nie wypełnienie `brand-600`:
+          wypełnienie akcentem to wygląd przycisku, a zakładka stoi na stronie
+          cały czas i w trybie jasnym dominowała nad treścią. */}
+      <div
+        className="mb-4 flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="Widoki uprawnień"
+      >
         {(
           [
             ['osoby', 'Osoby'],
@@ -66,11 +78,14 @@ export function AccessPage() {
           <button
             key={klucz}
             type="button"
+            role="tab"
             onClick={() => setZakladka(klucz)}
-            aria-pressed={zakladka === klucz}
+            aria-selected={zakladka === klucz}
             className={[
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              zakladka === klucz ? 'bg-surface text-fg' : 'text-fg-muted hover:text-fg',
+              'rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition',
+              zakladka === klucz
+                ? 'tab-active'
+                : 'bg-surface text-fg-muted ring-line-strong hover:bg-page',
             ].join(' ')}
           >
             {etykieta}
