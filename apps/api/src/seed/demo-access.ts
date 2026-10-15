@@ -3,9 +3,14 @@
  *
  * Osobny plik od `demo-applications.ts`, bo to nie aplikacje tylko osoby —
  * i demo ma pokazywać oba ostrzeżenia naraz, których w realnym katalogu
- * prawie nigdy nie ma naraz: wygasłe przypisanie (`expiresOn` w przeszłości)
+ * prawie nigdy nie ma razem: wygasłe przypisanie (`expiresOn` w przeszłości)
  * i osobę nieaktywną. Bez nich ekran wygląda na zawsze poprawny, a
  * administrator pierwszy raz widzi ostrzeżenie już w produkcji.
+ *
+ * Nazwy aplikacji muszą istnieć w `demo-applications.ts` / `demo-services.ts`
+ * — przypisania szukamy aplikacji po nazwie, bo UUID demo-aplikacji zmienia się
+ * przy każdym seedzie na czystej bazie. Test `seed-access.test.ts` pilnuje,
+ * żeby te nazwy nie rozjechały się z danymi demo aplikacji.
  *
  * Adresy na domenie `@example.invalid`, której nie da się zarejestrować
  * (RFC 2606) — tak samo rozpoznawalne jak `isDemo` przy aplikacjach,
@@ -71,7 +76,7 @@ const DANE_OSOB = [
   },
 ];
 
-/** Przypisania: nazwa aplikacji (jak w demo) → osoby i poziomy. */
+/** Przypisania: nazwa aplikacji demo → osoby i poziomy. */
 const DANE_PRZYPISAN: Array<{
   application: string;
   email: string;
@@ -80,14 +85,16 @@ const DANE_PRZYPISAN: Array<{
   note: string | null;
 }> = [
   {
-    application: 'System kadrowy',
+    // Usługa z blokiem dostępu i wsparcia — tam administrator najczęściej
+    // szuka listy osób mających wgląd.
+    application: 'Grafana',
     email: 'anna.zalewska@example.invalid',
     level: 'OWNER',
     expiresOn: null,
     note: null,
   },
   {
-    application: 'System kadrowy',
+    application: 'Grafana',
     email: 'bolek.nowak@example.invalid',
     level: 'USER',
     // Wygasłe: wiersz zostaje w macierzy z ostrzeżeniem, bo to historia
@@ -96,14 +103,14 @@ const DANE_PRZYPISAN: Array<{
     note: 'Dostęp czasowy na okres wdrożenia.',
   },
   {
-    application: 'System kadrowy',
+    application: 'Grafana',
     email: 'cecilia.wojcik@example.invalid',
     level: 'READ_ONLY',
     expiresOn: null,
     note: null,
   },
   {
-    application: 'Platforma do backupu',
+    application: 'Keycloak',
     email: 'anna.zalewska@example.invalid',
     level: 'ADMIN',
     expiresOn: null,
@@ -150,13 +157,18 @@ export async function seedDemoAccess(
   );
 
   let zapisane = 0;
+  const pominiete: string[] = [];
   for (const przypisanie of DANE_PRZYPISAN) {
     const applicationId = aplikacje.get(przypisanie.application);
     const personId = osoby.get(przypisanie.email);
     // Demo aplikacji może nie istnieć (tryb demo wyłączony w ustawieniach,
-    // seed tylko częściowy) — wtedy pomijamy przypisanie, zamiast wywalać
-    // start kontenera.
-    if (!applicationId || !personId) continue;
+    // seed tylko częściowy) — wtedy pomijamy przypisanie, ale **mówimy
+    // o tym w logu**: ciche zero przypisań przy trzech zapisanych osobach
+    // wygląda jak awaria seeda, a była literówką w nazwie aplikacji.
+    if (!applicationId || !personId) {
+      pominiete.push(przypisanie.application);
+      continue;
+    }
 
     await prisma.applicationAccess.upsert({
       where: { applicationId_personId: { applicationId, personId } },
@@ -176,7 +188,7 @@ export async function seedDemoAccess(
     zapisane++;
   }
 
-  return { persons: osoby.size, grants: zapisane };
+  return { persons: osoby.size, grants: zapisane, pominiete };
 }
 
 /** Dane demo eksportowane dla testu — nie osobna kopia prawdy. */

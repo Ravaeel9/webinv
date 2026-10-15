@@ -13,13 +13,21 @@
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'node:test';
+import { read } from './helpers/repo';
 import {
   DEMO_ACCESS_DATA,
   seedDemoAccess,
   type DemoAccessSeeder,
 } from '../src/seed/demo-access';
 
-function atrapa(aplikacje: string[] = ['System kadrowy', 'Platforma do backupu']) {
+/** Nazwy aplikacji z plików seeda — czytane tekstem, bo to dane, nie kod API. */
+function zrodloAplikacjiDemo(): string {
+  return ['demo-applications.ts', 'demo-services.ts']
+    .map((plik) => read('apps', 'api', 'src', 'seed', plik))
+    .join('\n');
+}
+
+function atrapa(aplikacje: string[] = ['Grafana', 'Keycloak']) {
   const osoby: Array<{ id: string; email: string }> = [];
   const przypisania: Array<{ klucz: string; poziom: string }> = [];
 
@@ -99,11 +107,28 @@ describe('Seed macierzy uprawnień', () => {
     );
   });
 
-  it('brak aplikacji demo nie wywala seeda', async () => {
+  it('nazwy aplikacji w danych demo istnieją w rejestrze — inaczej przypisania są ciche', async () => {
+    // Przypisania szukają aplikacji po nazwie. Literówka w nazwie nie
+    // wywala seeda — po prostu tworzy osoby i **zero** przypisań, a log
+    // mówi o trzech osobach, więc wygląda to jak awaria.
+    const rejestr = zrodloAplikacjiDemo();
+    for (const przypisanie of DEMO_ACCESS_DATA.grants) {
+      assert.ok(
+        rejestr.includes(`'${przypisanie.application}'`),
+        `aplikacja „${przypisanie.application}" nie ma w danych demo aplikacji`,
+      );
+    }
+  });
+
+  it('brak aplikacji demo nie wywala seeda i mówi, co pominął', async () => {
     const { prisma } = atrapa([]);
 
     const wynik = await seedDemoAccess(prisma);
 
     assert.equal(wynik.grants, 0);
+    assert.ok(
+      wynik.pominiete.includes('Grafana'),
+      'seed musi wymieniać pominięte aplikacje — inaczej zero przypisań wygląda jak awaria',
+    );
   });
 });

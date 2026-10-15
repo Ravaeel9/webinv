@@ -92,6 +92,12 @@ export class SeedService implements OnApplicationBootstrap {
     // Osoby i przypisania po tym samym seedzie aplikacji: przypisania
     // wskazują aplikacje po nazwie, więc muszą powstać po nich.
     const macierz = await seedDemoAccess(this.prisma);
+    if (macierz.pominiete.length > 0) {
+      this.logger.warn(
+        `Pominięte przypisania macierzy — brak aplikacji demo o nazwie: ` +
+          `${macierz.pominiete.join(', ')}.`,
+      );
+    }
     this.logger.log(
       `Dane demonstracyjne: ${count} rekordów (upsert), ` +
         `${macierz.persons} osób i ${macierz.grants} przypisań. ` +
