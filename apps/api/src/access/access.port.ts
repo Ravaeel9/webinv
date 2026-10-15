@@ -46,6 +46,21 @@ export type ApplicationAccessRow = {
 /** Przypisanie wraz z osobą — do macierzy jednej aplikacji. */
 export type AccessGrantWithPerson = ApplicationAccessRow & { person: PersonRow };
 
+/**
+ * Przypisanie w kształcie odpowiedzi API: daty jako `YYYY-MM-DD`.
+ *
+ * Osobny typ, bo `expires_on` i `granted_on` to kolumny `@db.Date`, a
+ * serializacja `Date` dałaby w JSON znacznik czasu z godziną — interfejs
+ * pokazuje datę nadania, nie moment nadania.
+ */
+export type AccessGrantDto = Omit<
+  AccessGrantWithPerson,
+  'grantedOn' | 'expiresOn' | 'createdAt'
+> & {
+  grantedOn: string;
+  expiresOn: string | null;
+};
+
 /** Przypisanie wraz z osobą i aplikacją — do macierzy zbiorczej. */
 export type AccessGrantWithRelations = AccessGrantWithPerson & {
   application: ApplicationRefRow;
@@ -131,3 +146,12 @@ export interface AccessPort {
   applicationAccess: GrantDelegate;
   application: ApplicationDelegate;
 }
+/**
+ * Token wstrzykiwania portu.
+ *
+ * Port jest interfejsem, więc Nest nie umie go rozpoznać po typie —
+ * `design:paramtypes` dałby `Object`. Moduł podaje pod tym tokenem
+ * `PrismaService` (`useExisting`), więc produkcja i testy mają ten sam
+ * kształt konstruktora.
+ */
+export const ACCESS_PORT = 'ACCESS_PORT';

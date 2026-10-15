@@ -1,17 +1,25 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/decorators';
-import type {
-  AccessPort,
-  PersonOrderBy,
-  PersonRow,
-  PersonWhere,
-  PersonWithCounts,
+import {
+  ACCESS_PORT,
+  type AccessGrantDto,
+  type AccessGrantWithPerson,
+  type AccessGrantWithRelations,
+  type AccessLevelName,
+  type AccessPort,
+  type ApplicationAccessRow,
+  type GrantWhere,
+  type PersonOrderBy,
+  type PersonRow,
+  type PersonWhere,
+  type PersonWithCounts,
 } from './access.port';
 
 /**
@@ -37,7 +45,7 @@ import type {
 @Injectable()
 export class AccessService {
   constructor(
-    private readonly prisma: AccessPort,
+    @Inject(ACCESS_PORT) private readonly prisma: AccessPort,
     private readonly audit: AuditService,
   ) {}
 
@@ -215,6 +223,319 @@ export class AccessService {
     });
 
     return po;
+  }
+
+  // ─── Macierz uprawnień ───────────────────────────────────────
+
+  /**
+   * Macierz jednej aplikacji — do sekcji w karcie aplikacji.
+   * Sortowanie po nazwisku, bo to najczęstsze pytanie przy przeglądaniu:
+   * „kto tu ma dostęp".
+   */
+  async listApplicationAccess(applicationId: string): Promise<AccessGrantDto[]> {
+    await this.requireApplication(applicationId);
+    const granty = (await this.prisma.applicationAccess.findMany({
+      where: { applicationId },
+      orderBy: 'person',
+    })) as AccessGrantWithPerson[];
+    return granty.map((g) => this.formatGrant(g, g.person));
+  }
+
+  /**
+   * Ujednolicony kształt przypisania dla odpowiedzi API: daty jako
+   * `YYYY-MM-DD`. Ten sam format co w macierzy zbiorczej, więc interfejs
+   * nie musi znać dwóch reprezentacji tej samej daty.
+   */
+  private formatGrant(
+    grant: ApplicationAccessRow,
+    person: PersonRow,
+  ): AccessGrantDto {
+    return {
+      applicationId: grant.applicationId,
+      personId: grant.personId,
+      level: grant.level,
+      grantedOn: this.data(grant.grantedOn),
+      expiresOn: grant.expiresOn ? this.data(grant.expiresOn) : null,
+      note: grant.note,
+      person,
+    };
+  }
+
+  /**
+   * Nadanie dostępu. Kolejność sprawdzeń jest tu celowa i wynika z tego,
+   * co administrator musi zrozumieć z komunikatu:
+   *
+   *  1. czy aplikacja w ogóle istnieje,
+   *  2. czy osoba już jest w katalogu (a może tylko nie ma tu dostępu),
+   *  3. czy osoba jest aktywna,
+   *  4. czy nie ma jej już w tej aplikacji,
+   *  5. czy data wygaśnięcia nie jest w przeszłości.
+   *
+   * Dopiero potem cokolwiek zapisujemy — nieudana próba nie może zostawić
+   * w katalogu osoby utworzonej „w trakcie” odrzuconego nadania.
+   */
+  async grantAccess(
+    applicationId: string,
+    dto: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      position?: string;
+      department?: string;
+      level?: AccessLevelName;
+      expiresOn?: string;
+      note?: string;
+    },
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<AccessGrantDto> {
+    await this.requireApplication(applicationId);
+
+    const email = this.walidujEmail(dto.email);
+    let osoba = await this.prisma.person.findFirst({ where: { email } });
+
+    if (osoba && !osoba.isActive) {
+      throw new BadRequestException(
+        `Osoba „${osoba.firstName} ${osoba.lastName}" jest nieaktywna — najpierw aktywuj ją w katalogu osób.`,
+      );
+    }
+
+    if (!osoba) {
+      osoba = await this.prisma.person.create({
+        data: this.walidujOsobe({
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email,
+          position: dto.position,
+          department: dto.department,
+        }),
+      });
+    } else if (dto.position !== undefined || dto.department !== undefined) {
+      // Dane z matrycy mogą uzupełnić katalog (np. dział wgrywany
+      // przy okazji), ale nie nadpisujemy tego, co tam już jest.
+      await this.prisma.person.update({
+        where: { id: osoba.id },
+        data: {
+          ...(dto.position !== undefined ? { position: this.walidujTekst(dto.position, 'Stanowisko') ?? null } : {}),
+          ...(dto.department !== undefined ? { department: this.walidujTekst(dto.department, 'Dział') ?? null } : {}),
+        },
+      });
+    }
+
+    const istniejace = await this.prisma.applicationAccess.findUnique({
+      where: { applicationId, personId: osoba.id },
+    });
+    if (istniejace) {
+      throw new ConflictException(
+        `Ta osoba ma już dostęp do tej aplikacji (poziom ${istniejace.level}).`,
+      );
+    }
+
+    const expiresOn = this.walidujWygasanie(dto.expiresOn, true);
+
+    const grant = await this.prisma.applicationAccess.create({
+      data: {
+        applicationId,
+        personId: osoba.id,
+        level: dto.level ?? 'USER',
+        expiresOn,
+        note: this.walidujNotatke(dto.note),
+      },
+    });
+
+    await this.audit.record({
+      action: 'access.granted',
+      entity: 'ApplicationAccess',
+      entityId: grant.personId,
+      actorId: actor.id,
+      actorName: actor.username,
+      changes: {
+        // Nazwa osoby w zmianie: dziennik ma czytać się bez dodatkowych
+        // zapytań o każdą osobę z osobna.
+        person: { from: null, to: this.opisOsoby(osoba) },
+        level: { from: null, to: grant.level },
+        expiresOn: { from: null, to: grant.expiresOn ? this.data(grant.expiresOn) : null },
+      },
+      ip,
+    });
+
+    return this.formatGrant(grant, await this.getPerson(osoba.id));
+  }
+
+  /** Zmiana poziomu, daty wygaśnięcia i notatki. Daty nadania nie ruszamy. */
+  async updateGrant(
+    applicationId: string,
+    personId: string,
+    dto: { level?: AccessLevelName; expiresOn?: string | null; note?: string | null },
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<AccessGrantDto> {
+    const przed = await this.prisma.applicationAccess.findUnique({
+      where: { applicationId, personId },
+    });
+    if (!przed) throw new NotFoundException('To przypisanie nie istnieje.');
+
+    const data: Record<string, unknown> = {};
+    if (dto.level !== undefined) data.level = dto.level;
+    if (dto.expiresOn !== undefined) {
+      data.expiresOn =
+        dto.expiresOn === null ? null : this.walidujWygasanie(dto.expiresOn, false);
+    }
+    if (dto.note !== undefined) data.note = dto.note === null ? null : this.walidujNotatke(dto.note);
+
+    const grant = await this.prisma.applicationAccess.update({
+      where: { applicationId, personId },
+      data: data as never,
+    });
+
+    await this.audit.record({
+      action: 'access.updated',
+      entity: 'ApplicationAccess',
+      entityId: personId,
+      actorId: actor.id,
+      actorName: actor.username,
+      changes: AuditService.diff(
+        przed as unknown as Record<string, unknown>,
+        { ...przed, ...data } as unknown as Record<string, unknown>,
+        ['createdAt', 'grantedOn'],
+      ),
+      ip,
+    });
+
+    return this.formatGrant(grant, await this.getPerson(personId));
+  }
+
+  /**
+   * Odebranie dostępu. Kasujemy przypisanie, nie osobę — osoba może mieć
+   * dostęp do innych aplikacji, a poza tym sama ewidencja ma wartość.
+   */
+  async revokeGrant(
+    applicationId: string,
+    personId: string,
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<void> {
+    const grant = await this.prisma.applicationAccess.findUnique({
+      where: { applicationId, personId },
+    });
+    if (!grant) throw new NotFoundException('To przypisanie nie istnieje.');
+
+    const osoba = await this.prisma.person.findUnique({ where: { id: personId } });
+    await this.prisma.applicationAccess.delete({ where: { applicationId, personId } });
+
+    await this.audit.record({
+      action: 'access.revoked',
+      entity: 'ApplicationAccess',
+      entityId: personId,
+      actorId: actor.id,
+      actorName: actor.username,
+      changes: {
+        person: { from: osoba ? this.opisOsoby(osoba) : personId, to: null },
+        level: { from: grant.level, to: null },
+      },
+      ip,
+    });
+  }
+
+  /**
+   * Macierz zbiorcza: każdy wiersz to osoba, aplikacja i poziom.
+   * Filtry są dokładne (`department` to tekst z katalogu), a wygasłe
+   * przypisania zostają — macierz ma pokazywać stan nadania, nie tylko
+   * stan bieżący.
+   */
+  async matrix(filters: {
+    applicationId?: string;
+    personId?: string;
+    department?: string;
+    level?: AccessLevelName;
+  }) {
+    const where: GrantWhere = {};
+    if (filters.applicationId) where.applicationId = filters.applicationId;
+    if (filters.personId) where.personId = filters.personId;
+    if (filters.level) where.level = filters.level;
+    if (filters.department) where.person = { isActive: undefined };
+
+    const granty = (await this.prisma.applicationAccess.findMany({
+      where,
+      include: { application: true },
+      orderBy: 'person',
+    })) as AccessGrantWithRelations[];
+
+    // Filtr działu jedziemy po stronie serwisu: dział to wolny tekst bez
+    // indeksu, a macierz jest jednorazowym raportem, nie stroną katalogu.
+    const przefiltrowane = filters.department
+      ? granty.filter((g) => g.person.department === filters.department)
+      : granty;
+
+    return przefiltrowane.map((g) => ({
+      application: { id: g.application.id, name: g.application.name },
+      person: {
+        id: g.person.id,
+        firstName: g.person.firstName,
+        lastName: g.person.lastName,
+        email: g.person.email,
+        position: g.person.position,
+        department: g.person.department,
+        isActive: g.person.isActive,
+      },
+      level: g.level,
+      // Daty jako `YYYY-MM-DD`, nie pełne znaczniki czasu: interfejs
+      // pokazuje datę nadania, a godzina z dokładnością do sekundy
+      // tylko zaciemnia obraz.
+      grantedOn: this.data(g.grantedOn),
+      expiresOn: g.expiresOn ? this.data(g.expiresOn) : null,
+      note: g.note,
+    }));
+  }
+
+  /** Aplikacja musi istnieć i nie być oznaczona jako usunięta. */
+  private async requireApplication(applicationId: string) {
+    const aplikacja = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+    });
+    if (!aplikacja || aplikacja.deletedAt) {
+      throw new NotFoundException('Aplikacja nie istnieje.');
+    }
+    return aplikacja;
+  }
+
+  /**
+   * Data wygasania. Przy nadaniu data z przeszłości oznaczałaby „dodaj
+   * dostęp, który już wygasł" — nie ma sensu, więc odrzucamy. Przy edycji
+   * jest dopuszczalna: ktoś porządkuje zapis i zaznacza, że dostęp
+   * zakończył się wtedy.
+   */
+  private walidujWygasanie(wartosc: string | undefined, odrzucPrzeszle: boolean): Date | null {
+    if (wartosc === undefined || wartosc === '') return null;
+    const data = new Date(wartosc);
+    if (Number.isNaN(data.getTime())) {
+      throw new BadRequestException(`„${wartosc}" nie jest datą.`);
+    }
+    if (odrzucPrzeszle && data.getTime() < Date.now()) {
+      throw new BadRequestException('Data wygaśnięcia nie może być w przeszłości.');
+    }
+    return data;
+  }
+
+  private walidujNotatke(wartosc: string | undefined): string | null {
+    if (wartosc === undefined) return null;
+    const obcieta = wartosc.trim();
+    if (!obcieta) return null;
+    if (obcieta.length > 2000) {
+      throw new BadRequestException('Notatka ma maksymalnie 2000 znaków.');
+    }
+    return obcieta;
+  }
+
+  /** Opis osoby w dzienniku — czytelny bez otwierania katalogu. */
+  private opisOsoby(osoba: PersonRow): string {
+    const dzial = osoba.department ? ` (${osoba.department})` : '';
+    return `${osoba.firstName} ${osoba.lastName}${dzial}`;
+  }
+
+  /** Format daty dla odpowiedzi API: `YYYY-MM-DD`. */
+  private data(wartosc: Date): string {
+    return wartosc.toISOString().slice(0, 10);
   }
 
   // ─── Walidacja wspólna z importem CSV ────────────────────────
