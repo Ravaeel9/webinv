@@ -127,7 +127,7 @@ const DANE_PRZYPISAN: Array<{
  */
 export async function seedDemoAccess(
   prisma: DemoAccessSeeder,
-): Promise<{ persons: number; grants: number }> {
+): Promise<{ persons: number; grants: number; pominiete: string[] }> {
   const osoby = new Map<string, string>();
   for (const osoba of DANE_OSOB) {
     const zapisana = await prisma.person.upsert({
