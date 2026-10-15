@@ -1,0 +1,258 @@
+import { useState } from 'react';
+import {
+  useApplicationAccess,
+  useRevokeGrant,
+  useUpdateGrant,
+} from '../../lib/queries';
+import { useAuth } from '../../lib/auth';
+import { formatDate } from '../../lib/format';
+import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
+import { Select, TextInput } from '../ui/Field';
+import { EmptyState, ErrorMessage, Spinner } from '../ui/Feedback';
+import { Th } from '../ui/Table';
+import { IconPlus, IconShield, IconTrash } from '../ui/icons';
+import { ACCESS_LEVEL_LABELS, type AccessLevel } from '../../types';
+import { PersonAccessModal } from './PersonAccessModal';
+
+const POZIOMY: AccessLevel[] = ['OWNER', 'ADMIN', 'USER', 'READ_ONLY'];
+
+/**
+ * Macierz uprawnień w karcie aplikacji.
+ *
+ * Ewidencja, nie mechanizm nadania: system nie umawia nikomu dostępu,
+ * tylko zapisuje, komu go nadano poza nim. Dlatego przy każdym wierszu
+ * pokazujemy datę nadania i wygaśnięcia — to jedyne miejsce, gdzie
+ * widać, kiedy kto dostał dostęp.
+ *
+ * Wygasłe przypisania i osoby nieaktywne **zostają** w tabeli z ostrzeżeniem:
+ * to historia nadania, a nie stan bieżący. Usunięcie wiersza z oczu
+ * administratora dawałoby fałszywe poczucie, że tych osób tu nigdy nie było.
+ */
+export function ApplicationAccessSection({ applicationId }: { applicationId: string }) {
+  const { can } = useAuth();
+  const { data, isLoading, error } = useApplicationAccess(applicationId);
+  const [dodawanie, setDodawanie] = useState(false);
+  const canWrite = can('access:write');
+
+  const grants = data?.grants ?? [];
+
+  return (
+    <section className="card-section">
+      <div className="card-section-header">
+        <span className="section-icon tone-info">
+          <IconShield />
+        </span>
+        <h2 className="section-title">Uprawnienia do aplikacji</h2>
+        {canWrite && (
+          <Button size="sm" className="ml-auto" onClick={() => setDodawanie(true)}>
+            <IconPlus className="size-4" />
+            Dodaj osobę
+          </Button>
+        )}
+      </div>
+
+      <div className="card-section-body">
+        <ErrorMessage error={error} className="mb-3" />
+
+        {isLoading && <Spinner label="Wczytywanie macierzy…" />}
+
+        {!isLoading && grants.length === 0 && (
+          <EmptyState
+            title="Nikt nie ma tu jeszcze dostępu"
+            description="Dodaj osoby mające dostęp do tej aplikacji — ich dane są ewidencją, a nie kontem do panelu."
+            action={
+              canWrite ? (
+                <Button onClick={() => setDodawanie(true)}>
+                  <IconPlus className="size-4" />
+                  Dodaj osobę
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
+
+        {grants.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border">
+                <tr>
+                  <Th>Imię i nazwisko</Th>
+                  <Th>Stanowisko</Th>
+                  <Th>Dział</Th>
+                  <Th>Poziom</Th>
+                  <Th>Nadano</Th>
+                  <Th>Wygasa</Th>
+                  {canWrite && <Th className="w-10" />}
+                </tr>
+              </thead>
+              <tbody>
+                {grants.map((grant) => (
+                  <GrantRow
+                    key={grant.personId}
+                    grant={grant}
+                    canWrite={canWrite}
+                    applicationId={applicationId}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="mt-3 text-xs text-fg-subtle">
+          Macierz to ewidencja: dostęp nadaje się w narzędziu poza tym
+          systemem, a rejestr pokazuje, komu go nadano.
+        </p>
+      </div>
+
+      {dodawanie && (
+        <PersonAccessModal applicationId={applicationId} onClose={() => setDodawanie(false)} />
+      )}
+    </section>
+  );
+}
+
+/** Wiersz macierzy; przy `canWrite` pozwala zmienić poziom, datę i notatkę. */
+function GrantRow({
+  grant,
+  canWrite,
+  applicationId,
+}: {
+  grant: {
+    applicationId: string;
+    personId: string;
+    level: AccessLevel;
+    grantedOn: string;
+    expiresOn: string | null;
+    note: string | null;
+    person: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      position: string | null;
+      department: string | null;
+      isActive: boolean;
+    };
+  };
+  canWrite: boolean;
+  applicationId: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [level, setLevel] = useState<AccessLevel>(grant.level);
+  const [expiresOn, setExpiresOn] = useState(grant.expiresOn ?? '');
+  const [note, setNote] = useState(grant.note ?? '');
+  const update = useUpdateGrant();
+  const revoke = useRevokeGrant();
+
+  const wygaslo = Boolean(grant.expiresOn && grant.expiresOn < dzis());
+  const ostrzezenie = !grant.person.isActive ? 'nieaktywna' : wygaslo ? 'wygasł' : null;
+
+  const zapisz = async () => {
+    await update.mutateAsync({
+      applicationId,
+      personId: grant.personId,
+      level,
+      expiresOn: expiresOn || null,
+      note: note || null,
+    });
+    setEditing(false);
+  };
+
+  return (
+    <tr>
+      <td className="py-2 pr-3">
+        <div className="font-medium text-fg">
+          {grant.person.firstName} {grant.person.lastName}
+        </div>
+        {ostrzezenie && (
+          <Badge tone="warn" className="mt-1">
+            {ostrzezenie === 'wygasł' ? 'Dostęp wygasł' : 'Osoba nieaktywna'}
+          </Badge>
+        )}
+      </td>
+      <td className="py-2 pr-3 text-fg-muted">{grant.person.position ?? '—'}</td>
+      <td className="py-2 pr-3 text-fg-muted">{grant.person.department ?? '—'}</td>
+      <td className="py-2 pr-3">
+        {editing ? (
+          <Select
+            label="Poziom"
+            value={level}
+            onChange={(e) => setLevel(e.target.value as AccessLevel)}
+          >
+            {POZIOMY.map((poziom) => (
+              <option key={poziom} value={poziom}>
+                {ACCESS_LEVEL_LABELS[poziom]}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Badge tone={grant.level === 'OWNER' ? 'violet' : 'neutral'}>
+            {ACCESS_LEVEL_LABELS[grant.level]}
+          </Badge>
+        )}
+      </td>
+      <td className="py-2 pr-3 text-fg-muted">{formatDate(grant.grantedOn)}</td>
+      <td className="py-2 pr-3">
+        {editing ? (
+          <TextInput
+            label="Wygasa"
+            type="date"
+            value={expiresOn}
+            onChange={(e) => setExpiresOn(e.target.value)}
+          />
+        ) : (
+          // Wygasły dostęp dostaje ostrzeżenie w komórce, a nie szary tekst —
+          // szary byłby nieodróżnialny od „bezterminowo".
+          <span className={wygaslo ? 'alert alert-warn px-2 py-1 text-xs' : 'text-fg-muted'}>
+            {grant.expiresOn ? formatDate(grant.expiresOn) : 'bezterminowo'}
+          </span>
+        )}
+      </td>
+      {canWrite && (
+        <td className="py-2 text-right">
+          {editing ? (
+            <span className="flex items-center justify-end gap-2">
+              <TextInput
+                label="Notatka"
+                value={note}
+                placeholder="Notatka"
+                onChange={(e) => setNote(e.target.value)}
+              />
+              <Button size="sm" onClick={zapisz} loading={update.isPending}>
+                Zapisz
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                Anuluj
+              </Button>
+            </span>
+          ) : (
+            <span className="flex items-center justify-end gap-1">
+              <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                Zmień
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Odebranie dostępu usuwa przypisanie, nie osobę"
+                onClick={() =>
+                  revoke.mutate({
+                    applicationId,
+                    personId: grant.personId,
+                  })
+                }
+              >
+                <IconTrash className="size-4" />
+              </Button>
+            </span>
+          )}
+        </td>
+      )}
+    </tr>
+  );
+}
+
+/** Dzisiejsza data w formacie `RRRR-MM-DD` — porównanie jest tekstowe. */
+function dzis(): string {
+  return new Date().toISOString().slice(0, 10);
+}

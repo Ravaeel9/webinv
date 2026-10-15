@@ -20,6 +20,7 @@ import {
   formatDateTime,
 } from '../lib/format';
 import { ChangeList } from '../components/audit/ChangeList';
+import { ApplicationAccessSection } from '../components/access/ApplicationAccessSection';
 import {
   ACCESS_REQUEST_NO,
   ACCESS_REQUEST_YES,
@@ -327,6 +328,12 @@ export function ApplicationDetailPage() {
             </div>
           </section>
         )}
+
+        {/* Matryca uprawnień — tylko dla roli z `access:read` (ADMIN i
+            SUPER_ADMIN). Sekcja nie jest montowana u gościa ani u VIEWERA,
+            więc nie powstaje żądanie skończone 401, a na karcie nie ma
+            pustego nagłówka, do którego nie ma nic. */}
+        {can('access:read') && <ApplicationAccessSection applicationId={app.id} />}
 
         {/* Adresy IP — ta sama reguła usługowa co wyżej (`SELF_HOSTED`),
             plus warunek sesji: `ipam:read` ma każda rola zalogowana
