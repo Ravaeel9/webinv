@@ -17,6 +17,7 @@ import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
 import { PageHeader } from '../components/layout/AppLayout';
 import { IpAddressPicker } from '../components/ipam/IpAddressPicker';
+import { useDirtyGuard } from '../components/ui/DirtyGuard';
 import { Button, buttonClass } from '../components/ui/Button';
 import { Checkbox, Select, Textarea, TextInput } from '../components/ui/Field';
 import { ErrorMessage, Spinner } from '../components/ui/Feedback';
@@ -85,6 +86,9 @@ const EMPTY = {
 };
 
 type FormState = typeof EMPTY;
+
+/** Klucz szkicu nowej aplikacji w `localStorage`. */
+const SZKIC_KLUCZ = 'webinv.szkic.aplikacji';
 
 /** Zamienia rekord API na stan formularza (daty w formacie RRRR-MM-DD). */
 function fromApp(app: Application): FormState {
@@ -210,6 +214,57 @@ export function ApplicationFormPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(!isEdit);
 
+  // ─── Zabezpieczenie niezapisanych zmian ─────────────────────
+  //
+  // `brudny` staje się się prawdą przy pierwszej ręcznej zmianie pola
+  // (`set`/`toggle`) i gaśnie po udanym zapisie. Efekty wczytujące dane
+  // z serwera nie idą przez `set`, więc nie uruchamiają blokady.
+  const [brudny, setBrudny] = useState(false);
+  const dirtyGuard = useDirtyGuard(brudny);
+
+  // ─── Szkic nowej aplikacji (localStorage) ───────────────────
+  //
+  // Tylko dla trybu tworzenia: przywrócenie szkicu w trybie edycji
+  // nadpisałoby stan z bazy starszymi danymi i wyglądało jak błąd.
+  const [szkicPrzywrócony, setSzkicPrzywrócony] = useState(false);
+
+  useEffect(() => {
+    if (isEdit) return;
+    try {
+      const surowy = localStorage.getItem(SZKIC_KLUCZ);
+      if (!surowy) return;
+      const zapisany = JSON.parse(surowy) as FormState;
+      setForm((prev) => ({ ...zapisany, ipAddressIds: prev.ipAddressIds }));
+      setSzkicPrzywrócony(true);
+    } catch {
+      // Uszkodzony szkic to nie powód, by nie otworzyć formularza.
+      localStorage.removeItem(SZKIC_KLUCZ);
+    }
+    // Jednorazowo na montaż — kolejne zmiany formularza zapisuje efekt niżej.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isEdit || !loaded || !brudny) return;
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(SZKIC_KLUCZ, JSON.stringify(form));
+      } catch {
+        // Pełny localStorage nie może zabić formularza — brak szkicu
+        // to tylko powrót do stanu sprzed tej poprawki.
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [form, isEdit, loaded, brudny]);
+
+  const odrzućSzkic = () => {
+    localStorage.removeItem(SZKIC_KLUCZ);
+    setForm({ ...EMPTY });
+    setSzkicPrzywrócony(false);
+    setBrudny(false);
+  };
+
+
   // Wczytujemy dane aplikacji do formularza tylko raz — potem
   // użytkownik edytuje lokalny stan, a nie ten z serwera.
   useEffect(() => {
@@ -251,6 +306,7 @@ export function ApplicationFormPage() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setBrudny(true);
     // Błąd pola znika, gdy user zaczyna poprawiać
     setErrors((prev) => {
       if (!prev[key]) return prev;
@@ -269,6 +325,7 @@ export function ApplicationFormPage() {
           : [...list, value],
       };
     });
+    setBrudny(true);
   };
 
   const validate = (): boolean => {
@@ -335,6 +392,10 @@ export function ApplicationFormPage() {
 
       const appId = result.application.id;
       setCreatedId(appId);
+      // Zapis udany — blokada wyjścia i szkic przestają być aktualne.
+      // Przed nawigacją, żeby przekierowanie nie wpadło we własną bramkę.
+      setBrudny(false);
+      localStorage.removeItem(SZKIC_KLUCZ);
 
       // Drugi krok dopiero teraz: do czasu tej odpowiedzi aplikacja
       // mogła nie istnieć w bazie, a klucz obcy przypisań odrzuciłby
@@ -396,6 +457,25 @@ export function ApplicationFormPage() {
       />
 
       <ErrorMessage error={mutation.error} className="mb-5" />
+
+      {/* Przywrócony szkic — użytkownik musi wiedzieć, skąd te dane,
+          i mieć jeden klik do odrzucenia. */}
+      {szkicPrzywrócony && (
+        <div role="status" className="alert alert-info mb-5">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Przywrócono szkic formularza.</p>
+            <p className="mt-1 text-fg-muted">
+              Dane pochodzą z ostatniej sesji na tym urządzeniu.
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={odrzućSzkic}>
+            Odrzuć szkic
+          </Button>
+        </div>
+      )}
+
+      {/* Bramka niezapisanych zmian — modal + beforeunload. */}
+      {dirtyGuard}
 
       {/* Zapis częściowy: aplikacja poszła do bazy, PUT przypisań
           nie. Nie wykasowujemy wpisu — usunięcie zaraz po udanym

@@ -10,6 +10,7 @@ import { Field, Select, TextInput } from '../ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../ui/Feedback';
 import { Modal } from '../ui/Modal';
 import { Table, Tbody, Td, Th, Thead } from '../ui/Table';
+import { useToast } from '../ui/Toast';
 import { ACCESS_LEVEL_LABELS, type AccessLevel, type Person } from '../../types';
 
 /** Poziomy w kolejności od najwyższego — formularz ma być czytelny bez tabelki. */
@@ -55,6 +56,7 @@ export function PersonAccessModal({
   const [zapisywanieListy, setZapisywanieListy] = useState(false);
 
   const grant = useGrantAccess();
+  const toast = useToast();
   const { data: accessData, refetch: refetchDostep } = useApplicationAccess(applicationId);
   const { data: personsData, isLoading: ladowanieOsob } = usePersons({
     search: tryb === 'lista' ? search.trim() : email.trim(),
@@ -138,6 +140,12 @@ export function PersonAccessModal({
         await refetchDostep();
         setLocalError(`Nie udało się nadać dostępu — ${bledy.join(' · ')}`);
       } else {
+        // Toast żyje w providencie nad modalem, więc przeżyje onClose.
+        toast.pokaz(
+          zaznaczoneOsoby.length === 1
+            ? `Nadano dostęp dla ${zaznaczoneOsoby[0]!.firstName} ${zaznaczoneOsoby[0]!.lastName}.`
+            : `Nadano dostęp dla ${zaznaczoneOsoby.length} osób.`,
+        );
         onClose();
       }
     } finally {
@@ -159,6 +167,7 @@ export function PersonAccessModal({
         ...(expiresOn ? { expiresOn } : {}),
         ...(note ? { note } : {}),
       });
+      toast.pokaz(`Nadano dostęp dla ${email.trim()}.`);
       onClose();
     } catch (blad) {
       setLocalError(komunikat(blad));

@@ -9,6 +9,7 @@ import {
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
+import { CopyButton } from '../components/ui/CopyButton';
 import { Badge, EolBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
@@ -251,15 +252,18 @@ export function ApplicationDetailPage() {
               <dl className="space-y-3">
                 <DeliveryRow label="Adres bazowy">
                   {app.baseUrl ? (
-                    <a
-                      href={app.baseUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
-                    >
-                      {app.baseUrl}
-                      <IconExternalLink className="size-3" />
-                    </a>
+                    <span className="inline-flex items-center gap-1">
+                      <a
+                        href={app.baseUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+                      >
+                        {app.baseUrl}
+                        <IconExternalLink className="size-3" />
+                      </a>
+                      <CopyButton value={app.baseUrl} />
+                    </span>
                   ) : (
                     <Missing />
                   )}
@@ -276,12 +280,15 @@ export function ApplicationDetailPage() {
                 </DeliveryRow>
                 <DeliveryRow label="Wsparcie — e-mail">
                   {app.supportEmail ? (
-                    <a
-                      href={`mailto:${app.supportEmail}`}
-                      className="text-sm text-brand-600 hover:underline"
-                    >
-                      {app.supportEmail}
-                    </a>
+                    <span className="inline-flex items-center gap-1">
+                      <a
+                        href={`mailto:${app.supportEmail}`}
+                        className="text-sm text-brand-600 hover:underline"
+                      >
+                        {app.supportEmail}
+                      </a>
+                      <CopyButton value={app.supportEmail} />
+                    </span>
                   ) : (
                     <Missing />
                   )}

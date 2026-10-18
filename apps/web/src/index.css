@@ -177,6 +177,20 @@
     @apply outline-2 outline-offset-2 outline-brand-500;
   }
 
+  /* Użytkownik prosi o mniej animacji — globalnie, nie tylko w motywie:
+     tranzycje hover, wjazd modala (`animate-in-up`) i puls szkieletów
+     to ruch, który przy zaburzeniach przedsionkowych boli. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   /* Ciemniejsze pasy przewijania w tabelach */
   .scroll-thin {
     scrollbar-width: thin;
@@ -383,6 +397,15 @@
            dark:border-[oklch(0.42_0.1_155)]
            bg-[oklch(0.96_0.02_155)] text-[oklch(0.35_0.11_155)]
            border-[oklch(0.84_0.08_155)];
+  }
+
+  /* Komunikat informacyjny (np. przywrócony szkic formularza) —
+     niebieski tint, ta sama zasada jednej pary na motyw. */
+  .alert-info {
+    @apply dark:bg-[oklch(0.28_0.06_250)] dark:text-[oklch(0.88_0.09_250)]
+           dark:border-[oklch(0.42_0.1_250)]
+           bg-[oklch(0.955_0.03_250)] text-[oklch(0.38_0.12_250)]
+           border-[oklch(0.83_0.08_250)];
   }
 
   /* ─── Nawigacja ────────────────────────────────────────────

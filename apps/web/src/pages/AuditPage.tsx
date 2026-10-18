@@ -4,15 +4,12 @@ import { useAudit, useAuditMeta, useUsers } from '../lib/queries';
 import { PageHeader } from '../components/layout/AppLayout';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
 import { Select } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { describeAction, formatDateTime } from '../lib/format';
 import { ChangeList } from '../components/audit/ChangeList';
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconFilter,
-} from '../components/ui/icons';
+import { IconFilter } from '../components/ui/icons';
 
 const PAGE_SIZE = 50;
 
@@ -166,31 +163,14 @@ export function AuditPage() {
               ))}
             </ul>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 meta-text">
-              <span>
-                Strona {page} z {lastPage} · {total} zdarzeń
-              </span>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setFilter('page', String(page - 1))}
-                >
-                  <IconChevronLeft className="size-3.5" />
-                  Poprzednia
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={page >= lastPage}
-                  onClick={() => setFilter('page', String(page + 1))}
-                >
-                  Następna
-                  <IconChevronRight className="size-3.5" />
-                </Button>
-              </div>
+            <div className="border-t border-line">
+              <Pagination
+                strona={page}
+                ostatnia={lastPage}
+                total={total}
+                onZmien={(s) => setFilter('page', String(s))}
+                etykieta="Paginacja dziennika"
+              />
             </div>
           </>
         )}

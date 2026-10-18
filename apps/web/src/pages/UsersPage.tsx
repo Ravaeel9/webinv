@@ -11,10 +11,11 @@ import { PageHeader } from '../components/layout/AppLayout';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Checkbox, Select, TextInput } from '../components/ui/Field';
-import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
+import { EmptyState, ErrorMessage, TableSkeleton } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
 import { Th } from '../components/ui/Table';
 import { PasswordInput } from '../components/ui/PasswordField';
+import { useToast } from '../components/ui/Toast';
 import { formatDateTime } from '../lib/format';
 import { checkPassword } from '../lib/password';
 import {
@@ -81,7 +82,7 @@ export function UsersPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <Spinner />
+          <TableSkeleton wierszy={6} kolumn={5} />
         ) : users.length === 0 ? (
           <EmptyState
             title="Brak użytkowników"
@@ -331,6 +332,7 @@ function UserEditorModal({
 
   const create = useCreateUser();
   const update = useUpdateUser();
+  const toast = useToast();
   const mutation = isNew ? create : update;
 
   const set = <K extends keyof UserFormState>(
@@ -383,6 +385,7 @@ function UserEditorModal({
         role: form.role,
         password: form.password,
       });
+      toast.pokaz(`Utworzono konto ${form.username.trim()}.`);
     } else {
       // UpdateUserDto nie przyjmuje hasła — reset osobnym endpointem
       const payload: Record<string, unknown> = {
@@ -393,6 +396,7 @@ function UserEditorModal({
         isActive: form.isActive,
       };
       await update.mutateAsync({ id: target.id, ...payload });
+      toast.pokaz(`Zapisano zmiany konta ${form.username.trim()}.`);
     }
 
     onClose();
@@ -509,6 +513,7 @@ function ResetPasswordModal({
   onClose: () => void;
 }) {
   const reset = useResetPassword();
+  const toast = useToast();
   const [password, setPassword] = useState('');
 
   const check = checkPassword(password);
@@ -516,6 +521,7 @@ function ResetPasswordModal({
   const handleReset = async () => {
     if (!check.ok) return;
     await reset.mutateAsync({ id: target.id, newPassword: password });
+    toast.pokaz(`Ustawiono nowe hasło dla ${target.username}.`);
     onClose();
   };
 
@@ -570,9 +576,11 @@ function DeleteUserModal({
   onClose: () => void;
 }) {
   const remove = useDeleteUser();
+  const toast = useToast();
 
   const handleDelete = async () => {
     await remove.mutateAsync(target.id);
+    toast.pokaz(`Usunięto konto ${target.username}.`);
     onClose();
   };
 

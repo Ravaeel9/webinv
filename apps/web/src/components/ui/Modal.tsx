@@ -20,6 +20,8 @@ export function Modal({
   size?: 'sm' | 'md' | 'lg';
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Element, który miał fokus przed otwarciem — wraca do niego po zamknięciu.
+  const poprzedniFokus = useRef<HTMLElement | null>(null);
 
   // Escape zamyka okno. Nasłuch zaczyna się dopiero przy otwarciu,
   // żeby nie przejmować klawiszy w reszcie aplikacji.
@@ -37,14 +39,46 @@ export function Modal({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Fokus na okno, żeby Escape i Tab działały od razu
+    // Fokus na okno, żeby Escape i Tab działały od razu; zapamiętujemy,
+    // skąd przyszedł — po zamknięciu wraca, a nie na <body>.
+    poprzedniFokus.current = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
+      poprzedniFokus.current?.focus();
     };
   }, [open, onClose]);
+
+  // Pułapka fokusu: Tab krąży po interaktywnych potomkach okna. Bez tego
+  // klawiatura „wycieka” do strony pod modalem, której nie widać.
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !panelRef.current) return;
+
+      const fokusebilne = panelRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (fokusebilne.length === 0) return;
+
+      const pierwszy = fokusebilne[0]!;
+      const ostatni = fokusebilne[fokusebilne.length - 1]!;
+
+      if (event.shiftKey && document.activeElement === pierwszy) {
+        event.preventDefault();
+        ostatni.focus();
+      } else if (!event.shiftKey && document.activeElement === ostatni) {
+        event.preventDefault();
+        pierwszy.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   if (!open) return null;
 

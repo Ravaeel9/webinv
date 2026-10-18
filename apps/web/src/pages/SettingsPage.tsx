@@ -9,6 +9,7 @@ import {
 import { PageHeader } from '../components/layout/AppLayout';
 import { Button, buttonClass } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { useToast } from '../components/ui/Toast';
 import { ErrorMessage } from '../components/ui/Feedback';
 import { IconGear, IconHistory, IconTrash } from '../components/ui/icons';
 
@@ -25,6 +26,7 @@ export function SettingsPage() {
   const stan = useDemoMode();
   const ustaw = useSetDemoMode();
   const kasuj = useDeleteDemoData();
+  const toast = useToast();
 
   const [potwierdzenie, setPotwierdzenie] = useState(false);
 
@@ -88,7 +90,16 @@ export function SettingsPage() {
                   role="switch"
                   aria-checked={dane.enabled}
                   disabled={ustaw.isPending || !can('settings:write')}
-                  onClick={() => ustaw.mutate(!dane.enabled)}
+                  onClick={() =>
+                    ustaw.mutate(!dane.enabled, {
+                      onSuccess: (nowy) =>
+                        toast.pokaz(
+                          nowy.enabled
+                            ? 'Tryb demonstracyjny włączony.'
+                            : 'Tryb demonstracyjny wyłączony.',
+                        ),
+                    })
+                  }
                   className={[
                     'relative h-6 w-11 shrink-0 rounded-full transition-colors',
                     'disabled:cursor-not-allowed disabled:opacity-60',
@@ -200,6 +211,10 @@ export function SettingsPage() {
               loading={kasuj.isPending}
               onClick={() => {
                 kasuj.mutate(undefined, {
+                  onSuccess: () =>
+                    toast.pokaz(
+                      `Usunięto ${liczba} przykładowych rekordów.`,
+                    ),
                   onSettled: () => setPotwierdzenie(false),
                 });
               }}

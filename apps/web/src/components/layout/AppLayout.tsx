@@ -1,11 +1,13 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useAuth } from '../../lib/auth';
 import { ROLE_LABELS } from '../../types';
 import { initials } from '../../lib/format';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { ToastProvider } from '../ui/Toast';
 import { VersionBadge } from '../ui/VersionBadge';
+import { CommandPalette } from '../ui/CommandPalette';
 import {
   IconChevronLeft,
   IconGauge,
@@ -57,6 +59,20 @@ export function AppLayout() {
   const { user, logout, can } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Paleta wyszukiwania — skrót globalny, ale tylko dla zalogowanych:
+  // gość i tak widzi wyłącznie rejestr, który ma własne wyszukiwanie.
+  const [szukajOtwarty, setSzukajOtwarty] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        if (user) setSzukajOtwarty((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [user]);
 
   /**
    * Bez sesji `can()` zwraca false dla wszystkiego, więc pozycje
@@ -109,6 +125,7 @@ export function AppLayout() {
   );
 
   return (
+    <ToastProvider>
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
@@ -244,7 +261,10 @@ export function AppLayout() {
       </main>
 
       <VersionBadge />
+
+      {szukajOtwarty && <CommandPalette open onClose={() => setSzukajOtwarty(false)} />}
     </div>
+    </ToastProvider>
   );
 }
 

@@ -16,6 +16,7 @@ import { Button } from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
+import { CopyButton } from '../components/ui/CopyButton';
 import { IconInfo, IconPencil, IconPlus, IconTrash } from '../components/ui/icons';
 import { formatDateTime } from '../lib/format';
 import { AddressDeleteModal } from '../components/ipam/AddressDeleteModal';
@@ -150,7 +151,10 @@ export function SubnetDetailPage() {
             <dl className="space-y-3">
               <div>
                 <dt className="field-label">Zakres CIDR</dt>
-                <dd className="field-value font-mono">{subnet.cidr}</dd>
+                <dd className="field-value flex items-center gap-1 font-mono">
+                  {subnet.cidr}
+                  <CopyButton value={subnet.cidr} label="Kopiuj zakres CIDR" />
+                </dd>
               </div>
               <div>
                 <dt className="field-label">VLAN</dt>

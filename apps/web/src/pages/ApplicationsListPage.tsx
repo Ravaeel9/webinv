@@ -10,13 +10,13 @@ import { PageHeader } from '../components/layout/AppLayout';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Checkbox, Select } from '../components/ui/Field';
-import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
+import { EmptyState, ErrorMessage, TableSkeleton } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
+import { useToast } from '../components/ui/Toast';
 import { Th } from '../components/ui/Table';
 import { SortableTh } from '../components/ui/SortableTh';
+import { Pagination } from '../components/ui/Pagination';
 import {
-  IconChevronLeft,
-  IconChevronRight,
   IconDots,
   IconDownload,
   IconFilter,
@@ -156,7 +156,6 @@ export function ApplicationsListPage() {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const offset = filters.offset ?? 0;
-  const hasMore = data?.hasMore ?? false;
 
   /**
    * Gość nie widzi klasyfikacji bezpieczeństwa, krytyczności ani
@@ -383,7 +382,7 @@ export function ApplicationsListPage() {
       {/* Tabela */}
       <div className="card overflow-hidden">
         {isLoading ? (
-          <Spinner />
+          <TableSkeleton wierszy={8} kolumn={6} />
         ) : items.length === 0 ? (
           <EmptyState
             tone={activeFilters.length > 0 || filters.q ? 'muted' : 'default'}
@@ -476,36 +475,26 @@ export function ApplicationsListPage() {
             </div>
 
             {/* Paginacja — przy jednej stronie (albo pustej liście)
-                licznik „1–5 z 5" tylko zajmuje miejsce. */}
+                komponent nie renderuje się w ogóle. „Aktualizuję…"
+                tylko gdy dane dolewają w tle (placeholderData trzyma
+                poprzednią stronę, więc lista nie miga). */}
             {total > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 meta-text">
-                <span>
-                  {offset + 1}–{Math.min(offset + items.length, total)} z {total}
-                  {isFetching && ' · aktualizuję…'}
-                </span>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={offset === 0}
-                  onClick={() =>
-                    setFilter('offset', String(Math.max(offset - PAGE_SIZE, 0)))
-                  }
-                >
-                  <IconChevronLeft className="size-3.5" />
-                  Poprzednia
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={!hasMore}
-                  onClick={() => setFilter('offset', String(offset + PAGE_SIZE))}
-                >
-                  Następna
-                  <IconChevronRight className="size-3.5" />
-                </Button>
-              </div>
+              <div className="relative border-t border-line">
+                {isFetching && (
+                  <span
+                    role="status"
+                    className="pointer-events-none absolute top-2 left-4 text-xs text-fg-subtle"
+                  >
+                    aktualizuję…
+                  </span>
+                )}
+                <Pagination
+                  strona={Math.floor(offset / PAGE_SIZE) + 1}
+                  ostatnia={Math.max(Math.ceil(total / PAGE_SIZE), 1)}
+                  total={total}
+                  onZmien={(s) => setFilter('offset', String((s - 1) * PAGE_SIZE))}
+                  etykieta="Paginacja rejestru"
+                />
               </div>
             )}
           </>
@@ -533,6 +522,7 @@ function ApplicationCard({
   showRestricted: boolean;
 }) {
   const remove = useDeleteApplication();
+  const toast = useToast();
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -613,6 +603,7 @@ function ApplicationCard({
           onClose={() => setConfirming(false)}
           onConfirm={async () => {
             await remove.mutateAsync(app.id);
+            toast.pokaz(`Usunięto aplikację „${app.name}”.`);
             setConfirming(false);
           }}
           pending={remove.isPending}
@@ -678,10 +669,12 @@ function ApplicationRow({
   showRestricted: boolean;
 }) {
   const remove = useDeleteApplication();
+  const toast = useToast();
   const [confirming, setConfirming] = useState(false);
 
   const handleDelete = async () => {
     await remove.mutateAsync(app.id);
+    toast.pokaz(`Usunięto aplikację „${app.name}”.`);
     setConfirming(false);
   };
 

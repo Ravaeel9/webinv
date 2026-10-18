@@ -120,3 +120,51 @@ export function Spinner({ label = 'Ładowanie…' }: { label?: string }) {
     </div>
   );
 }
+
+/**
+ * Szkielet tabeli — pasma o wysokości wiersza zamiast spinnera.
+ *
+ * Spinner nad listą tabeli nie zachowuje jej wymiarów: po załadowaniu
+ * strona skacze o wysokość nagłówka i wierszy. Szkielet z tą samą
+ * strukturą (`wierszy` pasm w karcie) trzyma layout w miejscu, a pasek
+ * postępu animuje się subtelnie, żeby nie konkurował z treścią.
+ */
+export function TableSkeleton({
+  wierszy = 5,
+  kolumn = 4,
+}: {
+  wierszy?: number;
+  kolumn?: number;
+}) {
+  return (
+    <div role="status" aria-label="Wczytywanie danych" className="card overflow-hidden">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-line bg-surface-2">
+            {Array.from({ length: kolumn }, (_, i) => (
+              <th key={i} className="px-3 py-2.5">
+                <span className="block h-3 w-16 animate-pulse rounded bg-surface-3" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: wierszy }, (_, w) => (
+            <tr key={w} className="border-b border-line last:border-0">
+              {Array.from({ length: kolumn }, (_, k) => (
+                <td key={k} className="px-3 py-2.5">
+                  <span
+                    className="block h-3 animate-pulse rounded bg-surface-3"
+                    // Zróżnicowane szerokości imitują rzeczywistą treść —
+                    // jednakowe pasma wyglądają jak błąd renderowania.
+                    style={{ width: `${55 + ((w * 13 + k * 29) % 35)}%` }}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
