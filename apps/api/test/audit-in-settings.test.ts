@@ -10,7 +10,8 @@
  *    nowe miejsce.
  *  - **Historia zmian aplikacji nie znika dla administratorów.** `audit:read`
  *    karmi zakładkę „Zmiany” w karcie aplikacji, więc zostaje w `ADMIN` —
- *    tylko pełny dziennik jest pod `settings:write`.
+ *    pełny dziennik pod Ustawieniami też ma własną bramkę `audit:read`,
+ *    nie wspólną `settings:write` całej sekcji.
  */
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
@@ -41,10 +42,18 @@ describe('Dziennik zdarzeń przeniesiony do Ustawień', () => {
     );
   });
 
-  it('trasa /ustawienia/dziennik jest chroniona settings:write, a /audyt przekierowuje', () => {
+  it('trasa /ustawienia/dziennik jest chroniona audit:read, a /audyt przekierowuje', () => {
     assert.ok(
       router.includes("path: 'dziennik'"),
       'brak podtrasy dziennik pod ustawienia',
+    );
+    // Dziennik jest w sekcji z podwidokami o różnych uprawnieniach, więc
+    // bramka stoi na podtrasie, nie na gałęzi — ADMIN ma `audit:read`
+    // i musi móc otworzyć pełny dziennik.
+    assert.match(
+      router,
+      /path:\s*'dziennik'[\s\S]{0,80}permission="audit:read"/,
+      'podtrasa dziennik bez bramki audit:read',
     );
     assert.ok(
       /path:\s*'audyt'[\s\S]{0,160}Navigate[\s\S]{0,80}\/ustawienia\/dziennik/.test(

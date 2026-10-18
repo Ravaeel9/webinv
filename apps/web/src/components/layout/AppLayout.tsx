@@ -14,7 +14,6 @@ import {
   IconMenu,
   IconNetwork,
   IconShield,
-  IconUsers,
   IconX,
 } from '../ui/icons';
 
@@ -29,19 +28,29 @@ import {
  */
 const NAV = [
   { to: '/pulpit', label: 'Pulpit', icon: IconGauge, requiresAuth: true },
-  // Przed „Użytkownikami", żeby grupował się z zasobami (podsieć,
+  // Przed narzędziami (ustawienia), żeby grupował się z zasobami (podsieć,
   // aplikacja), a nie z narzędziami (dziennik, ustawienia).
   // `requiresAuth` jest tu nieopcjonalny: IPAM nie jest treścią
   // publiczną i nie ma widoku dla gościa.
   { to: '/ipam', label: 'Adresy IP', icon: IconNetwork, permission: 'ipam:read', requiresAuth: true },
-  { to: '/uzytkownicy', label: 'Użytkownicy', icon: IconUsers, permission: 'user:read', requiresAuth: true },
   // Macierz uprawnień jest osobną pozycją, nie zakładką w „Użytkownikach":
   // to ewidencja osób spoza panelu, a nie kont — mylenie ich w jednej liście
   // sugerowałoby, że każda osoba z dostępem ma też konto.
   { to: '/uprawnienia', label: 'Uprawnienia', icon: IconShield, permission: 'access:read', requiresAuth: true },
-  // Tylko super admin: `settings:write` pozwala wyłączyć tryb demo
-  // i skasować 30 przykładowych rekordów naraz.
-  { to: '/ustawienia', label: 'Ustawienia', icon: IconGear, permission: 'settings:write', requiresAuth: true },
+  // „Użytkownicy" nie mają własnej pozycji — od przeniesienia pod
+  // Ustawienia wchodzą przez `/ustawienia/uzytkownicy` (jak dziennik).
+  // „Ustawienia" grupują widoki o różnych uprawnieniach, więc pozycja
+  // jest widoczna dla każdego, kto ma dostęp do którejkolwiek z nich —
+  // w przeciwnym razie administrator straciłby link do użytkowników,
+  // a widz do listy kont. Wspólny filtr `permission` tego nie wyrazi,
+  // dlatego tu jest `anyPermission`.
+  {
+    to: '/ustawienia',
+    label: 'Ustawienia',
+    icon: IconGear,
+    anyPermission: ['settings:write', 'user:read', 'audit:read'],
+    requiresAuth: true,
+  },
 ] as const;
 
 export function AppLayout() {
@@ -54,11 +63,16 @@ export function AppLayout() {
    * z uprawnieniem znikają same. Pozostaje dopisać pozycje wymagające
    * zalogowania, ale bez uprawnienia (np. „Pulpit") — inaczej gość
    * widziałby link do strony, która od razu wyrzuci go na /logowanie.
+   *
+   * `anyPermission` to alternatywa dla `permission`: pozycja widoczna,
+   * gdy którekolwiek z wymienionych uprawnień jest obecne („Ustawienia"
+   * grupują podstrony o różnych bramkach).
    */
   const visibleNav = NAV.filter(
     (item) =>
       (!('requiresAuth' in item) || !item.requiresAuth || Boolean(user)) &&
-      (!('permission' in item) || can(item.permission)),
+      (!('permission' in item) || can(item.permission)) &&
+      (!('anyPermission' in item) || item.anyPermission.some((p) => can(p))),
   );
 
   const handleLogout = async () => {

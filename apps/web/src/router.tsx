@@ -17,6 +17,7 @@ import { ImportPage } from './pages/ImportPage';
 import { SubnetDetailPage } from './pages/SubnetDetailPage';
 import { SubnetFormPage } from './pages/SubnetFormPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SettingsLayout } from './components/layout/SettingsLayout';
 import { EmptyState } from './components/ui/Feedback';
 import { RouteErrorPage } from './components/layout/RouteErrorPage';
 
@@ -160,15 +161,6 @@ export const router = createBrowserRouter([
                 ],
               },
 
-              {
-                path: 'uzytkownicy',
-                element: (
-                  <RequirePermission permission="user:read">
-                    <UsersPage />
-                  </RequirePermission>
-                ),
-              },
-
               // Stary adres dziennika — przekierowanie, żeby zakładki nie
               // lądowały w 404 po przeniesieniu widoku pod Ustawienia.
               {
@@ -176,16 +168,33 @@ export const router = createBrowserRouter([
                 element: <Navigate to="/ustawienia/dziennik" replace />,
               },
 
+              // Stary adres użytkowników — przekierowanie, żeby zakładki nie
+              // lądowały w 404 po przeniesieniu widoku pod Ustawienia
+              // (ten sam wzorzec co przy /audyt).
               {
-                // Bramka uprawnień, nie roli: `settings:write` ma dziś
-                // tylko `SUPER_ADMIN`, ale to decyzja o uprawnieniu,
-                // a nie o nazwie roli — zmiana roli nie powinna
-                // obchodzić trasy.
+                path: 'uzytkownicy',
+                element: <Navigate to="/ustawienia/uzytkownicy" replace />,
+              },
+
+              {
+                // Sekcja Ustawień grupuje widoki o różnych uprawnieniach,
+                // więc sama nie ma bramki — każdy podwidok pilnuje swojego:
+                // tryb demo (`settings:write`), dziennik (`audit:read`),
+                // użytkownicy (`user:read`). Wspólna bramka odcięłaby
+                // administratora od rzeczy, do których ma prawo.
                 path: 'ustawienia',
-                element: <RequirePermission permission="settings:write" />,
+                element: <SettingsLayout />,
                 children: [
-                  { index: true, element: <SettingsPage /> },
-                  { path: 'dziennik', element: <AuditPage /> },
+                  {
+                    index: true,
+                    element: (
+                      <RequirePermission permission="settings:write">
+                        <SettingsPage />
+                      </RequirePermission>
+                    ),
+                  },
+                  { path: 'dziennik', element: <RequirePermission permission="audit:read"><AuditPage /></RequirePermission> },
+                  { path: 'uzytkownicy', element: <RequirePermission permission="user:read"><UsersPage /></RequirePermission> },
                 ],
               },
 

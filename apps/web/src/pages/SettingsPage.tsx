@@ -13,13 +13,12 @@ import { ErrorMessage } from '../components/ui/Feedback';
 import { IconGear, IconHistory, IconTrash } from '../components/ui/icons';
 
 /**
- * Ustawienia systemowe.
+ * Ustawienia systemowe — zakładka „System" sekcji.
  *
- * Dziś jedna sekcja — dane demonstracyjne. Strona istnieje osobno,
- * bo to jedyne miejsce w aplikacji, gdzie operacja dotyczy całej bazy
- * zamiast pojedynczego rekordu, i bo przy następnych ustawieniach
- * (wersja, eksport, retencja audytu) nie będzie ich trzeba było wklejać
- * do strony Użytkownicy.
+ * Dane demonstracyjne to jedyne miejsce w aplikacji, gdzie operacja
+ * dotyczy całej bazy zamiast pojedynczego rekordu, więc wymaga
+ * `settings:write`. Pozostałe zakładki sekcji (użytkownicy, dziennik)
+ * mają własne, słabsze bramki — patrz `SettingsLayout`.
  */
 export function SettingsPage() {
   const { can } = useAuth();

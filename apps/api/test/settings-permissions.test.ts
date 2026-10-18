@@ -77,9 +77,11 @@ describe('Uprawnienia API i interfejsu', () => {
 });
 
 describe('Panel ustawień', () => {
-  it('trasa jest za bramką uprawnienia, a nie roli', () => {
+  it('trasa index sekcji ustawień jest za bramką uprawnienia, nie roli', () => {
     // Bramka na rolę przestałaby działać przy zmianie nazwy roli,
     // a `RequirePermission` już to obsługuje dla reszty aplikacji.
+    // Sekcja grupuje podwidoki o różnych uprawnieniach, więc bramka
+    // stoi na indeksie (tryb demo), nie na całej gałęzi.
     const router = read('apps', 'web', 'src', 'router.tsx');
     assert.match(router, /path: 'ustawienia'/, 'brak trasy /ustawienia');
     assert.match(
@@ -89,7 +91,26 @@ describe('Panel ustawień', () => {
     );
   });
 
-  it('pozycja w menu jest widoczna tylko dla super administratora', () => {
+  it('użytkownicy żyją pod Ustawieniami, a stary adres przekierowuje', () => {
+    const router = read('apps', 'web', 'src', 'router.tsx');
+    assert.match(
+      router,
+      /path:\s*'uzytkownicy'[\s\S]{0,80}permission="user:read"/,
+      'podtrasa uzytkownicy bez bramki user:read',
+    );
+    assert.ok(
+      /path:\s*'uzytkownicy'[\s\S]{0,160}Navigate[\s\S]{0,80}\/ustawienia\/uzytkownicy/.test(
+        router,
+      ),
+      '/uzytkownicy musi przekierowywać na /ustawienia/uzytkownicy',
+    );
+  });
+
+  it('pozycja menu Ustawienia jest widoczna dla każdej roli z dostępem do podwidoku', () => {
+    // Sekcja grupuje tryb demo (`settings:write`), użytkowników
+    // (`user:read`) i dziennik (`audit:read`) — pozycja ma być widoczna,
+    // gdy którekolwiek z nich jest obecne, inaczej administrator straciłby
+    // link do użytkowników, a widz do listy kont.
     const layout = read(
       'apps',
       'web',
@@ -98,7 +119,14 @@ describe('Panel ustawień', () => {
       'layout',
       'AppLayout.tsx',
     );
-    assert.match(layout, /to: '\/ustawienia'.*permission: 'settings:write'/s);
+    assert.match(layout, /to: '\/ustawienia'[\s\S]*?anyPermission/);
+    for (const p of ['settings:write', 'user:read', 'audit:read']) {
+      assert.match(
+        layout,
+        new RegExp(`anyPermission:\\s*\\[[^\\]]*'${p}'`),
+        `anyPermission Ustawień bez '${p}'`,
+      );
+    }
   });
 
   it('kasowanie idzie przez endpoint za bramką uprawnienia', () => {
