@@ -58,14 +58,30 @@ cd /opt/webinv
 
 | Krok | Co sprawdza / robi |
 |---|---|
-| 1/8 Wymagania | Docker, Compose v2, działający daemon, dostępność wzorca `.env.example` |
-| 2/8 Zasoby | dostępna pamięć RAM, wolne miejsce na dysku, obecność swapu; w razie potrzeby włącza tryb oszczędny |
-| 3/8 Konfiguracja | tworzy `.env`, generuje `SESSION_SECRET` (64 znaki) i hasło bazy, ustawia prawa `600` na pliku |
-| 4/8 Port i HTTPS | pyta o port i czy przed aplikacją będzie HTTPS |
-| 5/8 Administrator | ustawia login, e-mail i hasło startowe super administratora (sprawdza je tą samą polityką, co aplikacja) |
-| 6/8 Budowa obrazów | `docker compose build` z widocznym postępem i zegarem; pełny log w pliku wskazanym na ekranie |
-| 7/8 Uruchomienie | `docker compose up -d` — osobny krok, żeby błąd startu nie mylił się z błędem builda |
-| 8/8 Weryfikacja | czeka, aż baza, API i aplikacja będą zdrowe, i sprawdza odpowiedź HTTP |
+| 1/9 Wymagania | Docker, Compose v2, działający daemon, dostępność wzorca `.env.example` |
+| 2/9 Zasoby | dostępna pamięć RAM, wolne miejsce na dysku, obecność swapu; w razie potrzeby włącza tryb oszczędny |
+| 3/9 Konfiguracja | tworzy `.env`, generuje `SESSION_SECRET` (64 znaki) i hasło bazy, ustawia prawa `600` na pliku |
+| 4/9 Port i HTTPS | pyta o port i czy przed aplikacją będzie HTTPS |
+| 5/9 Administrator | ustawia login, e-mail i hasło startowe super administratora (sprawdza je tą samą polityką, co aplikacja) |
+| 6/9 Dane demonstracyjne | pyta, czy pierwsze uruchomienie ma wypełnić bazę danymi próbnymi; zapisuje decyzję jako `SEED_DEMO_APPS` |
+| 7/9 Budowa obrazów | `docker compose build` z widocznym postępem i zegarem; pełny log w pliku wskazanym na ekranie |
+| 8/9 Uruchomienie | `docker compose up -d` — osobny krok, żeby błąd startu nie mylił się z błędem builda |
+| 9/9 Weryfikacja | czeka, aż baza, API i aplikacja będą zdrowe, i sprawdza odpowiedź HTTP |
+
+### Dane demonstracyjne
+
+Przy instalacji można włączyć tryb demo — pierwsze uruchomienie kontenera
+wypełni wtedy rejestr zestawem próbnym: aplikacjami i usługami, osobami
+z macierzą dostępu oraz podsieciami z adresami IP. Przydatne do obejrzenia
+interfejsu przed wprowadzaniem prawdziwych danych.
+
+```bash
+./install.sh --demo-data true   # albo pytanie przy instalacji interaktywnej
+```
+
+Tryb demo wyłącza się w panelu (**Ustawienia**), a dane demo usuwa
+przyciskiem w tym samym miejscu. Decyzja w panelu jest trwała — ważniejsza
+od zmiennej w `.env`, więc dane nie wrócą z restartem kontenera.
 
 ### Mało pamięci (VPS z 1 GB RAM)
 
@@ -120,6 +136,7 @@ logowaniu, więc nie zostaje na dysku w jawnej postaci.
 | `--admin-password '…'` | hasło startowe administratora |
 | `--admin-user`, `--admin-email`, `--admin-name` | dane konta administratora |
 | `--cookie-secure true` | ciasteczko tylko przez HTTPS |
+| `--demo-data true|false` | dane demonstracyjne przy pierwszym uruchomieniu (patrz wyżej) |
 | `--no-start` | przygotować `.env`, ale nie uruchamiać kontenerów |
 | `--low-memory` | wymuś tryb oszczędny na maszynie z ~1 GB RAM (patrz „Mało pamięci”) |
 | `--new-env` | nowy `.env` od zera (stary zostaje jako `.env.bak.<data>`); unieważnia zalogowane sesje |

@@ -47,6 +47,7 @@ function data(tekst: string): Date {
   return new Date(`${tekst}T00:00:00Z`);
 }
 
+/** ── Dane wygenerowane z eksportu (`make export-demo`) — początek ── */
 const DANE_OSOB = [
   {
     firstName: 'Anna',
@@ -70,8 +71,6 @@ const DANE_OSOB = [
     email: 'cecilia.wojcik@example.invalid',
     position: 'Audytor wewnętrzny',
     department: 'Kontrola',
-    // Nieaktywna: pokazuje, że przypisania zostają widoczne po odejściu
-    // osoby z organizacji.
     isActive: false,
   },
 ];
@@ -85,8 +84,20 @@ const DANE_PRZYPISAN: Array<{
   note: string | null;
 }> = [
   {
-    // Usługa z blokiem dostępu i wsparcia — tam administrator najczęściej
-    // szuka listy osób mających wgląd.
+    application: '1Password Business',
+    email: 'anna.zalewska@example.invalid',
+    level: 'ADMIN',
+    expiresOn: null,
+    note: null,
+  },
+  {
+    application: '1Password Business',
+    email: 'bolek.nowak@example.invalid',
+    level: 'USER',
+    expiresOn: null,
+    note: null,
+  },
+  {
     application: 'Grafana',
     email: 'anna.zalewska@example.invalid',
     level: 'OWNER',
@@ -97,8 +108,6 @@ const DANE_PRZYPISAN: Array<{
     application: 'Grafana',
     email: 'bolek.nowak@example.invalid',
     level: 'USER',
-    // Wygasłe: wiersz zostaje w macierzy z ostrzeżeniem, bo to historia
-    // nadania, a nie stan bieżący.
     expiresOn: data('2026-01-31'),
     note: 'Dostęp czasowy na okres wdrożenia.',
   },
@@ -117,6 +126,7 @@ const DANE_PRZYPISAN: Array<{
     note: null,
   },
 ];
+/** ── Dane wygenerowane z eksportu (`make export-demo`) — koniec ─── */
 
 /**
  * Wstawia osoby i przypisania demonstracyjne.

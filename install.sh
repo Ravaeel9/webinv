@@ -43,7 +43,7 @@ STEP_NO=0
 # Liczba kroków instalatora. Trzymana w zmiennej, a nie w literale
 # w `step`, bo kroki dodajemy i usuwamy — przy twardym „/6” numeracja
 # rozjeżdża się z rzeczywistością przy pierwszej zmianie.
-TOTAL_STEPS=8
+TOTAL_STEPS=9
 
 step() {
   STEP_NO=$((STEP_NO + 1))
@@ -68,6 +68,7 @@ ARG_ADMIN_EMAIL=""
 ARG_ADMIN_NAME=""
 ARG_ADMIN_PASSWORD=""
 ARG_COOKIE_SECURE=""
+ARG_DEMO_DATA=""
 
 usage() {
   cat <<'EOF'
@@ -85,6 +86,8 @@ Opcje:
       --admin-name "<imię>"          Imię i nazwisko (domyślnie "Administrator Systemu")
       --admin-password "<hasło>"     Hasło startowe; losowe, gdy pominięte
       --cookie-secure true|false     Ciasteczko Secure (dla HTTPS)
+      --demo-data true|false   Dane demonstracyjne: przykładowe aplikacje,
+                           macierz dostępu i podsieci IP (domyślnie false)
       --new-env           Nadpisz istniejący .env (UWAGA: nowe sekrety sesji
                            unieważniają zalogowane sesje)
       --no-start          Tylko przygotuj .env, nie uruchamiaj kontenerów
@@ -112,6 +115,7 @@ parse_args() {
       --admin-name)     ARG_ADMIN_NAME="${2:-}"; shift ;;
       --admin-password) ARG_ADMIN_PASSWORD="${2:-}"; shift ;;
       --cookie-secure)  ARG_COOKIE_SECURE="${2:-}"; shift ;;
+      --demo-data)      ARG_DEMO_DATA="${2:-}"; shift ;;
       -h|--help)        usage; exit 0 ;;
       *)                printf 'Nieznana opcja: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
     esac
@@ -536,7 +540,46 @@ configure_admin() {
   fi
 }
 
-# ── Krok 4: budowa i uruchomienie ─────────────────────────────
+# ── Krok 4: dane demonstracyjne ──────────────────────────────
+configure_demo() {
+  step "Dane demonstracyjne"
+
+  # Decyzja zapisywana w `.env` jako `SEED_DEMO_APPS`. Świeża instalacja
+  # nie ma jeszcze wpisu w tabeli ustawień, więc przy pierwszym starcie
+  # kontenera decyduje ta zmienna; później administrator może tryb demo
+  # przełączać w panelu i jego decyzja wygrywa ze zmienną (patrz
+  # SettingsService.shouldSeedDemo).
+  local demo="${ARG_DEMO_DATA}"
+  if [ -z "$demo" ]; then
+    if [ "$UNATTENDED" = "0" ] && [ -t 0 ]; then
+      if ask_yes_no "Włączyć dane demonstracyjne (przykładowe aplikacje, macierz dostępu, podsieci IP)?" "n"; then
+        demo="true"
+      else
+        demo="false"
+      fi
+    else
+      # Bez terminala i bez flagi zostajemy przy tym, co już jest w .env
+      # (domyślnie false z .env.example) — instalacja w kółko nie zmienia
+      # decyzji, której nikt nie wyraził.
+      demo="$(env_get SEED_DEMO_APPS false)"
+    fi
+  fi
+  case "$demo" in
+    true|false) ;;
+    *) die "Wartość --demo-data musi być true albo false, a jest: „$demo”." ;;
+  esac
+  env_set SEED_DEMO_APPS "$demo"
+
+  if [ "$demo" = "true" ]; then
+    ok "SEED_DEMO_APPS=true — pierwsze uruchomienie wypełni bazę danymi próbnymi"
+    info "Tryb demo wyłączysz później w panelu (Ustawienia) — dane demo"
+    info "można tam też usunąć jednym przyciskiem."
+  else
+    ok "SEED_DEMO_APPS=false — baza startuje pusta (tylko środowiska i konto admina)"
+  fi
+}
+
+# ── Krok 5: budowa i uruchomienie ─────────────────────────────
 # Build i start rozdzielone celowo. `compose up -d --build` miesza
 # dwa procesy w jedną czarną skrzynkę i administrator przez kilka
 # minut nie wie, co się dzieje — ani ile zostało, ani czy wpadł
@@ -746,6 +789,7 @@ main() {
   prepare_env
   configure_port
   configure_admin
+  configure_demo
 
   local password=""
   if [ -n "$GENERATED_PASSWORD" ]; then

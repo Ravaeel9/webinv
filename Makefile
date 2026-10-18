@@ -1,4 +1,4 @@
-.PHONY: help install install-lowmem init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean
+.PHONY: help install install-lowmem init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean export-demo
 
 # Ścieżka wydania żyje w scripts/release.sh, nie tutaj: kroków jest
 # dużo i kolejność ma znaczenie (testy → wersja → commit → tag → build →
@@ -105,8 +105,52 @@ release-dry: ## Pokaż, co zrobi make release, niczego nie zmieniając
 release-minor: ## Wydanie podbijające minor (zmiana API lub modelu danych)
 	@./scripts/release.sh --minor
 
-# ─── Prisma (poza Dockerem — baza musi być włączona) ──────────
+# ─── Dane demonstracyjne (eksport z działającej instancji) ────
 
+# Zrzut JSON powstaje jednym zapytaniem w kontenerze bazy — nie wymaga
+# wystawiania portu ani Prisma poza Dockerem. Skrypt eksportu czyta go
+# ze standardowego wejścia i podmienia dane między znacznikami w plikach
+# demo-access.ts i demo-ipam.ts. Zapytanie trzeba aktualizować razem
+# ze schematem (nazwy tabel w FROM), ale celowo NIE z modelem eksportu:
+# skrypt waliduje kształt i mówi wprost, czego brakuje.
+export-demo: ## Odśwież dane demo w repo z bazy działającej instancji
+	@$(COMPOSE) exec -T db psql -U $${POSTGRES_USER:-webinv} -d $${POSTGRES_DB:-webinv} -At \
+	  -c "SELECT json_build_object( \
+	        'persons',    (SELECT json_agg(json_build_object( \
+	                        'firstName', p.first_name, 'lastName', p.last_name, \
+	                        'email', p.email, 'position', p.position, \
+	                        'department', p.department, 'isActive', p.is_active) \
+	                       ORDER BY p.email) FROM persons p), \
+	        'grants',     (SELECT json_agg(json_build_object( \
+	                        'application', a.name, 'email', p.email, \
+	                        'level', aa.level, \
+	                        'expiresOn', to_char(aa.expires_on, 'YYYY-MM-DD'), \
+	                        'note', aa.note) \
+	                       ORDER BY a.name, p.email) \
+	                       FROM application_access aa \
+	                       JOIN persons p ON p.id = aa.person_id \
+	                       JOIN applications a ON a.id = aa.application_id), \
+	        'subnets',    (SELECT json_agg(json_build_object( \
+	                        'name', s.name, 'cidr', s.cidr, 'description', s.description, \
+	                        'color', s.color, 'vlan', s.vlan, 'location', s.location, \
+	                        'addresses', (SELECT json_agg(json_build_object( \
+	                                        'address', i.address, 'status', i.status, \
+	                                        'description', i.description) \
+	                                      ORDER BY i.address) FROM ip_addresses i \
+	                                      WHERE i.subnet_id = s.id)) \
+	                       ORDER BY s.name) FROM subnets s), \
+	        'appLinks',   (SELECT json_agg(json_build_object( \
+	                        'application', a.name, 'subnet', s.name, \
+	                        'address', i.address) \
+	                       ORDER BY a.name) \
+	                       FROM application_ip_addresses x \
+	                       JOIN applications a ON a.id = x.application_id \
+	                       JOIN ip_addresses i ON i.id = x.ip_address_id \
+	                       JOIN subnets s ON s.id = i.subnet_id) \
+	      )::text" \
+	  | npx tsx apps/api/scripts/export-demo.ts
+
+# ─── Prisma (poza Dockerem — baza musi być włączona) ──────────
 db-up: ## Włącz samą bazę z portem dev (do migracji i Prisma Studio)
 	$(COMPOSE_DEV) up -d db
 

@@ -6,6 +6,7 @@ import { appConfig } from '../config/configuration';
 import { hashPassword, validatePasswordStrength } from '../auth/password';
 import { seedDemoApplications } from './demo-applications';
 import { seedDemoAccess } from './demo-access';
+import { seedDemoIpam } from './demo-ipam';
 import { SettingsService } from '../settings/settings.service';
 
 type AppCfg = ConfigType<typeof appConfig>;
@@ -68,6 +69,7 @@ export class SeedService implements OnApplicationBootstrap {
     await this.seedEnvironments();
     await this.seedSuperAdmin();
     await this.seedDemoApplications();
+    await this.seedIpam();
   }
 
   /**
@@ -103,6 +105,24 @@ export class SeedService implements OnApplicationBootstrap {
         `${macierz.persons} osób i ${macierz.grants} przypisań. ` +
         'Wyłącz tryb demo w Ustawieniach albo SEED_DEMO_APPS, ' +
         'aby przestały wracać przy starcie.',
+    );
+  }
+
+  /**
+   * Podsieci i adresy IP demonstracyjne — po aplikacjach, bo powiązanie
+   * aplikacja–adres szuka aplikacji po nazwie.
+   */
+  private async seedIpam(): Promise<void> {
+    const wynik = await seedDemoIpam(this.prisma);
+    if (wynik.pominiete.length > 0) {
+      this.logger.warn(
+        `Pominięte powiązania IP — brak aplikacji demo o nazwie: ` +
+          `${[...new Set(wynik.pominiete)].join(', ')}.`,
+      );
+    }
+    this.logger.log(
+      `Dane demonstracyjne IPAM: ${wynik.subnets} podsieci, ` +
+        `${wynik.addresses} adresów, ${wynik.links} powiązań (upsert).`,
     );
   }
 
