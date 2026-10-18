@@ -19,7 +19,16 @@ COMPOSE := COMPOSE_PARALLEL_LIMIT=1 docker compose
 # `node -p` zamiast `grep`, bo package.json to JSON, a nie tekst do
 # regexa. `$(shell …)` przelicza się przy każdym wywołaniu make, więc
 # podniesienie wersji jest widoczne od razu, bez `make clean`.
-APP_VERSION := $(shell node -p "require('./package.json').version" 2>/dev/null || echo 0.0.0-dev)
+VERSION := $(shell node -p "require('./package.json').version" 2>/dev/null || echo 0.0.0)
+#
+# Semantyka dopisku `-dev`: HEAD oznaczony tagiem `v$(VERSION)` to
+# dokładnie stan wydania (`scripts/release.sh` taguje przed buildem),
+# więc plakietka pokazuje czysty numer. Każdy późniejszy commit to
+# build „pomiędzy wydaniami" — dostaje dopisek `-dev`, żeby z plakietki
+# było widać, że nie pochodzi z żadnego tagu. Fallback `0.0.0-dev`
+# wypada tylko poza repozytorium gita (brak node/gita), gdzie wersji
+# i tak nie ma z czego odczytać.
+APP_VERSION != if [ "$$(git describe --tags --exact-match 2>/dev/null)" = "v$(VERSION)" ]; then echo "$(VERSION)"; else echo "$(VERSION)-dev"; fi
 # Nakładka deweloperska — wystawia bazę na porcie DB_DEV_PORT (55432),
 # żeby dało się podłączyć Prisma Studio albo psql z maszyny.
 # W produkcyjnym `make up` NIE jest używana — baza zostaje w sieci wewnętrznej.
