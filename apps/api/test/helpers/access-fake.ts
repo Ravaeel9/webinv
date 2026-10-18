@@ -180,6 +180,10 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
             (g) => osoby.find((p) => p.id === g.personId)?.isActive === where.person.isActive,
           );
         }
+        if (where.application?.is?.deliveryType?.not !== undefined) {
+          const nieTen = where.application.is.deliveryType.not;
+          wynik = wynik.filter((g) => aplikacjeMap.get(g.applicationId)?.deliveryType !== nieTen);
+        }
         const zOsoba = wynik.map((g) => ({
           ...g,
           person: osoby.find((p) => p.id === g.personId)!,

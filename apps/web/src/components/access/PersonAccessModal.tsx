@@ -55,7 +55,7 @@ export function PersonAccessModal({
   const [zapisywanieListy, setZapisywanieListy] = useState(false);
 
   const grant = useGrantAccess();
-  const { data: accessData } = useApplicationAccess(applicationId);
+  const { data: accessData, refetch: refetchDostep } = useApplicationAccess(applicationId);
   const { data: personsData, isLoading: ladowanieOsob } = usePersons({
     search: tryb === 'lista' ? search.trim() : email.trim(),
     department: tryb === 'lista' ? department.trim() : undefined,
@@ -94,7 +94,10 @@ export function PersonAccessModal({
     [personsData, email],
   );
 
-  useEffect(() => setLocalError(null), [email, tryb, wybraneIds]);
+  // Błąd dotyczy kontekstu (tryb albo adres w formularzu nowej osoby) —
+  // klikanie checkboxów na liście nie unieważnia komunikatu o nieudanym
+  // nadaniu, więc `wybraneIds` celowo nie jest w zależnościach.
+  useEffect(() => setLocalError(null), [email, tryb]);
 
   const przelaczWszystkieWidoczne = (zaznacz: boolean) => {
     setWybraneIds((poprzednie) => {
@@ -112,18 +115,31 @@ export function PersonAccessModal({
     setLocalError(null);
     setZapisywanieListy(true);
     try {
+      // Każda osoba osobno: błąd jednej nie przerywa nadawania pozostałym,
+      // a raport na końcu wymienia wszystkie nieudane, nie tylko ostatnią.
+      const bledy: string[] = [];
       for (const osoba of zaznaczoneOsoby) {
-        await grant.mutateAsync({
-          applicationId,
-          email: osoba.email,
-          level,
-          ...(expiresOn ? { expiresOn } : {}),
-          ...(note ? { note } : {}),
-        });
+        try {
+          await grant.mutateAsync({
+            applicationId,
+            email: osoba.email,
+            level,
+            ...(expiresOn ? { expiresOn } : {}),
+            ...(note ? { note } : {}),
+          });
+        } catch (blad) {
+          bledy.push(`${osoba.firstName} ${osoba.lastName}: ${komunikat(blad)}`);
+        }
       }
-      onClose();
-    } catch (blad) {
-      setLocalError(komunikat(blad));
+      if (bledy.length > 0) {
+        // Odśwież „Ma już dostęp”, zanim użytkownik spróbuje ponownie —
+        // bez tego osoby nadane przed chwilą (invalidacja cache jest
+        // asynchroniczna) wyglądałyby na nadal do zaznaczenia.
+        await refetchDostep();
+        setLocalError(`Nie udało się nadać dostępu — ${bledy.join(' · ')}`);
+      } else {
+        onClose();
+      }
     } finally {
       setZapisywanieListy(false);
     }

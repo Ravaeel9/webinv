@@ -333,6 +333,125 @@ describe('AccessService — macierz uprawnień', () => {
     assert.equal(wiersze.length, 1, 'wygasłe przypisanie to historia, nie śmieć');
     assert.equal(wiersze[0]!.expiresOn, '2020-01-01');
   });
+
+  it('odrzuca zmianę poziomu dostępu dla aplikacji ogólnego użytku (GENERAL_USE)', async () => {
+    const aplikacja = {
+      id: randomUUID(),
+      name: '7-Zip',
+      deletedAt: null,
+      deliveryType: 'GENERAL_USE' as const,
+    };
+    const db = fakeDb([aplikacja]);
+    const serwis = new AccessService(db.port, fakeAudit() as never);
+    // Historia sprzed wprowadzenia reguły: grant istnieje, choć dziś nie da
+    // się go już utworzyć. Zapis bezpośrednio do atrapy, bo grantAccess
+    // musiałby odrzucić.
+    const osoba = {
+      id: randomUUID(),
+      firstName: 'Anna',
+      lastName: 'X',
+      email: 'a.x@firma.pl',
+      position: null,
+      department: null,
+      isActive: true,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    db.osoby.push(osoba);
+    db.granty.push({
+      applicationId: aplikacja.id,
+      personId: osoba.id,
+      level: 'USER',
+      grantedOn: new Date('2026-01-01T00:00:00Z'),
+      expiresOn: null,
+      note: null,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+
+    await assert.rejects(
+      () => serwis.updateGrant(aplikacja.id, osoba.id, { level: 'ADMIN' }, actor),
+      BadRequestException,
+    );
+  });
+
+  it('pozwala odebrać historyczny dostęp aplikacji ogólnego użytku (GENERAL_USE)', async () => {
+    const aplikacja = {
+      id: randomUUID(),
+      name: '7-Zip',
+      deletedAt: null,
+      deliveryType: 'GENERAL_USE' as const,
+    };
+    const db = fakeDb([aplikacja]);
+    const serwis = new AccessService(db.port, fakeAudit() as never);
+    const osoba = {
+      id: randomUUID(),
+      firstName: 'Anna',
+      lastName: 'X',
+      email: 'a.x@firma.pl',
+      position: null,
+      department: null,
+      isActive: true,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    db.osoby.push(osoba);
+    db.granty.push({
+      applicationId: aplikacja.id,
+      personId: osoba.id,
+      level: 'USER',
+      grantedOn: new Date('2026-01-01T00:00:00Z'),
+      expiresOn: null,
+      note: null,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+
+    await serwis.revokeGrant(aplikacja.id, osoba.id, actor);
+
+    assert.equal(db.granty.length, 0, 'odbiór dostępu ma zawsze działać');
+  });
+
+  it('macierz zbiorcza pomija historyczne granty aplikacji GENERAL_USE', async () => {
+    const generalna = {
+      id: randomUUID(),
+      name: '7-Zip',
+      deletedAt: null,
+      deliveryType: 'GENERAL_USE' as const,
+    };
+    const zwykla = { id: randomUUID(), name: 'System kadrowy', deletedAt: null };
+    const db = fakeDb([generalna, zwykla]);
+    const serwis = new AccessService(db.port, fakeAudit() as never);
+    const osoba = {
+      id: randomUUID(),
+      firstName: 'Anna',
+      lastName: 'X',
+      email: 'a.x@firma.pl',
+      position: null,
+      department: null,
+      isActive: true,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    db.osoby.push(osoba);
+    db.granty.push({
+      applicationId: generalna.id,
+      personId: osoba.id,
+      level: 'USER',
+      grantedOn: new Date('2026-01-01T00:00:00Z'),
+      expiresOn: null,
+      note: null,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+
+    await serwis.grantAccess(
+      zwykla.id,
+      { email: 'b.y@firma.pl', firstName: 'Bolek', lastName: 'Y' },
+      actor,
+    );
+
+    const wiersze = await serwis.matrix({});
+    assert.equal(wiersze.length, 1, 'GENERAL_USE nie ma macierzy — nawet z historią');
+    assert.equal(wiersze[0]!.application.id, zwykla.id);
+  });
 });
 /** Dzisiejsza data w formacie `RRRR-MM-DD`. */
 function dzis(): string {

@@ -117,6 +117,8 @@ export type GrantWhere = {
   personId?: string;
   level?: AccessLevelName;
   person?: { isActive?: boolean };
+  /** Filtr po relacji aplikacji — np. pominięcie GENERAL_USE w macierzy. */
+  application?: { is?: { deliveryType?: { not?: DeliveryTypeName } } };
 };
 
 export interface PersonDelegate {

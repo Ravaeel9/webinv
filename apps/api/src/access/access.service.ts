@@ -317,13 +317,7 @@ export class AccessService {
     actor: AuthUser,
     ip?: string,
   ): Promise<AccessGrantDto> {
-    const aplikacja = await this.requireApplication(applicationId);
-
-    if (aplikacja.deliveryType === 'GENERAL_USE') {
-      throw new BadRequestException(
-        'Aplikacje ogólnego użytku nie mają macierzy uprawnień.',
-      );
-    }
+    await this.requireApplicationWithMatrix(applicationId);
 
     const email = this.walidujEmail(dto.email);
 
@@ -416,6 +410,8 @@ export class AccessService {
     actor: AuthUser,
     ip?: string,
   ): Promise<AccessGrantDto> {
+    await this.requireApplicationWithMatrix(applicationId);
+
     const przed = await this.prisma.applicationAccess.findUnique({
       where: { applicationId_personId: { applicationId, personId } },
     });
@@ -501,6 +497,10 @@ export class AccessService {
     if (filters.applicationId) where.applicationId = filters.applicationId;
     if (filters.personId) where.personId = filters.personId;
     if (filters.level) where.level = filters.level;
+    // Aplikacje GENERAL_USE nie mają macierzy — pomijamy je nawet, gdy
+    // w bazie zostały historyczne granty (serwerowo, bo frontend filtruje
+    // tylko listę wyboru aplikacji).
+    where.application = { is: { deliveryType: { not: 'GENERAL_USE' } } };
 
     const granty = (await this.prisma.applicationAccess.findMany({
       where,
@@ -693,6 +693,22 @@ export class AccessService {
     });
     if (!aplikacja || aplikacja.deletedAt) {
       throw new NotFoundException('Aplikacja nie istnieje.');
+    }
+    return aplikacja;
+  }
+
+  /**
+   * Aplikacja z macierzą uprawnień. Aplikacje ogólnego użytku (GENERAL_USE)
+   * macierzy nie mają — nie da się im nadać ani zmienić dostępu.
+   * `revokeGrant` celowo omija ten warunek: odbiór dostępu ma zawsze działać,
+   * żeby dało się posprzątać historyczne wpisy.
+   */
+  private async requireApplicationWithMatrix(applicationId: string) {
+    const aplikacja = await this.requireApplication(applicationId);
+    if (aplikacja.deliveryType === 'GENERAL_USE') {
+      throw new BadRequestException(
+        'Aplikacje ogólnego użytku nie mają macierzy uprawnień.',
+      );
     }
     return aplikacja;
   }
