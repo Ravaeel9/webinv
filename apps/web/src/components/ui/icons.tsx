@@ -350,3 +350,25 @@ export function IconLock(props: IconProps) {
     </Icon>
   );
 }
+
+/** Wtyczka — połączenie z systemem zewnętrznym (integracje). */
+export function IconPlug(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 3.5v5M15 3.5v5" />
+      <path d="M6.5 8.5h11v3a5.5 5.5 0 01-11 0v-3z" />
+      <path d="M12 17v3.5" />
+    </Icon>
+  );
+}
+
+/** Dyskietka — zapis ustawień. */
+export function IconSave(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 4.5h11l3.5 3.5v11a.5.5 0 01-.5.5H5a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z" />
+      <path d="M8 4.5v5h7v-5" />
+      <path d="M7.5 19.5v-5h9v5" />
+    </Icon>
+  );
+}

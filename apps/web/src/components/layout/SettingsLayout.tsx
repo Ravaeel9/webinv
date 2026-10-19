@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router';
 import { useAuth } from '../../lib/auth';
-import { IconGear, IconHistory, IconUsers } from '../ui/icons';
+import { IconGear, IconHistory, IconPlug, IconUsers } from '../ui/icons';
 
 /**
  * Wspólny szkielet sekcji Ustawienia: pasek zakładek + treść podstrony.
@@ -31,6 +31,13 @@ const ZAKLADKI = [
     label: 'Użytkownicy',
     icon: IconUsers,
     permission: 'user:read',
+    end: false,
+  },
+  {
+    to: '/ustawienia/glpi',
+    label: 'GLPI',
+    icon: IconPlug,
+    permission: 'settings:write',
     end: false,
   },
   {

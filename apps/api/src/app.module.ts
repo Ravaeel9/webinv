@@ -15,6 +15,7 @@ import { AccessModule } from './access/access.module';
 import { HealthController } from './health.controller';
 import { SeedModule } from './seed/seed.module';
 import { SettingsModule } from './settings/settings.module';
+import { GlpiModule } from './glpi/glpi.module';
 
 @Module({
   imports: [
@@ -47,6 +48,9 @@ import { SettingsModule } from './settings/settings.module';
     AccessModule,
     // Przed `SeedModule` — seed pyta `SettingsService` o stan trybu demo.
     SettingsModule,
+    // Integracja GLPI — współdzieli z ustawieniami tabelę `settings`
+    // (klucze `glpi.*`), więc stoi tuż za `SettingsModule`.
+    GlpiModule,
     SeedModule,
   ],
   controllers: [HealthController],

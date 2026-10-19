@@ -25,6 +25,11 @@ import {
   type AuthUser,
   type DemoModeState,
   type Environment,
+  type GlpiImportPayload,
+  type GlpiImportPreview,
+  type GlpiImportResult,
+  type GlpiSettingsInput,
+  type GlpiSettingsState,
   type HeaderMapping,
   type ImportPreview,
   type ImportSelection,
@@ -78,6 +83,8 @@ export const qk = {
   applicationAccess: (appId: string) => ['access', 'application', appId] as const,
   accessMatrix: ['access', 'matrix'] as const,
   personsImportPreview: ['access', 'import-preview'] as const,
+  // Integracja GLPI: ustawienia + import (podgląd/zapis).
+  glpiSettings: ['glpi', 'settings'] as const,
 };
 
 // ─── Uwierzytelnienie ─────────────────────────────────────────
@@ -190,6 +197,52 @@ export function useDeleteDemoData() {
       void queryClient.invalidateQueries({ queryKey: qk.stats });
       void queryClient.invalidateQueries({ queryKey: qk.auditMeta });
     },
+  });
+}
+
+// ─── Integracja GLPI ──────────────────────────────────────────
+
+/** Ustawienia GLPI — sekrety nigdy nie wracają, tylko flagi `has*`. */
+export function useGlpiSettings() {
+  return useQuery({
+    queryKey: qk.glpiSettings,
+    queryFn: () => api.get<GlpiSettingsState>('/glpi/settings'),
+    staleTime: 10_000,
+  });
+}
+
+export function useSetGlpiSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dane: GlpiSettingsInput) =>
+      api.put<GlpiSettingsState>('/glpi/settings', dane),
+    onSuccess: (stan) => {
+      // Ustawiamy cache z odpowiedzi — sekrety i tak nie wróciły,
+      // a flagi `has*` muszą od razu odzwierciedlać stan po zapisie.
+      queryClient.setQueryData(qk.glpiSettings, stan);
+    },
+  });
+}
+
+export function useGlpiTest() {
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ ok: true; komunikat: string }>('/glpi/test'),
+  });
+}
+
+export function useGlpiImportPreview() {
+  return useMutation({
+    mutationFn: (sections: GlpiImportPayload['sections']) =>
+      api.post<GlpiImportPreview>('/glpi/import/preview', { sections }),
+  });
+}
+
+export function useGlpiImportApply() {
+  return useMutation({
+    mutationFn: (payload: GlpiImportPayload) =>
+      api.post<GlpiImportResult>('/glpi/import/apply', payload),
   });
 }
 

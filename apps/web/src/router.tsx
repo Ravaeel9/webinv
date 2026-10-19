@@ -17,6 +17,7 @@ import { ImportPage } from './pages/ImportPage';
 import { SubnetDetailPage } from './pages/SubnetDetailPage';
 import { SubnetFormPage } from './pages/SubnetFormPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { GlpiSettingsPage } from './pages/GlpiSettingsPage';
 import { SettingsLayout } from './components/layout/SettingsLayout';
 import { EmptyState } from './components/ui/Feedback';
 import { RouteErrorPage } from './components/layout/RouteErrorPage';
@@ -195,6 +196,16 @@ export const router = createBrowserRouter([
                   },
                   { path: 'dziennik', element: <RequirePermission permission="audit:read"><AuditPage /></RequirePermission> },
                   { path: 'uzytkownicy', element: <RequirePermission permission="user:read"><UsersPage /></RequirePermission> },
+                  {
+                    // Integracja GLPI — ta sama bramka co tryb demo:
+                    // konfiguracja systemu i import w jedna stronę.
+                    path: 'glpi',
+                    element: (
+                      <RequirePermission permission="settings:write">
+                        <GlpiSettingsPage />
+                      </RequirePermission>
+                    ),
+                  },
                 ],
               },
 
