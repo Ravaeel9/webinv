@@ -1,6 +1,6 @@
 {
   "name": "webinv",
-  "version": "1.5.9",
+  "version": "1.5.10",
   "private": true,
   "description": "Rejestr oprogramowania używanego w organizacji",
   "workspaces": [
@@ -18,7 +18,7 @@
     "test:web-build": "npm run build --workspace @webinv/web",
     "test": "npm run test:web-build && npm run test --workspace @webinv/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
-  "lint": "eslint .",
+    "lint": "eslint .",
     "prisma:generate": "npm run prisma:generate --workspace @webinv/api",
     "prisma:migrate": "npm run prisma:migrate --workspace @webinv/api",
     "prisma:studio": "npm run prisma:studio --workspace @webinv/api"
