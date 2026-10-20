@@ -3,7 +3,7 @@ import * as argon2 from 'argon2';
 
 // Argon2id — kompromis między odpornością na GPU a zużyciem RAM.
 // Parametry celują w ~50-80 ms na weryfikację na przeciętnym serwerze.
-const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
+const ARGON2_OPTIONS: argon2.HashOptions & { raw?: false } = {
   type: argon2.argon2id,
   memoryCost: 19_456, // 19 MiB
   timeCost: 2,
