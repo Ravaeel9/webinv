@@ -7,6 +7,10 @@
     "apps/api",
     "apps/web"
   ],
+  "overrides": {
+    "deepmerge-ts": "^8.0.0",
+    "fastify": "5.12.7"
+  },
   "scripts": {
     "dev:api": "npm run start:dev --workspace @webinv/api",
     "dev:web": "npm run dev --workspace @webinv/web",
