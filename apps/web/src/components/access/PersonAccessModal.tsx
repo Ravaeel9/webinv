@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useApplicationAccess,
   useGrantAccess,
@@ -72,7 +72,12 @@ export function PersonAccessModal({
     return zbior;
   }, [accessData]);
 
-  const osoby = personsData?.persons ?? [];
+  // Stabilna lista: poprzednio `?? []` tworzyło nową tablicę w każdym
+  // renderze i invalidateowało poniższe memo niezależnie od danych.
+  const osoby = useMemo(
+    () => personsData?.persons ?? [],
+    [personsData],
+  );
 
   const dostepneDoWyboru = useMemo(
     () => osoby.filter((osoba) => osoba.isActive && !maJuzDostep.has(osoba.id)),
@@ -98,8 +103,14 @@ export function PersonAccessModal({
 
   // Błąd dotyczy kontekstu (tryb albo adres w formularzu nowej osoby) —
   // klikanie checkboxów na liście nie unieważnia komunikatu o nieudanym
-  // nadaniu, więc `wybraneIds` celowo nie jest w zależnościach.
-  useEffect(() => setLocalError(null), [email, tryb]);
+  // nadaniu, więc `wybraneIds` celowo nie uwzględniamy: reset leci tylko,
+  // gdy zmieni się samo okno kontekstowe.
+  const zmieniacz = `${tryb}|${email}`;
+  const [poprzedniZmieniacz, setPoprzedniZmieniacz] = useState(zmieniacz);
+  if (zmieniacz !== poprzedniZmieniacz) {
+    setPoprzedniZmieniacz(zmieniacz);
+    setLocalError(null);
+  }
 
   const przelaczWszystkieWidoczne = (zaznacz: boolean) => {
     setWybraneIds((poprzednie) => {

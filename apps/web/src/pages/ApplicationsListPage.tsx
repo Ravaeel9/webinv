@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
   useApplicationFormOptions,
@@ -145,8 +145,16 @@ export function ApplicationsListPage() {
 
   // Pole wyszukiwania ma własny stan, żeby nie odpytywać API
   // na każdy znak — synchronizujemy je z URL przy zmianie filtra.
-  const [search, setSearch] = useState(filters.q ?? '');
-  useEffect(() => setSearch(filters.q ?? ''), [filters.q]);
+  // Wzorzec „dostosowania stanu podczas renderu" (react.dev) — efekt
+  // dałby tę samą wartość o kadr później.
+  const [search, setSearch] = useState<string>(filters.q ?? '');
+  // Śledcą trzyma **dokładne** wejście, łącznie z `undefined` — wtedy
+  // brak parametru w URL nie zapętla porównania z znormalizowanym `''`.
+  const [poprzednieQ, setPoprzednieQ] = useState<string | undefined>(filters.q);
+  if (filters.q !== poprzednieQ) {
+    setPoprzednieQ(filters.q);
+    setSearch(filters.q ?? '');
+  }
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();

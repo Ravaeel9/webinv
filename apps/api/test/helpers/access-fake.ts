@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- atrapa przyjmuje
+ * argumenty szersze niż prawdziwy port, żeby pilnować kształtu wywołań;
+ * wąskie typy każdej metody to osobne zadanie, dziś dawałyby fałszywe
+ * `any`-casts w ośmiu miejscach naraz. */
 /**
  * Atrapa `AccessPort` dla testów serwisu macierzy.
  *

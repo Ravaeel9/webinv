@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useCreateSubnet, useSubnet, useUpdateSubnet } from '../lib/queries';
 import { useAuth } from '../lib/auth';
@@ -72,30 +72,88 @@ function fromSubnet(subnet: SubnetDetail): FormState {
  * `id` z trasy decyduje, czy to dodanie, czy zmiana; różni je tylko
  * nagłówek, przycisk i to, którą mutację wywołujemy. Dwie osobne
  * strony rozdzieliłyby pola na dwa miejsca do utrzymania.
+ *
+ * Podobnie jak `ApplicationFormPage`: kontener dołącza dane, ciało
+ * startuje raz z pełnymi wartościami (inicjalizacja przez `useState`),
+ * więc nie potrzeba efektu „wczytaj raz" ustawiającego stan w efekcie.
  */
 export function SubnetFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
-  const navigate = useNavigate();
   const { can } = useAuth();
 
   const { data, isLoading, error: loadError } = useSubnet(id);
   const create = useCreateSubnet();
   const update = useUpdateSubnet(id ?? '');
 
-  const [form, setForm] = useState<FormState>(EMPTY);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [loaded, setLoaded] = useState(!isEdit);
+  if (!can('ipam:write')) {
+    return (
+      <div className="card mx-auto max-w-lg px-6 py-12 text-center">
+        <h1 className="text-base font-semibold text-fg">
+          Brak uprawnień
+        </h1>
+        <p className="mt-1 text-sm text-fg-muted">
+          Twoja rola pozwala tylko odczytywać katalog podsieci.
+        </p>
+      </div>
+    );
+  }
 
-  // Wczytujemy dane podsieci do formularza tylko raz — potem użytkownik
-  // edytuje lokalny stan, a nie ten z serwera.
-  useEffect(() => {
-    if (data?.subnet && !loaded) {
-      setForm(fromSubnet(data.subnet));
-      setLoaded(true);
-    }
-  }, [data, loaded]);
+  if (isEdit && isLoading) return <Spinner label="Ładowanie podsieci…" />;
+
+  if (isEdit && loadError) {
+    return (
+      <>
+        <PageHeader
+          title="Nie znaleziono podsieci"
+          back={{ to: '/ipam', label: 'Wróć do katalogu' }}
+        />
+        <ErrorMessage error={loadError} />
+      </>
+    );
+  }
+
+  if (isEdit && !data?.subnet) {
+    return <Spinner label="Ładowanie podsieci…" />;
+  }
+
+  return (
+    <SubnetFormBody
+      id={id}
+      isEdit={isEdit}
+      tytuł={data?.subnet.name ?? ''}
+      initial={isEdit && data?.subnet ? fromSubnet(data.subnet) : EMPTY}
+      create={create}
+      update={update}
+    />
+  );
+}
+
+/**
+ * Ciało formularza — stan pól i zapis startują jednocześnie, dokładnie
+ * raz, z tymi samymi danymi.
+ */
+function SubnetFormBody({
+  id,
+  isEdit,
+  tytuł,
+  initial,
+  create,
+  update,
+}: {
+  /** Id z trasy; przy tworzeniu jego brak decyduje o mutacji. */
+  id?: string;
+  isEdit: boolean;
+  tytuł: string;
+  initial: FormState;
+  create: ReturnType<typeof useCreateSubnet>;
+  update: ReturnType<typeof useUpdateSubnet>;
+}) {
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState<FormState>(initial);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const mutation = isEdit ? update : create;
 
@@ -159,37 +217,10 @@ export function SubnetFormPage() {
     }
   };
 
-  if (!can('ipam:write')) {
-    return (
-      <div className="card mx-auto max-w-lg px-6 py-12 text-center">
-        <h1 className="text-base font-semibold text-fg">
-          Brak uprawnień
-        </h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          Twoja rola pozwala tylko odczytywać katalog podsieci.
-        </p>
-      </div>
-    );
-  }
-
-  if (isEdit && isLoading) return <Spinner label="Ładowanie podsieci…" />;
-
-  if (isEdit && loadError) {
-    return (
-      <>
-        <PageHeader
-          title="Nie znaleziono podsieci"
-          back={{ to: '/ipam', label: 'Wróć do katalogu' }}
-        />
-        <ErrorMessage error={loadError} />
-      </>
-    );
-  }
-
   return (
     <>
       <PageHeader
-        title={isEdit ? `Edycja: ${data?.subnet.name ?? ''}` : 'Nowa podsieć'}
+        title={isEdit ? `Edycja: ${tytuł}` : 'Nowa podsieć'}
         description={
           isEdit
             ? 'Zmiany trafią do dziennika zdarzeń.'
@@ -199,7 +230,7 @@ export function SubnetFormPage() {
       />
 
       {/* Komunikat z API wprost — walidacja kolizji zakresu i objęcia
-          adresów żyje tylko na serwerze i tylko on ją zna. */}
+          adresów żyje tylko na serwerze i tylko on jej zna. */}
       <ErrorMessage error={mutation.error} className="mb-5" />
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">

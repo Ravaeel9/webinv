@@ -161,11 +161,10 @@ export function ImportPersonsModal({ onClose }: { onClose: () => void }) {
   // Lista kolumn do ręcznego przypisania to **wszystkie** nagłówki pliku,
   // nie tylko rozpoznane: nierozpoznana kolumna jest dokładnie tą, którą
   // administrator chce przypisać do pola.
-  const naglowki = podglad ? Object.values(podglad.mapping).filter(Boolean) : [];
-  const wszystkieNaglowki = useMemo(
-    () => [...new Set([...naglowki, ...(podglad?.unmapped ?? [])])],
-    [naglowki, podglad],
-  );
+  const wszystkieNaglowki = useMemo(() => {
+    const naglowki = podglad ? Object.values(podglad.mapping).filter(Boolean) : [];
+    return [...new Set([...naglowki, ...(podglad?.unmapped ?? [])])];
+  }, [podglad]);
   // `isActive` wysyłamy tylko wtedy, gdy plik ma kolumnę statusu. Bez tego
   // import pliku bez `Suspended` przywróciłby `isActive=true` osobom, które
   // administrator świadomie zdezaktywował.

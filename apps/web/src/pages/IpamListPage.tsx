@@ -32,7 +32,7 @@ export function IpamListPage() {
   const { data, isLoading, error, refetch } = useSubnets();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const subnets = data?.subnets ?? [];
+  const subnets = useMemo(() => data?.subnets ?? [], [data]);
 
   // Trzy liczniki z **tej samej** listy, co tabela. Osobne zapytanie
   // o statystyki rozjechałoby się z wierszami w trakcie ładowania

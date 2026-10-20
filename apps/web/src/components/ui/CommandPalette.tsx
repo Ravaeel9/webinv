@@ -93,15 +93,25 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return lista.slice(0, 12);
   }, [aplikacjeData, osobyData, podsieciData, fraza, can]);
 
-  // Przy otwarciu: czysta fraza, fokus na wynik zero.
-  useEffect(() => {
+  // Reset stanu przy zmianie propa — wzorzec „dostosowania stanu podczas
+  // renderu" (react.dev: You Might Not Need an Effect). Reaguje o jeden
+  // wyświetlany kadr wcześniej niż odpowiednie `useEffect`, a stan
+  // poprzedniego renderu trzymamy w osobnym `useState`, nie w refie.
+  const [poprzednieOpen, setPoprzednieOpen] = useState(open);
+  if (open !== poprzednieOpen) {
+    setPoprzednieOpen(open);
+    // Przy otwarciu: czysta fraza, fokus na wynik zero.
     if (open) {
       setFraza('');
       setAktywny(0);
     }
-  }, [open]);
+  }
 
-  useEffect(() => setAktywny(0), [szukaj]);
+  const [poprzedniSzukaj, setPoprzedniSzukaj] = useState(szukaj);
+  if (szukaj !== poprzedniSzukaj) {
+    setPoprzedniSzukaj(szukaj);
+    setAktywny(0);
+  }
 
   const otworz = (wynik: Wynik) => {
     onClose();

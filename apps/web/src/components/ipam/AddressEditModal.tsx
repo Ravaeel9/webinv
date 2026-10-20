@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Select, TextInput, Textarea } from '../ui/Field';
 import { ErrorMessage } from '../ui/Feedback';
@@ -40,21 +40,27 @@ export function AddressEditModal({
   /** Buduje ładunek PATCH-a. Osobny props, żeby modal nie znał hooka. */
   onConfirm: (payload: Record<string, unknown>) => Promise<void>;
 }) {
-  const [adres, setAdres] = useState('');
-  const [status, setStatus] = useState<string>('FREE');
-  const [opis, setOpis] = useState('');
+  const [adres, setAdres] = useState(address?.address ?? '');
+  const [status, setStatus] = useState<string>(address?.status ?? 'FREE');
+  const [opis, setOpis] = useState(address?.description ?? '');
   const [blad, setBlad] = useState<string | undefined>(undefined);
 
   // Wybór innego wiersza musi wypełnić formularz nowymi wartościami —
   // bez tego po edycji jednego adresu i otwarciu kolejnego pokazałyby
   // się stare dane, a zapis zniszczyłby nie to, co użytkownik widzi.
-  useEffect(() => {
-    if (!address) return;
-    setAdres(address.address);
-    setStatus(address.status);
-    setOpis(address.description ?? '');
-    setBlad(undefined);
-  }, [address]);
+  // Start z wartościami pierwszego adresu jest w inicjalizatorach
+  // powyżej; tu zostaje tylko śledzenie kolejnych zmian (wzorzec
+  // „dostosowania stanu podczas renderu", react.dev).
+  const [poprzedniAdres, setPoprzedniAdres] = useState(address);
+  if (address !== poprzedniAdres) {
+    setPoprzedniAdres(address);
+    if (address) {
+      setAdres(address.address);
+      setStatus(address.status);
+      setOpis(address.description ?? '');
+      setBlad(undefined);
+    }
+  }
 
   const zapisz = async () => {
     const nowyAdres = adres.trim();

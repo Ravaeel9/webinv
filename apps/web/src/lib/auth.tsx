@@ -49,7 +49,13 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
    */
   const unauthorized = error instanceof ApiError && error.isUnauthorized;
   const hadSession = useRef(false);
-  if (user) hadSession.current = true;
+  // Śledzenie „była sesja" idzie w efekt: zapis refa w renderze nie jest
+  // bezpieczny przy współbieżnych renderach — porzucony render może go
+  // ustawić bez powodu. Efekt deklarujemy **przed** czyszczeniem, żeby w
+  // jednym commicie kolejność zawsze była ta sama.
+  useEffect(() => {
+    if (user) hadSession.current = true;
+  }, [user]);
 
   useEffect(() => {
     if (!unauthorized || !hadSession.current) return;
