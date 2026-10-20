@@ -295,14 +295,23 @@ na `/konto`, a UI pilnuje tego, żeby nie robić pętli z API, które i tak odma
 - **Klient HTTP** (`lib/api.ts`) — wszystkie żądania z `credentials: 'include'`,
   brak nagłówka `Authorization` (sesja siedzi w ciasteczku `httpOnly`, którego
   JS nie widzi). Błędy mapowane na `ApiError` z gotowymi komunikatami po polsku.
-- **Hooki react-query** (`lib/queries.ts`) — jeden plik, jeden zestaw kluczy
-  (`qk`), osobne `use*` dla zapytania i dla mutacji. `staleTime` dobrane
+- **Hooki react-query** (`lib/queries.ts`) — bariera reeksportów nad
+  modułami domenowymi (`queries-auth.ts`, `queries-settings.ts`,
+  `queries-applications.ts`, `queries-ipam.ts`, `queries-users.ts`,
+  `queries-audit.ts`, `queries-access.ts`). Klucze (`qk`) żyją wyłącznie
+  w `queries-keys.ts`, żeby domeny nie importowały nawzajem bazy.
+  Osobne `use*` dla zapytania i dla mutacji. `staleTime` dobrane
   per-zapytanie, `retry: false` dla 401/403 (to nie awaria sieciowa), czyszczenie
   cache po wylogowaniu.
-- **Typy** (`types.ts`) — ręcznie pisane, bez generatora OpenAPI. Schemat Prisma
+- **Typy** (`types.ts`) — bariera reeksportów nad modułami domenowymi
+  (`types-identity.ts`, `types-application.ts`, `types-ipam.ts`,
+  `types-audit.ts`, `types-settings.ts`, `types-access.ts`, `types-ui.ts`,
+  `types-glpi.ts`). Ręcznie pisane, bez generatora OpenAPI. Schemat Prisma
   jest źródłem prawdy; komentarze zaznaczają, które pola są **opcjonalne tylko
   dlatego, że publiczny odczyt ich nie zwraca** (`undefined` = „nie wolno ci
-  tego widzieć”, `null` = „brak wartości”).
+  tego widzieć”, `null` = „brak wartości”). Testy pilnujące zgodności
+  interfejsu z API skanują tekst wszystkich `types*.ts` naraz — podział
+  na pliki nie osłabia żadnej asercji.
 - **Motyw** — skrypt `public/theme.js` ustawia klasę `dark` przed pierwszym
   renderem (brak migotania), przełącznik w `lib/theme.tsx` zapamiętuje wybór
   w `localStorage` (`rejestr-theme`).
