@@ -58,3 +58,7 @@ graphify-out/
 
 # Zapiski postępu planowania — lokalne, nie do repo
 .superpowers/
+docs/superpowers/
+
+# Konfiguracja i pluginy OpenCode — artefakt lokalnego toolingu agenta
+.opencode/
