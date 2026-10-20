@@ -5,7 +5,7 @@ import { ROLE_LABELS } from '../../types';
 import { initials } from '../../lib/format';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { ToastProvider } from '../ui/Toast';
+import { ToastProvider } from '../ui/ToastProvider';
 import { VersionBadge } from '../ui/VersionBadge';
 import { CommandPalette } from '../ui/CommandPalette';
 import {

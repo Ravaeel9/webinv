@@ -7,7 +7,8 @@ import {
   useSetDemoMode,
 } from '../lib/queries';
 import { PageHeader } from '../components/layout/AppLayout';
-import { Button, buttonClass } from '../components/ui/Button';
+import { Button } from '../components/ui/Button';
+import { buttonClass } from '../components/ui/button-class';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
 import { ErrorMessage } from '../components/ui/Feedback';

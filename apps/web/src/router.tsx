@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router';
-import { AuthProvider } from './lib/auth';
+import { AuthProvider } from './lib/auth-provider';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth, RequirePermission } from './components/layout/guards';
 import { LoginPage } from './pages/LoginPage';

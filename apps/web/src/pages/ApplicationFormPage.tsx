@@ -27,7 +27,8 @@ import {
 import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
 import { PageHeader } from '../components/layout/AppLayout';
-import { Button, buttonClass } from '../components/ui/Button';
+import { Button } from '../components/ui/Button';
+import { buttonClass } from '../components/ui/button-class';
 import { ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { IconAlert, IconCheck } from '../components/ui/icons';
 import {
