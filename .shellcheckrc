@@ -1,0 +1,4 @@
+# Polska typografia („…”) w komunikatach dla użytkownika jest celowa —
+# SC1111 traktuje cudzysłowy unicode jako możliwą literówkę w składni.
+# Składnię pilnuje `bash -n` w CI; tu wyłączamy tylko ten sygnał.
+disable=SC1111

@@ -31,15 +31,26 @@ jobs:
       - name: Instalacja zależności
         run: npm ci --no-audit --no-fund
 
+      # Regresja podatności w zależnościach produkcyjnych (bez dev —
+      # tam ostrzeżenia bywają głośne, a do obrazu nie trafiają).
+      # Próg ustawiony na `high`, żeby CI nie blokowały drobiazgi.
+      - name: Audyt zależności produkcyjnych
+        run: npm audit --omit=dev --audit-level=high
+
       # `install.sh` i `scripts/release.sh` to jedyny bash w repozytorium.
       # Oba działają dopiero na serwerze użytkownika, więc literówka
-      # w składni kosztowałaby godziny diagnostyki — stąd sprawdzenie
-      # składni w CI, bez wykonywania skryptów.
-      - name: Składnia skryptów
-        run: bash -n install.sh scripts/release.sh
+      # w składni kosztowałaby godziny diagnostyki. `bash -n` pilnuje
+      # składni (bez wykonywania skryptów), shellcheck — typowych błędów
+      # logicznych (cytowania, wzorce glob, `&&`/`||`). Reguły polskiej
+      # typografii („…”) w komunikatach są wyłączone w `.shellcheckrc`.
+      - name: Składnia i shellcheck skryptów
+        run: |
+          bash -n install.sh scripts/release.sh
+          if ! command -v shellcheck >/dev/null; then
+            sudo apt-get update >/dev/null && sudo apt-get install -y shellcheck
+          fi
+          shellcheck -S warning install.sh scripts/release.sh
 
-      # Przygotowanie przed sprawdzeniem typów: API typuje się na
-      # wygenerowanym kliencie Prisma.
       - name: Wygenerowanie klienta Prisma
         run: npm run prisma:generate
 

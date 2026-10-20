@@ -24,7 +24,7 @@ cd "$(dirname "$0")/.."
 
 DRY=0
 PUSH=1
-BUMP=patch
+BUMP='patch'
 
 for arg in "$@"; do
   case "$arg" in

@@ -225,7 +225,9 @@ read_password() {
 env_get() {
   local key="$1" default="${2:-}" line
   line="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -n 1 || true)"
-  line="${line#${key}=}"
+  # Cudzysłów w rozwinięciu: bez niego klucz byłby wzorcem glob,
+  # a nie literałem — klucz ze znakami `*` lub `?` dopasowałby za dużo.
+  line="${line#"${key}"=}"
   # Zdejmij cudzysłowy, jeśli ktoś wpisał wartość w cudzysłowach
   line="${line%\"}"; line="${line#\"}"
   line="${line%\'}"; line="${line#\'}"
