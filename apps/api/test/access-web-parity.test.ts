@@ -17,10 +17,11 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { read } from './helpers/repo';
+import { webLibText } from './helpers/web-sources';
 
-const typy = read('apps', 'web', 'src', 'types.ts');
+const typy = webLibText((plik) => /^types(-.*)?\.ts$/.test(plik));
 const schemat = read('apps', 'api', 'prisma', 'schema.prisma');
-const queries = read('apps', 'web', 'src', 'lib', 'queries.ts');
+const queries = webLibText((plik) => /^queries(-.*)?\.ts$/.test(plik));
 
 describe('Typy frontendu a enum AccessLevel', () => {
   it('cztery poziomy z bazy są tymi samymi czterema nazwami w interfejsie', () => {

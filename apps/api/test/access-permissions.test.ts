@@ -15,8 +15,8 @@ import {
   PERMISSIONS,
   roleHasPermission,
 } from '../src/auth/permissions';
-import { read } from './helpers/repo';
 import { webPermissions } from './helpers/web-permissions';
+import { webLibText } from './helpers/web-sources';
 
 describe('Uprawnienia access:read / access:write', () => {
   it('VIEWER nie widzi macierzy w ogóle', () => {
@@ -45,7 +45,7 @@ describe('Uprawnienia access:read / access:write', () => {
   });
 
   it('interfejs zna te same uprawnienia i te same role', () => {
-    const web = webPermissions(read('apps', 'web', 'src', 'types.ts'));
+    const web = webPermissions(webLibText((plik) => /^types(-.*)?\.ts$/.test(plik)));
     assert.ok(web, 'nie znaleziono PERMISSIONS w types.ts');
     for (const rola of ['ADMIN', 'SUPER_ADMIN']) {
       assert.ok(web[rola]!.includes('access:read'), `web ${rola}: brak access:read`);

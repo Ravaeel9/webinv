@@ -18,6 +18,7 @@ import { describe, it } from 'node:test';
 import { roleHasPermission } from '../src/auth/permissions';
 import { read } from './helpers/repo';
 import { webPermissions } from './helpers/web-permissions';
+import { webLibText } from './helpers/web-sources';
 
 const layout = read('apps', 'web', 'src', 'components', 'layout', 'AppLayout.tsx');
 const router = read('apps', 'web', 'src', 'router.tsx');
@@ -68,7 +69,7 @@ describe('Dziennik zdarzeń przeniesiony do Ustawień', () => {
     assert.equal(roleHasPermission('ADMIN', 'audit:read'), true);
     assert.equal(roleHasPermission('SUPER_ADMIN', 'audit:read'), true);
 
-    const web = webPermissions(read('apps', 'web', 'src', 'types.ts'));
+    const web = webPermissions(webLibText((plik) => /^types(-.*)?\.ts$/.test(plik)));
     assert.ok(web);
     assert.equal(web['VIEWER']!.includes('audit:read'), false);
     assert.equal(web['ADMIN']!.includes('audit:read'), true);

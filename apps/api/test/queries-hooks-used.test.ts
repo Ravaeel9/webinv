@@ -20,7 +20,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { read } from './helpers/repo';
-import { webSources } from './helpers/web-sources';
+import { webLibText, webSources } from './helpers/web-sources';
 
 const PLIKI = webSources();
 
@@ -35,7 +35,9 @@ function eksportowaneHooki(zrodlo: string): string[] {
   return nazwy;
 }
 
-const QUERIES = read('apps', 'web', 'src', 'lib', 'queries.ts');
+// Teksty wszystkich modułów `queries*.ts` — podział po domenie
+// nie może uciec przed tym testem na martwe hooki.
+const QUERIES = webLibText((plik) => /^queries(-.*)?\.ts$/.test(plik));
 const HOOKI = eksportowaneHooki(QUERIES);
 
 describe('hooki w queries.ts', () => {

@@ -17,7 +17,7 @@ import {
   roleHasPermission,
 } from '../src/auth/permissions';
 import { webPermissions } from './helpers/web-permissions';
-import { webSources } from './helpers/web-sources';
+import { webLibText, webSources } from './helpers/web-sources';
 import { read } from './helpers/repo';
 
 const WEB = webPermissions(read('apps', 'web', 'src', 'types.ts'));
@@ -151,7 +151,7 @@ describe('Klient ustawień', () => {
   it('po skasowaniu danych unieważnia listę aplikacji i statystyki', () => {
     // Rekordy znikają z bazy, więc lista i pulpit pokazywałyby dane,
     // których już nie ma, dopóki ktoś nie odświeży strony ręcznie.
-    const queries = read('apps', 'web', 'src', 'lib', 'queries.ts');
+    const queries = webLibText((plik) => /^queries(-.*)?\.ts$/.test(plik));
     const sekcja = queries.slice(queries.indexOf('useDeleteDemoData'));
 
     assert.match(
