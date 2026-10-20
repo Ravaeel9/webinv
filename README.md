@@ -23,6 +23,12 @@ kosztują i kiedy mają zostać wycofane.
   dostęp nadaje się w narzędziu IAM, rejestr pokazuje, komu go nadano.
 - **Import osób z CSV** — np. eksport z Google Workspace; podgląd z podziałem
   na nowe osoby, aktualizacje i błędy przed zapisem.
+- **Integracja GLPI** — import osób, oprogramowania i przypisań dostępów
+  wynikających z członkostwa w grupach GLPI; podgląd przed zapisem, zapis
+  tworzy wyłącznie nowe rekordy. Konfiguracja i import siedzą w panelu pod
+  **Ustawienia → GLPI** (tylko super administrator).
+- **Tryb demonstracyjny** — wypełnienie bazy danymi próbnymi na czas
+  prezentacji; włączenie, wyłączenie i kasowanie danych demo w **Ustawieniach**.
 - **Dziennik zdarzeń** — kto, co i kiedy zmienił, z dokładną różnicą.
 - **Import adresów z pliku nmap** — uzupełnienie katalogu IP wynikiem skanu.
 - **Motyw jasny i ciemny** — przełącznik w prawym górnym rogu.
@@ -34,8 +40,8 @@ kosztują i kiedy mają zostać wycofane.
   dostarczenia i wsparcia. Dzięki temu dostawca albo audytor sprawdzi, czy dana
   aplikacja w ogóle u nas jest, bez znajomości loginu i hasła.
 - **Panel** (po zalogowaniu) — pełne dane, edycja, pulpit, katalog IP,
-  macierz uprawnień do aplikacji, zarządzanie kontami, dziennik zdarzeń
-  i eksport CSV.
+  macierz uprawnień do aplikacji i **Ustawienia**: konta, dziennik zdarzeń,
+  tryb demo, integracja GLPI.
 
 Granica jest egzekwowana **po stronie serwera** — brak sesji oznacza brak danych,
 filtra i sortowania po polach poufnych, a nie tylko ich ukrycie w interfejsie.

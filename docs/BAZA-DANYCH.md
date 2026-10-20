@@ -15,6 +15,7 @@ User ──< Session
 Application ──< ApplicationEnvironment >── Environment
 Application ──< ApplicationIpAddress >── IpAddress ──< Subnet
 AuditLog ──> User (opcjonalnie)
+Setting (magazyn par klucz–wartość: tryb demo, konfiguracja GLPI)
 ```
 
 ### `users`
@@ -257,9 +258,23 @@ przypisania), `expires_on` (wygasłe).
 | `created_at` | `timestamptz` | |
 
 Indeksy: `(entity, entity_id)`, `actor_id`, `created_at` — pokrywają listę
-zdarzeń i filtrowanie po encji. Kolumna `entity_id` jest indeksowana, ale
-**API nie udostępnia filtra po niej** (patrz znane niedociągnięcie w
-[ROZWOJ.md](ROZWOJ.md#znane-niedociągnięcia)).
+zdarzeń i filtrowanie po encji i pojedynczym rekordzie
+(`GET /api/audit?entity=...&entityId=...`).
+
+### `settings`
+
+Prosty magazyn klucz–wartość (`Setting`): klucz `String` (PK), wartość
+`String`. Bez schematu kolumn — celowo, bo to ustawienia zmieniane przez
+panel, a nie przez zapytania analityczne.
+
+| Klucz | Zapisuje | Kto zmienia |
+|---|---|---|
+| `demo.*` | stan trybu demonstracyjnego | super admin (PUT `/api/settings/demo`) |
+| `glpi.*` | konfiguracja integracji GLPI (URL, poświadczenia — sekrety **zaszyfrowane** kluczem z `SESSION_SECRET`) | super admin (PUT `/api/glpi/settings`) |
+
+Klucze `glpi.*` trzymają sekrety zaszyfrowane (`glpi-crypto`); rekordy nie
+zwracają jawnie zapisanych wartości — GET pokazuje flagi `has*`. Obrót
+`SESSION_SECRET` unieważnia zapisane sekrety (trzeba je wpisać ponownie).
 
 ## Enumy
 

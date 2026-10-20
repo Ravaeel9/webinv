@@ -277,6 +277,28 @@ potrzebne — kontener API nie wykonuje `nmap`, a plik powstaje na stacji,
 do której administrator sieci ma dostęp, i trafia przez przeglądarkę jako
 zwykły formularz.
 
+## Narzędzia administratora — integracja GLPI
+
+Import osób, oprogramowania i przypisań dostępów z własnej instancji GLPI:
+
+1. W panelu przejdź do **Ustawienia → GLPI** (tylko super administrator)
+   i wypełnij konfigurację: adres API instancji, poświadczenia. Sekrety
+   są szyfrowane kluczem wywiedzonym z `SESSION_SECRET`; zmiana sekretu
+   sesji w `.env` wymaga ponownego wpisania sekretów GLPI.
+2. Kliknij **Test połączenia**, żeby sprawdzić obie historie autoryzacji
+   zanim zaczniesz import.
+3. Wybierz sekcje importu (osoby, oprogramowanie, dostępy) i uruchom
+   **podgląd** — klasyfikuje wiersze na nowe, pominięte i błędne, nic nie
+   zapisuje.
+4. Uruchom **zapis**. Import tworzy wyłącznie nowe rekordy — istniejące
+   wpisy rejestru i katalogu osób nigdy nie są nadpisywane; zmiany po
+   stronie GLPI wymagają ponownego importu albo korekty w panelu.
+
+Kolejność importu jest narzucona: osoby → oprogramowanie → dostępy,
+bo dostęp wskazuje osobę i aplikację, które muszą istnieć wcześniej.
+Ewidencja dostępów z GLPI trafia do tej samej macierzy uprawnień,
+którą prowadzi się ręcznie w **Uprawnieniach**.
+
 ## Aktualizacja
 
 ```bash

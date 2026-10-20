@@ -118,9 +118,13 @@ z wersjami, opisami i linkami, bez pól poufnych.
 - Brak wymaganych sekretów = **kontener nie wstaje** (`required()` w
   `config/configuration.ts`).
 - `SESSION_SECRET` musi mieć ≥ 32 znaki; zmiana unieważnia wszystkie sesje
-  (świadomie).
+  (świadomie). Unieważnia także szyfrowane kluczem z tego sekretu poświadczenia
+  GLPI (`glpi-crypto`) — trzeba je wpisać ponownie w ustawieniach integracji.
 - Konto startowe wymusza zmianę hasła przy pierwszym logowaniu; słabe
   `SEED_ADMIN_PASSWORD` blokuje start (także gdy konto już istnieje).
+- Sekrety integracji GLPI (client secret, hasło, tokeny) nie leżą jawnie
+  w bazie — są szyfrowane i nie wracają do przeglądarki (GET pokazuje
+  wyłącznie flagi ich obecności).
 
 ## Świadome ograniczenia
 

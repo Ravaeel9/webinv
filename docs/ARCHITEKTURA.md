@@ -32,6 +32,11 @@ jest egzekwowana **po stronie serwera** — patrz [§7](#7-widok-publiczny-a-pe�
 
 Wersje wszystkich zależności są **przypięte dokładnie** (bez `^` i `~`) —
 kontener ma zawsze działać na tym samym kodzie, na którym testy przeszły.
+Wyjątkiem od hoistowania jest wzorzec `overrides` w głównym `package.json`:
+wymusza on jedną wersję `fastify` także tam, gdzie pośrednik
+(`@nestjs/platform-fastify`) dokleja własną kopię, oraz `deepmerge-ts`
+w Prisma CLI — naprawa pierwszej podatności wymaga dopiero nowej major
+NestJS, a drugiej dopiero nowej major Prisma.
 
 ## 3. Komponenty
 
@@ -124,8 +129,33 @@ AppModule
 ├── AuditModule          /api/audit (dziennik) + AuditService dla pozostałych modułów
 ├── ApplicationsModule   /api/applications (rejestr)
 ├── IpamModule           /api/ipam (katalog podsieci, adresów i przypisań)
+├── AccessModule         /api/access (macierz uprawnień — katalog osób i przypisań)
+├── SettingsModule       /api/settings (tryb demonstracyjny; tabela `settings`)
+├── GlpiModule           /api/glpi (integracja GLPI — współdzieli `settings`)
 └── SeedModule           dane startowe po starcie aplikacji
 ```
+
+### Ustawienia i tryb demonstracyjny
+
+Tabela `settings` (model `Setting`) to prosty magazyn klucz–wartość
+spod jednej trasy `/api/settings` tylko dla super administratora. Tryb demo
+używa klucza `demo.*` — seed pyta `SettingsService` o stan trybu, dlatego
+`SettingsModule` jest zarejestrowany przed `SeedModule`.
+
+### Integracja GLPI
+
+`glpi/` to osobny moduł integrujący system GLPI: import osób,
+oprogramowania (jako wpisy rejestru) i przypisań dostępów wynikających
+z członkostwa w grupach GLPI. Konfiguracja siedzi w `settings` pod kluczami
+`glpi.*`; sekrety są szyfrowane kluczem wywiedzonym z `SESSION_SECRET`
+(`glpi-crypto`) i nie wracają do przeglądarki — GET pokazuje flagi `has*`,
+a zapis przyjmuje `undefined` jako „nie ruszaj”.
+
+Import jest dwuetapowy (podgląd → zapis), jak importy CSV i nmap. Zapis nie
+ufa payloadowi z przeglądarki (rewalidacja każdego wiersza) i tworzy
+**wyłącznie nowe** rekordy. Klient GLPI (`glpi-client.ts`) jest czystą
+warstwą bez NestJS — testowalną bez bazy i bez kontenera — a serwis do bazy
+podchodzi przez port `GlpiPort`, na wzór `AccessPort`/`IpamPort`.
 
 ### Katalog IPAM obok rejestru
 
@@ -240,12 +270,19 @@ AuthProvider (korzeń, wczytuje /auth/me)
 │       ├── /konto
 │       ├── /aplikacje/nowa        (app:write)
 │       ├── /aplikacje/:id/edycja  (app:write)
+│       ├── /uprawnienia           (access:read — macierz i katalog osób)
+│       │   └── /uprawnienia/osoby/:id
 │       ├── /ipam                  (sesja — cała gałąź IPAM jest za `RequireAuth`)
 │       ├── /ipam/nowa             (ipam:write)
+│       ├── /ipam/import           (ipam:write)
 │       ├── /ipam/:id              (sesja)
 │       ├── /ipam/:id/edycja       (ipam:write)
-│       ├── /uzytkownicy           (user:read)
-│       └── /audyt                 (audit:read)
+│       ├── /ustawienia            (widok główny — settings:write)
+│       │   ├── /ustawienia/dziennik      (audit:read)
+│       │   ├── /ustawienia/uzytkownicy   (user:read)
+│       │   └── /ustawienia/glpi          (settings:write — integracja GLPI)
+│       ├── /audyt        → przekierowanie na /ustawienia/dziennik (stare zakładki)
+│       └── /uzytkownicy  → przekierowanie na /ustawienia/uzytkownicy
 └── AppLayout → 404
 ```
 
@@ -319,7 +356,9 @@ pakietów).
 2. `build` — `prisma generate` + `nest build`;
 3. `prod-deps` — `npm ci --omit=dev` + **ponowne** `prisma generate` (query engine
    musi pasować do platformy obrazu końcowego; klient z etapu `build` ma własne
-   `node_modules` i nie trafiłby do obrazu);
+   `node_modules` i nie trafiłby do obrazu) + strażnik `require('argon2')` —
+   gdyby npm nie wyniósł natywnego modułu do rootowego `node_modules`, build
+   kończy się od razu, a nie na starcie kontenera;
 4. `runtime` — bez CLI Prisma i TypeScriptu, użytkownik `node` (nie root).
 
 Punkt wejścia to skrypt, nie `dist/main.js`:
@@ -373,6 +412,9 @@ aplikację po wdrożeniu).
 | Dane wsparcia przetrwają zmianę typu na `GENERAL_USE` | zmiana typu to zmiana opisu, a nie skasowanie wiedzy; powrót do `SAAS` odsłania dane, które nadal są aktualne | rekord `GENERAL_USE` może mieć ukryte, wypełnione pola — dlatego UI warunkowo je pokazuje |
 | Walidacja bloku wsparcia miękka (wsystko opcjonalne) | rejestr ma opisywać to, co wiemy; brak kontaktu do wsparcia nie może blokować zapisu | nie wymusimy kompletności opisu usługi — jakość zależy od użytkownika |
 | Brak roli „gość” w bazie | gość nie ma sesji, więc nie ma użytkownika | brak śladu, kto oglądał publiczny widok (celowo — to nie jest wymagane) |
+| Import GLPI tworzy tylko nowe rekordy | rejestr ma odwzorowywać stan GLPI, nie zarządzać nim; zapis nie może nadpisać tego, co człowiek dopisał ręcznie | zmiany w GLPI wymagają ponownego importu albo ręcznej aktualizacji wpisów |
+| Sekrety GLPI szyfrowane kluczem z `SESSION_SECRET` | konfiguracja trafia do bazy razem z resztą ustawień, a sekrety nie mogą leżeć jawnie | obrót `SESSION_SECRET` unieważnia zapisane sekrety — trzeba je wpisać ponownie |
+| `overrides` (fastify, deepmerge-ts) w głównym `package.json` | naprawa podatności bez skoku major (NestJS/Prisma); `@nestjs/platform-fastify` sam dokleja starszy fastify | po podbitech major NestJS/Prisma override'y można usunąć (`fastify: 5.12.7`, `deepmerge-ts: ^8.0.0`) |
 
 ## 11. Macierz uprawnień
 

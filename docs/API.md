@@ -437,6 +437,44 @@ brak w pliku niczego nie znaczy.
 Import dotyczy wyłącznie katalogu osób. Dostęp do aplikacji nadaje się ręcznie
 w macierzy, bo plik nie jest wiarygodnym źródłem uprawnień.
 
+## Ustawienia `/api/settings`
+
+Ustawienia systemowe panelu. Trasy wymagają sesji i `settings:write`
+(tylko super administrator).
+
+| Metoda | Ścieżka | Zastosowanie |
+|---|---|---|
+| GET | `/api/settings/demo` | stan trybu demonstracyjnego |
+| PUT | `/api/settings/demo` | włączenie/wyłączenie trybu demo |
+| DELETE | `/api/settings/demo/data` | usunięcie danych demonstracyjnych |
+
+Tryb demo: seed wypełnia bazę danymi próbnymi na potrzeby prezentacji;
+dane zapisują się w tabeli `settings`, a usuwane są osobno z powyższej trasy.
+
+## Integracja GLPI `/api/glpi`
+
+Import osób, oprogramowania (aplikacji) i przypisań dostępów z grup GLPI.
+Cały kontroler pod `settings:write` — to konfiguracja systemowa, nie
+funkcja edycji. Błąd ze strony GLPI (sieć, poświadczenia) skutkuje `502`
+z komunikatem po polsku.
+
+| Metoda | Ścieżka | Zastosowanie |
+|---|---|---|
+| GET | `/api/glpi/settings` | stan konfiguracji — **bez sekretów**, flagi `has*` |
+| PUT | `/api/glpi/settings` | zapis konfiguracji; `undefined` = „nie ruszaj" (nie kasuje sekretu) |
+| POST | `/api/glpi/test` | test połączenia obiema obiektami autoryzacji |
+| POST | `/api/glpi/import/preview` | podgląd importu: NEW / SKIP / ERROR, bez zapisu |
+| POST | `/api/glpi/import/apply` | zapis importu |
+
+Konfiguracja trzyma sekcje `glpi.*` w tabeli `settings`; sekrety
+(`client_secret`, `password`, tokeny) są **zaszyfrowane** kluczem wywiedzionym
+z `SESSION_SECRET` i nigdy nie wracają do przeglądarki.
+
+Import jest dwuetapowy (podgląd → zapis). Zapis **nie ufa payloadowi
+z przeglądarki**: każdy wiersz jest walidowany od nowa, złe wiersze są
+pomijane (licznik `skipped`). Tworzy **wyłącznie nowe** rekordy — nigdy
+niczego nie nadpisuje. Kolejność zapisu: osoby → oprogramowanie → dostępy,
+bo dostęp wskazuje osobę i aplikację, które muszą istnieć wcześniej.
 
 ## Limit zapytań
 

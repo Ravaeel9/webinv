@@ -62,9 +62,12 @@ npm run dev:api
 │   │   ├── prisma/          # schema.prisma + migracje
 │   │   ├── src/
 │   │   │   ├── applications/ # rejestr aplikacji (REST)
+│   │   │   ├── access/       # macierz uprawnień (katalog osób i przypisań)
 │   │   │   ├── audit/        # dziennik zdarzeń
 │   │   │   ├── auth/         # sesje, hasła, uprawnienia, guardy
+│   │   │   ├── glpi/         # integracja GLPI (import osób, oprogramowania, dostępów)
 │   │   │   ├── ipam/         # podsieci i adresy IP (REST, walidacja CIDR)
+│   │   │   ├── settings/     # tryb demonstracyjny (tabela `settings`)
 │   │   │   ├── users/        # zarządzanie kontami
 │   │   │   ├── config/       # walidacja zmiennych środowiskowych
 │   │   │   ├── prisma/       # klient Prisma jako injectable
@@ -147,7 +150,7 @@ funkcja, którą da się przetestować bez I/O, jest testowana bez I/O.
 | `applications-sort-stability.test.ts` | drugi klucz `orderBy` w `buildOrderBy` — przy remisie wartości kolejność w SQL jest nieokreślona, a lista jest stronicowana `take`/`skip`, więc ten sam zestaw wierszy przy drugim kliknięciu „Następna" wypadałby inaczej. Pilnuje też, że klucz rozstrzygający to nazwa (pole widoczne dla gościa) i że dublowania nie ma przy sortowaniu już po nazwie |
 | `sort-kolumn.test.ts` | zgodność kolumn sortowalnych z białą listą `SORTABLE` w API — API **ignoruje nieznane pole po cichu**, więc nagłówek obiecywałby sortowanie, którego nie będzie, a strzałek nie ruszyłaby. Test złapał `ownerEmail`: kolumna „Właściciel" była w tabeli, a w białej liście jej nie było. Do tego sprawdza, że kolumny ukryte przed gościem (`GUEST_SORTABLE`) nie wyciekają do sortowania, bo kolejność wierszy zdradziłaby ukrytą wartość, oraz — w osobnym bloku — **że w ogóle nie trafiają do wiersza nagłówka**: przy wdrożeniu nagłówków sortowalnych warunek `!isGuest` zniknął i zastąpił go warunek na `sortBy`, który wyłączał sortowanie, ale nie usuwał kolumny. Gość dostał trzy puste kolumny w środku tabeli, a wcześniejsze testy tego nie widziały, bo sprawdzały sortowanie, a nie widoczność |
 
-Stan: **740 przypadków, 98 suite'ów, wszystkie przechodzą**, plus
+Stan: **980 przypadków, 138 suite'ów, wszystkie przechodzą**, plus
 `tsc --noEmit` w obu pakietach.
 
 CI uruchamia dokładnie te dwa polecenia (`.github/workflows/ci.yml`).
@@ -256,27 +259,29 @@ Pełen opis kroków:
 | Konto wisi na „Musisz najpierw ustawić własne hasło” | flaga `mustChange_password` — zaloguj się i zmień hasło w `/konto` albo zresetuj hasło przez super admina (hasło z `.env` po utworzeniu konta nie działa) |
 | Baza startuje, ale jest „nieznane środowisko” | kontener bazy powstał przed włączeniem `citext` — skrypty initdb działają tylko przy pierwszym `initdb`; potrzebny `make reset` albo `CREATE EXTENSION citext;` ręcznie |
 | `docker compose` nie widzi `.env` | uruchamiaj `make`/`docker compose` z katalogu repozytorium |
+| `Cannot find module 'argon2'` przy starcie kontenera API | npm ulokował argon2 w `apps/api/node_modules` zamiast w rootowym `node_modules`, a obraz runtime kopiuje tylko rootowy. Wyniesienie naprawia: `npm uninstall --workspace apps/api argon2 && npm install --workspace apps/api argon2@<wersja>`. Strażnik `require('argon2')` w etapie `prod-deps` Dockerfile kończy build od razu, zamiast padać na starcie kontenera |
+| Aktualizacja major NestJS / Prisma | główny `package.json` zawiera `overrides` (`fastify`, `deepmerge-ts`) wymuszające naprawione wersje pośredników — po podbiciu major sprawdź, czy override jest jeszcze potrzebny, i ewentualnie go usuń |
 
 ## Znane niedociągnięcia
 
 Utrzymywane świadomie albo do poprawki — warto wiedzieć, zanim zaczniesz
 szukać błędu „w kodzie":
 
-1. **Filtr dziennika po `entityId` nie istnieje.** Klient wysyła
-   `entityId`, kontroler go ignoruje, więc „historia zmian” na stronie
-   aplikacji pokazuje ostatnie zdarzenia typu encji, nie jednego rekordu.
-   Naprawa: dodać `@Query('entityId')` w `AuditController.list` i warunek
-   w `where` (indeks `(entity, entity_id)` już jest).
-2. **Limit zapytań liczony per IP, na instancję.** Za NAT-em kilka osób
+1. **Limit zapytań liczony per IP, na instancję.** Za NAT-em kilka osób
    dzieli limit, po restarcie kontenera liczniki startują od zera, przy
    kilku instancjach API nie są wspólne (brak Redis).
-3. **Brak retencji dziennika zdarzeń.** Tabela rośnie w nieskończoność; przy
+2. **Brak retencji dziennika zdarzeń.** Tabela rośnie w nieskończoność; przy
    dużym ruchu warto dodać `retentionDays` i sprzątanie (`make` celowo nie ma
    crona — patrz `SessionsService.purgeExpiredAtMostHourly`).
-4. **`/api/applications/stats`, `/api/applications/export` i `/api/users/options`
+3. **`/api/applications/stats`, `/api/applications/export` i `/api/users/options`
    wymagają sesji**, choć reszta odczytu jest publiczna. Dla gościa to
    świadoma decyzja (statystyki ujawniają ukryte pola, eksport byłby drogą do
    tych samych danych), ale warto o tym wiedzieć.
-5. **Dwa miejsca do zsynchronizowania przy nowym polu uprawnień:**
+4. **Dwa miejsca do zsynchronizowania przy nowym polu uprawnień:**
    `apps/api/src/auth/permissions.ts` i `PERMISSIONS` w `apps/web/src/types.ts`
    (test zgodności dotyczy haseł, nie uprawnień).
+5. **`overrides` w głównym `package.json` do zdjęcia przy podbicie major.**
+   `fastify: 5.12.7` i `deepmerge-ts: ^8.0.0` wynoszą naprawione wersje
+   pośredników (`@nestjs/platform-fastify` dokleja własną starszą kopię
+   fastify, Prisma CLI — podatne `deepmerge-ts`). Po podbiciu major NestJS
+   i Prisma sprawdź, czy override jest jeszcze potrzebny, i go usuń.
