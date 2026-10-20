@@ -80,7 +80,7 @@ Użycie:
 Opcje:
   -y, --unattended          Bez pytań. Wymaga --admin-password
                            (albo zmiennej SEED_ADMIN_PASSWORD).
-      --port <numer>       Port aplikacji na hoście (domyślnie z .env, else 8080)
+      --port <numer>       Port aplikacji na hoście (domyślnie z .env, albo 8080)
       --admin-user <login>           Login super administratora (domyślnie admin)
       --admin-email <adres>          E-mail administratora (domyślnie admin@firma.local)
       --admin-name "<imię>"          Imię i nazwisko (domyślnie "Administrator Systemu")
@@ -137,7 +137,7 @@ ask() {
 
 ask_yes_no() {
   # ask_yes_no <pytanie> <domyślnie: y|n>  → 0 gdy tak
-  local prompt="$1" default="$2" answer
+  local prompt="$1" default="$2" answer hint
   case "$default" in y) hint="T/n" ;; *) hint="t/N" ;; esac
   IFS= read -r -p "   ${prompt} [${hint}]: " answer </dev/tty
   answer="${answer:-$default}"
@@ -158,7 +158,8 @@ random_hex() {
 strong_password() {
   # Składniki dobrane tak, żeby hasło zawsze przechodziło politykę:
   # mała litera, wielka litera, cyfra i znak specjalny są gwarantowane
-  # przez stałe fragmenty, a entropia pochodzi z 12 znaków hex.
+  # przez stałe fragmenty, a entropia pochodzi z 24 znaków hex
+  # (12 bajtów z `random_hex`).
   printf 'Wb9-%s-Zx!' "$(random_hex 12)"
 }
 
@@ -288,10 +289,14 @@ mem_available_mb() {
   # MemAvailable z /proc/meminfo mówi ile RAM jest realnie do dyspozycji
   # (po cache jądra), więc jest trafniejszy niż MemTotal. W kontenerach
   # i na części dystrybucji pliku nie ma — wtedy sięgamy po `free`.
+  # Oba źródła dają wartość w KILOBAJTACH: /proc/meminfo ma kolumnę kB,
+  # a `free -k` wymusza kB (domyślny `free -m` dałby MB — po dzieleniu
+  # przez 1024 wynik byłby 1024× zaniżony i tryb oszczędny włączałby
+  # się fałszywie).
   local kb
   kb="$(awk '/^MemAvailable:/ {print $2; exit}' /proc/meminfo 2>/dev/null || true)"
   if [ -z "$kb" ]; then
-    kb="$(free -m 2>/dev/null | awk '/^Mem:/ {print $7}')"
+    kb="$(free -k 2>/dev/null | awk '/^Mem:/ {print $7}')"
   fi
   case "$kb" in
     ''|*[!0-9]*) return 1 ;;
@@ -363,7 +368,7 @@ check_resources() {
   fi
 }
 
-# ── Krok 2: konfiguracja (.env) ──────────────────────────────
+# ── Krok 3: konfiguracja (.env) ──────────────────────────────
 prepare_env() {
   step "Przygotowuję konfigurację (.env)"
 
@@ -408,6 +413,7 @@ prepare_env() {
   chmod 600 "$ENV_FILE"
 }
 
+# ── Krok 4: port i ciasteczka ────────────────────────────────
 configure_port() {
   step "Ustawiam port i zabezpieczenie ciasteczek"
 
@@ -456,9 +462,13 @@ configure_port() {
   fi
 }
 
-# ── Krok 3: konto administratora ─────────────────────────────
+# ── Krok 5: konto administratora ─────────────────────────────
 configure_admin() {
   step "Konfiguruję konto super administratora"
+
+  # Zwykle ustawia to prepare_env; wartość domyślna chroni przed
+  # skutkiem zmiany kolejności kroków w main.
+  REUSED_ENV="${REUSED_ENV:-0}"
 
   local username="${ARG_ADMIN_USER}"
   [ -n "$username" ] || username="$(env_get SEED_ADMIN_USERNAME admin)"
@@ -500,19 +510,19 @@ configure_admin() {
 
   GENERATED_PASSWORD=""
   if [ -z "$password" ]; then
-    if [ "$UNATTENDED" = "1" ] && [ ! -t 0 ]; then
+    # Domyślnie losowe hasło: administrator i tak musi je zmienić
+    # przy pierwszym logowaniu, więc nie sprowadzamy go do
+    # wymyślania czegoś „na siłę" pod rząd.
+    if [ "$UNATTENDED" = "1" ]; then
+      # Tryb bez pytań ma NIE pytać — także na maszynie z terminalem
+      # (CI, `ssh -t`). Losowe hasło instalator wypisze w podsumowaniu.
+      password="$(strong_password)"
+      GENERATED_PASSWORD="$password"
+    elif ask_yes_no "Wygenerować losowe hasło administratora?" "y"; then
       password="$(strong_password)"
       GENERATED_PASSWORD="$password"
     else
-      # Domyślnie losowe hasło: administrator i tak musi je zmienić
-      # przy pierwszym logowaniu, więc nie sprowadzamy go do
-      # wymyślania czegoś „na siłę" pod rząd.
-      if [ "$UNATTENDED" = "1" ] || ! ask_yes_no "Wygenerować losowe hasło administratora?" "y"; then
-        password="$(read_password 'Hasło startowe administratora (bez echa): ')"
-      else
-        password="$(strong_password)"
-        GENERATED_PASSWORD="$password"
-      fi
+      password="$(read_password 'Hasło startowe administratora (bez echa): ')"
     fi
   fi
 
@@ -540,7 +550,7 @@ configure_admin() {
   fi
 }
 
-# ── Krok 4: dane demonstracyjne ──────────────────────────────
+# ── Krok 6: dane demonstracyjne ──────────────────────────────
 configure_demo() {
   step "Dane demonstracyjne"
 
@@ -579,7 +589,7 @@ configure_demo() {
   fi
 }
 
-# ── Krok 5: budowa i uruchomienie ─────────────────────────────
+# ── Krok 7: budowa i uruchomienie ─────────────────────────────
 # Build i start rozdzielone celowo. `compose up -d --build` miesza
 # dwa procesy w jedną czarną skrzynkę i administrator przez kilka
 # minut nie wie, co się dzieje — ani ile zostało, ani czy wpadł
@@ -678,7 +688,7 @@ start_stack() {
   ok "Kontenery uruchomione"
 }
 
-# ── Krok 5: weryfikacja ──────────────────────────────────────
+# ── Krok 9: weryfikacja ──────────────────────────────────────
 container_health() {
   docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$1" 2>/dev/null || echo "brak"
 }
@@ -700,7 +710,7 @@ wait_healthy() {
     fi
     # Kontener w kółko restartu = coś się nie powiodło; dalsze
     # czekanie tylko marnuje czas administratora.
-    if [ "$(container_health webinv_api)" = "restarting" ] && [ "$waited" -ge 30 ]; then
+    if [ "$api" = "restarting" ] && [ "$waited" -ge 30 ]; then
       printf '\n'
       warn "Kontener API wchodzi w pętlę restartu. Logi:"
       docker compose logs --tail=40 api 2>/dev/null || true
@@ -720,7 +730,7 @@ wait_healthy() {
 }
 
 check_http() {
-  local port="$1"
+  local port="$1" body
   command -v curl >/dev/null 2>&1 || { warn "Brak curl — pomijam test HTTP."; return 0; }
 
   if body="$(curl -fsS --max-time 10 "http://127.0.0.1:${port}/api/health/ready" 2>/dev/null)"; then
@@ -738,7 +748,7 @@ check_http() {
   fi
 }
 
-# ── Krok 6: podsumowanie ─────────────────────────────────────
+# ── Podsumowanie ─────────────────────────────────────────────
 summary() {
   local port="$1"
   local username="$2"
@@ -797,8 +807,8 @@ main() {
   fi
 
   if [ "$START_STACK" = "0" ]; then
-    # Bez nagłówka kroku: `--no-start` kończy instalację na kroku 5,
-    # a nagłówek „6/8” sugerowałby, że coś jeszcze zostało.
+    # Bez nagłówka kroku: `--no-start` kończy instalację na kroku 6,
+    # a nagłówek „7/9” sugerowałby, że coś jeszcze zostało.
     banner "Konfiguracja gotowa"
     info "Nie uruchamiałem kontenerów (--no-start). Uruchom stos poleceniem:"
     printf '\n     %smake up%s\n\n' "$C_BOLD" "$C_OFF"
@@ -813,9 +823,10 @@ main() {
 
   summary "$port" "$(env_get SEED_ADMIN_USERNAME admin)" "$password"
 
-  # Hasło startowe wypisaliśmy na ekran — usuńmy je z pliku, żeby
-  # nie zostało na dysku w postaci jawnej. Konto i tak wymusza
-  # zmianę hasła przy pierwszym logowaniu.
+  # Compose wymaga SEED_ADMIN_PASSWORD („:?” w docker-compose.yml),
+  # więc nie da się zostawić go pustego. Zamiast hasła wypisanego
+  # na ekran zapisujemy w pliku losowe, którego nikt nie zna —
+  # konto i tak wymusza zmianę hasła przy pierwszym logowaniu.
   if [ -n "$password" ]; then
     env_set SEED_ADMIN_PASSWORD "$(strong_password)"
     ok "Hasło startowe nie jest już zapisane w .env (konto wymusi zmianę przy logowaniu)."
