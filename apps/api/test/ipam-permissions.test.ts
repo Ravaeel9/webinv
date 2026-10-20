@@ -18,7 +18,7 @@ import {
   PERMISSIONS,
   roleHasPermission,
 } from '../src/auth/permissions';
-import { read } from './helpers/repo';
+import { webLibText } from './helpers/web-sources';
 
 describe('Uprawnienia ipam:read / ipam:write', () => {
   it('VIEWER czyta IPAM, ale go nie zmienia', () => {
@@ -47,7 +47,7 @@ describe('Uprawnienia ipam:read / ipam:write', () => {
   it('interfejs zna te same uprawnienia co API', () => {
     // Lustrzana kopia w apps/web/src/types.ts — bez tego trasa `/ipam`
     // byłaby widoczna dla VIEWER, a bramka po stronie API odrzuciłaby zapis.
-    const web = read('apps/web/src/types.ts');
+    const web = webLibText((plik) => /^types(-.*)?\.ts$/.test(plik));
     assert.match(web, /'ipam:read'/);
     assert.match(web, /'ipam:write'/);
   });

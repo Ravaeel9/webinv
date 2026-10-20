@@ -20,7 +20,12 @@ import { webPermissions } from './helpers/web-permissions';
 import { webLibText, webSources } from './helpers/web-sources';
 import { read } from './helpers/repo';
 
-const WEB = webPermissions(read('apps', 'web', 'src', 'types.ts'));
+// PERMISSIONS żyje dziś w types-identity.ts (types.ts jest barą shydków),
+// więc skan agreguje wszystkie moduły types*.ts.
+const WEB = webPermissions(
+  webLibText((plik) => /^types(-.*)?\.ts$/.test(plik)),
+);
+
 
 describe('Uprawnienia API i interfejsu', () => {
   it('plik interfejsu zawiera stałą PERMISSIONS', () => {
