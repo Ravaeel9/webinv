@@ -66,6 +66,11 @@ COPY apps/web/package.json ./apps/web/
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev --no-audit --no-fund
 
+# Strażnik hoistowania: gdyby npm wlókł argon2 do apps/api/node_modules
+# zamiast do roota, ten krok przerwie build od razu, a nie dopiero
+# przy starcie kontenera (RequireStack w runtime niczego nie uratuje).
+RUN node -e "require('argon2')"
+
 # Prisma Client MUSI zostać wygenerowany w tym etapie, a nie w build.
 # Etap `build` ma własne node_modules, więc wygenerowany klient
 # nie trafiłby do obrazu końcowego — a `new PrismaClient()` pada wtedy
