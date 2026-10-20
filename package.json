@@ -18,11 +18,20 @@
     "test:web-build": "npm run build --workspace @webinv/web",
     "test": "npm run test:web-build && npm run test --workspace @webinv/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
+  "lint": "eslint .",
     "prisma:generate": "npm run prisma:generate --workspace @webinv/api",
     "prisma:migrate": "npm run prisma:migrate --workspace @webinv/api",
     "prisma:studio": "npm run prisma:studio --workspace @webinv/api"
   },
   "engines": {
     "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
+    "typescript-eslint": "8.72.0"
   }
 }

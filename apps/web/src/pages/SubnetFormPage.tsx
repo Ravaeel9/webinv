@@ -152,7 +152,7 @@ export function SubnetFormPage() {
         ? await update.mutateAsync(payload)
         : await create.mutateAsync(payload);
       navigate(`/ipam/${result.subnet.id}`, { replace: true });
-    } catch (err) {
+    } catch {
       // Błędy walidacji z serwera trafiają do `ErrorMessage` nad
       // formularzem; przewijamy do góry, bo komunikat jest tam.
       window.scrollTo({ top: 0, behavior: 'smooth' });

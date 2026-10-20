@@ -24,7 +24,7 @@
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     }
-  } catch (e) {
+  } catch {
     /* localStorage niedostępny — zostaje motyw jasny */
   }
 })();

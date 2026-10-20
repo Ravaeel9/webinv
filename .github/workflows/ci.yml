@@ -43,6 +43,12 @@ jobs:
       - name: Wygenerowanie klienta Prisma
         run: npm run prisma:generate
 
+      # Lint łapie to, czego typecheck nie widzi (martwe zmienne,
+      # błędy hooków Reacta). 0 błędów jest wymagane; ostrzeżenia
+      # są dopuszczone i zapisane w eslint.config.mjs.
+      - name: ESLint
+        run: npm run lint
+
       - name: Sprawdzenie typów (api + web)
         run: npm run typecheck
 

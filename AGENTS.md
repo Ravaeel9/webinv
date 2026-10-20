@@ -37,7 +37,14 @@ ma wiązać obraz z tagiem wydania.
 ```bash
 make typecheck   # tsc dla api + web
 npm test         # node --test w apps/api (testy żyją w apps/api/test/)
+npm run lint     # ESLint (flat config, eslint.config.mjs) — 0 błędów musi przechodzić
 ```
+
+Lint nie pilnuje formatowania — łapie to, czego typecheck nie widzi:
+martwe zmienne, błędy hooków Reacta (`react-hooks`), przypadkowe
+wytłumienia reguł. Ostrzeżenia `react-hooks/set-state-in-effect`
+są zadokumentowane w `eslint.config.mjs` jako praca do refaktoringu —
+nie dodawaj nowych miejsc z tym wzorcem.
 
 CI (`.github/workflows/ci.yml`) uruchamia dokładnie to samo plus
 `npm ci` i generowanie klienta Prisma — nie dodawaj do CI kroków,

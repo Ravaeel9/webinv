@@ -101,7 +101,7 @@ describe('nginx — nagłówki nie giną w location', () => {
     // `add_header` w bloku `location` zastępuje CAŁY zestaw
     // odziedziczony, a nie go rozszerza. Bez `include` w danym
     // `location` nagłówki znikają właśnie tam, gdzie były ustawione.
-    const locations = serverConf.match(/location [^{]+\{[\s\S]*?\n    \}/g) ?? [];
+    const locations = serverConf.match(/location [^{]+\{[\s\S]*?\n {4}\}/g) ?? [];
     assert.ok(locations.length >= 4, `znaleziono ${locations.length} location`);
 
     for (const block of locations) {

@@ -410,7 +410,7 @@ export function ApplicationFormPage() {
         ids: [...form.ipAddressIds],
         attempt: (prev?.attempt ?? 0) + 1,
       }));
-    } catch (err) {
+    } catch {
       // Błędy walidacji z serwera trafiają do error message;
       // scroll do góry, bo komunikat jest nad formularzem.
       window.scrollTo({ top: 0, behavior: 'smooth' });

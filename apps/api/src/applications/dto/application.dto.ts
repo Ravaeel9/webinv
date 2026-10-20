@@ -354,7 +354,9 @@ export class UpdateApplicationDto extends PartialType(CreateApplicationDto) {}
  * Zbieramy z metadanych walidacji, a nie z `Object.keys(instancji)` —
  * lista jest wtedy stała niezależnie od danych w żądaniu.
  */
-export function declaredFields(cls: Function): Set<string> {
+export function declaredFields(
+  cls: abstract new (...args: never[]) => unknown,
+): Set<string> {
   return new Set(
     getMetadataStorage()
       // Podpis wg źródeł class-validator 0.14:
