@@ -17,7 +17,28 @@ import {
 } from './dto/application.dto';
 
 const APP_INCLUDE = {
-  admins: { select: { id: true, username: true, fullName: true, email: true } },
+  owner: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      position: true,
+      department: true,
+      isActive: true,
+    },
+  },
+  admins: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      position: true,
+      department: true,
+      isActive: true,
+    },
+  },
   environments: {
     include: {
       environment: { select: { id: true, name: true, color: true, sortOrder: true } },
@@ -38,7 +59,9 @@ const SORTABLE: Record<string, Prisma.ApplicationOrderByWithRelationInput> = {
   // klik, a API ignorowałby go po cichu. Świadomie poza `GUEST_SORTABLE`:
   // gość właściciela nie widzi, więc kolejność wierszy zdradziłaby
   // ukrytą wartość — tak samo jak `securityClass` i `criticality`.
-  ownerEmail: { ownerEmail: 'asc' },
+  // Kierunek jest w wartości (`email: 'asc'`), a odwracanie `-ownerEmail`
+  // robi generowane z warstwy głębi w `buildOrderBy` — tam się rozlutuje.
+  ownerEmail: { owner: { email: 'asc' } },
   introducedOn: { introducedOn: 'desc' },
   sunsetOn: { sunsetOn: 'asc' },
   updatedAt: { updatedAt: 'desc' },
@@ -92,6 +115,25 @@ const GUEST_SORTABLE = new Set([
 ]);
 
 /**
+ * Zawraca kierunek sortowania do odwrotnego — w całej głębi fragmentu.
+ *
+ * Chodzi o kolumny relacyjne (`ownerEmail` = `{ owner: { email: 'asc' } }`):
+ * dawniej flip działał na płaskim `'asc'`/`'desc'`, więc głęboki fragment
+ * zawierałby kierunek niezależnie od prefiksu `-`. Rekurencja bierze tekst
+ * i obiekty; inne liście (liczb) danej kolumny tu nie występują.
+ */
+function neguj(wartosc: unknown): unknown {
+  if (wartosc === 'asc') return 'desc';
+  if (wartosc === 'desc') return 'asc';
+  if (wartosc && typeof wartosc === 'object') {
+    return Object.fromEntries(
+      Object.entries(wartosc).map(([k, v]) => [k, neguj(v)]),
+    );
+  }
+  return wartosc;
+}
+
+/**
  * Buduje `orderBy` z nazwy kolumny przesłanej przez klienta.
  *
  * Nazwa trafia wprost do `ORDER BY`, więc musi przejść przez białą listę —
@@ -121,7 +163,7 @@ export function buildOrderBy(
   if (!mapped) return [{ name: 'asc' }];
 
   const klucze = Object.entries(mapped).map(([field, dir]) => ({
-    [field]: negate ? (dir === 'asc' ? 'desc' : 'asc') : dir,
+    [field]: negate ? neguj(dir) : dir,
   }));
 
   // Drugi klucz rozstrzyga remis. Bez niego kolejność wierszy o równej
@@ -146,7 +188,7 @@ type ApplicationWithRelations = Prisma.ApplicationGetPayload<{
 const PUBLIC_HIDDEN_FIELDS = [
   'securityClass',
   'criticality',
-  'ownerEmail',
+  'owner',
   // Blok „hosting i wsparcie". `deliveryType` i `baseUrl` zostają —
   // to informacja techniczna, bez której widok publiczny nie mówi,
   // czy aplikację da się w ogóle otworzyć z sieci. Reszta opisuje
@@ -173,8 +215,9 @@ const PUBLIC_HIDDEN_FIELDS = [
  * kolumny w HTML nic nie daje, bo pełny rekord i tak leci w JSON-ie
  * i jest widoczny w devtoolsach. Pole po prostu znika z odpowiedzi.
  *
- * `ownerEmail` to adres, nie identyfikator, ale nadal jest daną
- * osobową — gość nie ma prawa go widzieć, więc pole znika z odpowiedzi.
+ * `owner` to teraz osoba z ewidencji — nie identyfikator, ale nadal
+ * dane osobowe, więc gość ich nie widzi; pole znika z odpowiedzi.
+ * (Dawniej niosło to samo płatne pole `ownerEmail`.)
  *
  * Wyeksportowana dla testu — to granica widoczności danych, więc
  * zasługuje na przypięcie przypadkiem, a nie tylko wywołaniem z usługi.
@@ -268,21 +311,33 @@ export class ApplicationsService {
   }
 
   /**
-   * Właściciele jako lista adresów — do selecta w filtrach.
+   * Właściciele jako osoby — do selecta w filtrach.
    *
-   * Źródłem są istniejące aplikacje, a nie `users`: właścicielem
-   * bywa ktoś bez konta, więc słownik użytkowników pokazałby tylko
-   * część realnych właścicieli i pozwoliłby przefiltrować tylko po
-   * nich. `distinct` na kolumnie skraca listę do unikalnych adresów.
+   * Źródłem są istniejące aplikacje, a nie cały katalog: filtr powinien
+   * pokazywać tylko realnie występujących właścicieli. Osoba jest tu
+   * obiektem (imię, nazwisko, e-mail), bo listę filtrów czyta człowiek,
+   * a wysyła e-mail jako parametr (`ownerEmail` w query).
    */
   async ownerOptions() {
     const rows = await this.prisma.application.findMany({
-      where: { deletedAt: null, ownerEmail: { not: null } },
-      distinct: ['ownerEmail'],
-      select: { ownerEmail: true },
-      orderBy: { ownerEmail: 'asc' },
+      where: { deletedAt: null, ownerId: { not: null } },
+      distinct: ['ownerId'],
+      select: {
+        owner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
-    return rows.map((r) => r.ownerEmail).filter((e): e is string => Boolean(e));
+    return rows
+      .map((r) => r.owner)
+      .filter((p): p is NonNullable<typeof p> => Boolean(p))
+      .map((p) => ({ ...p, fullName: `${p.firstName} ${p.lastName}` }))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName, 'pl'));
   }
 
   /** Statystyki na dashboard. */
@@ -344,7 +399,7 @@ export class ApplicationsService {
       }),
 
       this.prisma.application.count({
-        where: { deletedAt: null, ownerEmail: null },
+        where: { deletedAt: null, ownerId: null },
       }),
       this.prisma.application.count({
         where: {
@@ -430,7 +485,7 @@ export class ApplicationsService {
     await this.assertNameFree(dto.name);
 
     // Weryfikacja referencji — lepszy komunikat błędu niż obcy komunikat Prisma
-    await this.assertUsersExist(dto.adminIds);
+    await this.assertPersonsExist([...(dto.adminIds ?? []), dto.ownerId]);
     await this.assertEnvironmentsExist(dto.environmentIds);
     this.assertDates(dto.introducedOn, dto.sunsetOn);
 
@@ -480,7 +535,7 @@ export class ApplicationsService {
       await this.assertNameFree(dto.name, id);
     }
 
-    await this.assertUsersExist(dto.adminIds);
+    await this.assertPersonsExist([...(dto.adminIds ?? []), dto.ownerId]);
     await this.assertEnvironmentsExist(dto.environmentIds);
 
     // PATCH scala dane z tym, co jest w bazie. Dopiero tak walidacja dat
@@ -681,8 +736,8 @@ export class ApplicationsService {
         s.status,
         s.criticality,
         s.securityClass,
-        s.ownerEmail ?? '',
-        s.admins.map((u) => u.fullName).join('; '),
+        s.owner?.email ?? '',
+        s.admins.map((p) => p.fullName).join('; '),
         s.environments.map((e) => e.name).join('; '),
         s.introducedOn ?? '',
         s.sunsetOn ?? '',
@@ -742,12 +797,20 @@ export class ApplicationsService {
         { vendor: { contains: q, mode: 'insensitive' } },
       ];
 
-      // Wyszukiwanie po adresie właściciela też zdradzałoby właściciela
-      // gościowi — samo trafienie w wynik wystarczy, żeby wyciągnąć adres.
+      // Wyszukiwanie po osobach (właściciel, administratorzy) również
+      // zdradzałoby właściciela gościowi — samo trafienie w wynik
+      // wystarczy, żeby wyciągnąć kontakt.
       if (!restrict) {
+        const personMatch = {
+          OR: [
+            { firstName: { contains: q, mode: 'insensitive' } },
+            { lastName: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+          ],
+        } satisfies Prisma.PersonWhereInput;
         clauses.push(
-          { ownerEmail: { contains: q, mode: 'insensitive' } },
-          { admins: { some: { fullName: { contains: q, mode: 'insensitive' } } } },
+          { owner: personMatch },
+          { admins: { some: personMatch } },
         );
 
         // Blok wsparcia zdradzałby gościowi to, co `toPublicView` mu usuwa:
@@ -776,12 +839,12 @@ export class ApplicationsService {
       where.environments = { some: { environmentId: query.environmentId } };
     }
 
-    if (query.missingOwner) where.ownerEmail = null;
+    if (query.missingOwner) where.ownerId = null;
 
     if (!restrict) {
       if (query.securityClass) where.securityClass = query.securityClass as never;
       if (query.criticality) where.criticality = query.criticality;
-      if (query.ownerEmail) where.ownerEmail = query.ownerEmail;
+      if (query.ownerEmail) where.owner = { email: query.ownerEmail };
     }
 
     return where;
@@ -793,7 +856,7 @@ export class ApplicationsService {
       version: dto.version,
       description: dto.description ?? null,
       purpose: dto.purpose ?? null,
-      ownerEmail: dto.ownerEmail ?? null,
+      ownerId: dto.ownerId ?? null,
       introducedOn: dto.introducedOn ? new Date(dto.introducedOn) : null,
       sunsetOn: dto.sunsetOn ? new Date(dto.sunsetOn) : null,
       securityClass: dto.securityClass ?? 'INTERNAL',
@@ -885,17 +948,16 @@ annualCost:
     );
   }
 
-  private async assertUsersExist(adminIds?: string[]): Promise<void> {
-    const ids = [...(adminIds ?? [])];
-    if (ids.length === 0) return;
+  private async assertPersonsExist(ids: (string | undefined)[]): Promise<void> {
+    const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+    if (unique.length === 0) return;
 
-    const unique = [...new Set(ids)];
-    const found = await this.prisma.user.count({
+    const found = await this.prisma.person.count({
       where: { id: { in: unique } },
     });
     if (found !== unique.length) {
       throw new BadRequestException(
-        'Wskazano użytkownika, który nie istnieje. Odśwież formularz i spróbuj ponownie.',
+        'Wskazano osobę, która nie istnieje w ewidencji. Odśwież formularz i spróbuj ponownie.',
       );
     }
   }
@@ -926,15 +988,26 @@ annualCost:
    * `environments` to lista samych obiektów środowiska, nie wpisów łączących.
    */
   private serialize(app: ApplicationWithRelations) {
+    const osoba = (p: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      position: string | null;
+      department: string | null;
+      isActive: boolean;
+    }) => ({ ...p, fullName: `${p.firstName} ${p.lastName}` });
+
     return {
       ...app,
       annualCost: app.annualCost ? Number(app.annualCost) : null,
       environments: app.environments
         .map((link) => link.environment)
         .sort((a, b) => a.sortOrder - b.sortOrder),
-      admins: [...app.admins].sort((a, b) =>
-        a.fullName.localeCompare(b.fullName, 'pl'),
-      ),
+      owner: app.owner ? osoba(app.owner) : null,
+      admins: [...app.admins]
+        .map(osoba)
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pl')),
     };
   }
 

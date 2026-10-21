@@ -266,45 +266,37 @@ describe('CreateApplicationDto', () => {
     assert.deepEqual(errors, []);
   });
 
-  it('przyjmuje adres e-mail właściciela', async () => {
-    // Właściciel nie musi mieć konta, więc nie ma tu żadnego UUID —
-    // poprawność sprawdza wyłącznie format adresu.
+  it('przyjmuje identyfikator osoby jako właściciela', async () => {
+    // Właściciel jest osobą z ewidencji (`persons`), więc walidacja DTO
+    // sprawdza wyłącznie kształt UUID — istnienie w katalogu pilnuje
+    // serwis (`assertPersonsExist`), nie format.
     const { errors } = await check(CreateApplicationDto, {
       name: 'CRM',
       version: '1.0',
-      ownerEmail: 'wlasciciel@firma.local',
+      ownerId: UUID_A,
     });
     assert.deepEqual(errors, []);
   });
 
-  it('odrzuca właściciela, który nie jest adresem e-mail', async () => {
-    for (const ownerEmail of ['admin', 'anna@firma', '@firma.local', 'a b@firma.local']) {
+  it('odrzuca właściciela, który nie jest UUID osoby', async () => {
+    for (const ownerId of ['admin', 'anna@firma', '@firma.local', 'a b@firma.local']) {
       const { errors } = await check(CreateApplicationDto, {
         name: 'CRM',
         version: '1.0',
-        ownerEmail,
+        ownerId,
       });
-      assert.equal(errors.length > 0, true, `„${ownerEmail}" nie powinno przejść`);
+      assert.equal(errors.length > 0, true, `„${ownerId}" nie powinno przejść`);
     }
-  });
-
-  it('odrzuca właściciela ze zbyt długim adresem', async () => {
-    const { errors } = await check(CreateApplicationDto, {
-      name: 'CRM',
-      version: '1.0',
-      ownerEmail: `${'a'.repeat(320)}@firma.local`,
-    });
-    assert.equal(errors.length > 0, true);
   });
 
   it('pusty właściciel to brak właściciela, nie błąd', async () => {
     const { errors, instance } = await check(CreateApplicationDto, {
       name: 'CRM',
       version: '1.0',
-      ownerEmail: '',
+      ownerId: '',
     });
     assert.deepEqual(errors, []);
-    assert.equal(instance.ownerEmail, undefined);
+    assert.equal(instance.ownerId, undefined);
   });
 
   it('odrzuca listę administratorów ze złym identyfikatorem', async () => {

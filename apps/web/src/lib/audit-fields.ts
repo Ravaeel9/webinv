@@ -27,7 +27,7 @@ export const FIELD_LABELS: Record<string, string> = {
   supportNotes: 'wsparcie — uwagi',
   description: 'opis',
   purpose: 'cel',
-  ownerEmail: 'e-mail właściciela',
+  ownerId: 'właściciel',
   introducedOn: 'data wprowadzenia',
   sunsetOn: 'data wycofania',
   accessRequestRequired: 'wniosek o dostęp',

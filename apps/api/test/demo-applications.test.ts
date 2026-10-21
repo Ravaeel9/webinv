@@ -80,6 +80,12 @@ describe('seedDemoApplications', () => {
           >;
         },
       },
+      // Katalog osób w atrapie jest pusty — seed nigdy nie zgaduje,
+      // więc `ownerId` w każdym rekordzie wychodzi `null` (skrzynki
+      // zespołowe nie mają odpowiadającej osoby).
+      person: {
+        findMany: async () => [],
+      },
     };
 
     return { prisma, wywolania };

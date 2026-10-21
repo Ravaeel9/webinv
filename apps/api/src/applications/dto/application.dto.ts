@@ -136,17 +136,17 @@ export class CreateApplicationDto {
   purpose?: string;
 
   /**
-   * Właściciel to sam adres e-mail, a nie konto w systemie.
-   *
-   * Dzięki temu właścicielem może być osoba z zewnątrz organizacji
-   * albo ktoś, kto nie ma jeszcze konta. Nie ma więc sensu
-   * sprawdzania, czy taki adres należy do `users`.
+   * Właściciel to osoba z katalogu ewidencji (`persons`) — ten sam
+   * katalog, z którego bierze się macierz uprawnień. Dawniej wolny
+   * e-mail: dwie formy odpowiedzialności (adres i konta administratorów)
+   * rozjeżdżały się między listami. Puste znaczy „nieprzypisany" —
+   * skrzynki zespołowe, których katalog imienny celowo nie reprezentuje,
+   * zostają taką dziurą do wybrania osoby.
    */
   @IsOptional()
   @Transform(emptyToUndefined)
-  @IsEmail({}, { message: 'Właściciel musi być poprawnym adresem e-mail.' })
-  @MaxLength(320, { message: 'Adres e-mail właściciela jest za długi.' })
-  ownerEmail?: string;
+  @IsUUID('4', { message: 'Właściciel musi być identyfikatorem osoby z ewidencji.' })
+  ownerId?: string;
 
   @IsOptional()
   @IsArray()

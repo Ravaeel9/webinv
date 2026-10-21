@@ -54,6 +54,12 @@ export type DemoApplication = {
   description: string;
   purpose: string;
   integrations: string;
+  /**
+   * Właściciel jako adres — w danych demo wygodniej jako tekst. Przed
+   * zapisem seed dopasowuje go do osoby z ewidencji (`persons`); adres
+   * skrzynki zespołowej bez osoby zostaje polem pustym (`ownerId: null`),
+   * dokładnie jak w prawdziwych danych.
+   */
   ownerEmail: string;
   introducedOn: string;
   sunsetOn?: string;
@@ -895,6 +901,9 @@ export type DemoSeeder = {
       args: Prisma.ApplicationUpsertArgs,
     ): Promise<Prisma.ApplicationGetPayload<Record<string, never>>>;
   };
+  person: {
+    findMany(): Promise<{ id: string; email: string }[]>;
+  };
 };
 
 /**
@@ -922,8 +931,18 @@ export async function seedDemoApplications(prisma: DemoSeeder): Promise<number> 
   const relacja = (names: string[]) =>
     names.map((name) => ({ environment: { connect: { name } } }));
 
+  // Katalog osób pobieramy raz: dopasowanie e-maila ownerskiego do osoby
+  // liczy się dla każdego rekordu, a katalog nie zmienia się w pętli.
+  const mapaOsob = new Map(
+    (await prisma.person.findMany()).map((p) => [p.email.toLowerCase(), p]),
+  );
+
   for (const record of DEMO_DATA) {
-    const { environments, ...fields } = record;
+    // `ownerEmail` nie jest kolumną bazy — to tylko nazwa pola w danych.
+    // `ownerId` rozstrzyga mapa osób; bez dopasowania pozostaje NULL,
+    // bo katalog imienny celowo nie trzyma skrzynek zespołowych.
+    const { environments, ownerEmail, ...fields } = record;
+    const ownerId = mapaOsob.get(ownerEmail.toLowerCase())?.id ?? null;
 
     // Daty w danych są tekstem (`RRRR-MM-DD`), bo tak wyglądają w DTO i tak
     // je weryfikuje walidacja. Prisma wymaga dla `@db.Date` znacznika czasu
@@ -945,6 +964,7 @@ export async function seedDemoApplications(prisma: DemoSeeder): Promise<number> 
       update: {
         ...fields,
         ...daty,
+        ownerId,
         // Także w `update`, nie tylko w `create`: bez tego rekord istniejący
         // przed migracją nie dostałby flagi, a przycisk kasujący dane demo
         // znalazłby go mniej niż wynika z danych — cicho, bez błędu.
@@ -957,6 +977,7 @@ export async function seedDemoApplications(prisma: DemoSeeder): Promise<number> 
       create: {
         ...fields,
         ...daty,
+        ownerId,
         isDemo: true,
         environments: { create: relacja(environments) },
       },

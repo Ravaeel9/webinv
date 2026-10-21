@@ -168,7 +168,7 @@ describe('CREATE_FIELDS — deklaracja DTO', () => {
       'supportNotes',
       'description',
       'purpose',
-      'ownerEmail',
+      'ownerId',
       'adminIds',
       'introducedOn',
       'sunsetOn',
