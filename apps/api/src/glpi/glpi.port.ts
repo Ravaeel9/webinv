@@ -39,6 +39,7 @@ export type GlpiPort = {
         name: string;
         version: string;
         description: string | null;
+        deliveryType: 'GENERAL_USE' | 'SELF_HOSTED' | 'SAAS' | 'VENDOR_MANAGED';
         createdById: string | null;
       };
     }): Promise<{ id: string }>;

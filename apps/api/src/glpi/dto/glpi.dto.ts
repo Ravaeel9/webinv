@@ -6,7 +6,8 @@
  * PostgreSQL odpowie obcym komunikatem), a reguły biznesowe (adresy
  * zaczynające się od http, kompletność konfiguracji) sprawdza serwis.
  */
-import type { Sekcja } from '../glpi.service';
+import type { Sekcja, TypDostarczenia } from '../glpi.service';
+import { TYPY_DOSTARCZENIA } from '../glpi.service';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -79,6 +80,11 @@ export class WierszOsobyDto {
 export class WierszOprogramowaniaDto {
   @IsString() @MaxLength(200) name!: string;
   @IsOptional() @IsString() @MaxLength(100) version!: string;
+
+  /** Typ dostarczenia — opcjonalny: brak pola znaczy „zostaw domyślne". */
+  @IsOptional()
+  @IsIn(TYPY_DOSTARCZENIA, { message: 'Nieznany typ dostarczenia aplikacji.' })
+  deliveryType!: TypDostarczenia;
 }
 
 export class WierszDostepuDto {

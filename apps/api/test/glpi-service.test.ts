@@ -339,8 +339,53 @@ describe('Import GLPI — zapis', () => {
     assert.equal(wynik2.access.skipped, 1);
   });
 
-  it('dostęp dla osoby niezaimportowanej jest pomijany z powodem', async () => {
-    const { serwis } = zSerwisem();
+  it('tworzy aplikację oprogramowania z wybranym typem dostarczenia', async () => {
+    const { serwis, db } = zSerwisem();
+
+    await serwis.wykonaj(
+      {
+        sections: ['software'],
+        software: [{ name: 'Menedżer haseł', version: '2.0', deliveryType: 'SAAS' }],
+      },
+      actor,
+    );
+
+    assert.equal(db.aplikacje.length, 1);
+    assert.equal(db.aplikacje[0]!.name, 'Menedżer haseł');
+    assert.equal(db.aplikacje[0]!.deliveryType, 'SAAS');
+  });
+
+  it('wiersz oprogramowania bez typu dostarczenia trafia do rejestru jako GENERAL_USE', async () => {
+    const { serwis, db } = zSerwisem();
+
+    await serwis.wykonaj(
+      { sections: ['software'], software: [{ name: 'VPN Suite', version: '1.0' }] },
+      actor,
+    );
+
+    assert.equal(db.aplikacje.length, 1);
+    assert.equal(db.aplikacje[0]!.deliveryType, 'GENERAL_USE');
+  });
+
+  it('śmieciowa wartość typu dostarczenia nie zapisuje się do rejestru — wraca do GENERAL_USE', async () => {
+    const { serwis, db } = zSerwisem();
+
+    await serwis.wykonaj(
+      {
+        sections: ['software'],
+        // Rzut `as never`: DTO odrzuca tę wartość przed serwisem, więc
+        // typ payloadu jej nie przyjmie — test pilnuje drugiej linii
+        // obrony (serwis rewaliduje, bo „nie ufa payloadowi").
+        software: [{ name: 'Aplikacja ze śmieciem', version: '', deliveryType: 'CHMURA_OBCA' }],
+      } as never,
+      actor,
+    );
+
+    assert.equal(db.aplikacje.length, 1);
+    assert.equal(db.aplikacje[0]!.deliveryType, 'GENERAL_USE');
+  });
+
+  it('dostęp dla osoby niezaimportowanej jest pomijany z powodem', async () => {    const { serwis } = zSerwisem();
 
     const wynik = await serwis.wykonaj(
       {

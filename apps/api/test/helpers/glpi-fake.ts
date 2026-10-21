@@ -16,7 +16,12 @@ export type FakeGlpiDb = {
   audit: ReturnType<typeof fakeAudit>;
   ustawienia: Map<string, string>;
   osoby: Array<{ id: string; email: string }>;
-  aplikacje: Array<{ id: string; name: string; deletedAt: Date | null }>;
+  aplikacje: Array<{
+    id: string;
+    name: string;
+    deletedAt: Date | null;
+    deliveryType: string | null;
+  }>;
   granty: Array<{ applicationId: string; personId: string; level: string }>;
   /** Ten sam zapis co `audit.wpisy` — wygodniejszy dostęp w asercjach. */
   wpisy: ReturnType<typeof fakeAudit>['wpisy'];
@@ -57,7 +62,16 @@ export function fakeGlpiDb(): FakeGlpiDb {
             a.deletedAt === null,
         ) ?? null,
       create: async (args) => {
-        const aplikacja = { id: randomUUID(), name: args.data.name, deletedAt: null };
+        // Rzut na kształt z `data`: pole `deliveryType` dochodzi dopiero
+        // wraz z wyborem typu w imporcie oprogramowania (zanim powstanie,
+        // atrapa rejestruje `null` i test patrzBehawioralny widzi to).
+        const dane = args.data as { name: string; deliveryType?: string };
+        const aplikacja = {
+          id: randomUUID(),
+          name: dane.name,
+          deletedAt: null,
+          deliveryType: dane.deliveryType ?? null,
+        };
         aplikacje.push(aplikacja);
         return aplikacja;
       },

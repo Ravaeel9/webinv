@@ -97,11 +97,29 @@ export type WierszOsoby = {
   department: string | null;
 };
 
-/** Wiersz oprogramowania z payloadu zapisu. */
-export type WierszOprogramowania = { name: string; version: string };
+/**
+ * Typ dostarczenia aplikacji — zbiór zamknięty, odpowiada enumowi
+ * `DeliveryType` w Prisma. Import oprogramowania pozwala go wskazać;
+ * cokolwiek spoza zbioru wraca do `GENERAL_USE`, jak każdy śmieciowy
+ * wiersz payloadu, któremu zapis nie ufa.
+ */
+export type TypDostarczenia = 'GENERAL_USE' | 'SELF_HOSTED' | 'SAAS' | 'VENDOR_MANAGED';
 
-/** Wiersz dostępu z payloadu zapisu — para e-mail × nazwa aplikacji. */
-export type WierszDostepu = { personEmail: string; applicationName: string };
+export const TYPY_DOSTARCZENIA: readonly TypDostarczenia[] = [
+  'GENERAL_USE',
+  'SELF_HOSTED',
+  'SAAS',
+  'VENDOR_MANAGED',
+];
+
+/** Wiersz oprogramowania z payloadu zapisu. */
+export type WierszOprogramowania = {
+  name: string;
+  version: string;
+  deliveryType?: TypDostarczenia;
+};
+
+/** Wiersz dostępu z payloadu zapisu — para e-mail × nazwa aplikacji. */export type WierszDostepu = { personEmail: string; applicationName: string };
 
 export type PayloadZapisu = {
   sections: Sekcja[];
@@ -711,11 +729,19 @@ export class GlpiService {
           wynik.software.skipped++;
           continue;
         }
+        // Zapis nie ufa payloadowi: wartość spoza enumu wraca do
+        // `GENERAL_USE`, zamiast trafić do bazy w nieznanej postaci.
+        const deliveryType: TypDostarczenia = (TYPY_DOSTARCZENIA as readonly string[]).includes(
+          wiersz.deliveryType ?? '',
+        )
+          ? (wiersz.deliveryType as TypDostarczenia)
+          : 'GENERAL_USE';
         const utworzona = await this.prisma.application.create({
           data: {
             name: nazwa,
             version: (wiersz.version ?? '').trim().slice(0, 100),
             description: null,
+            deliveryType,
             createdById: actor.id,
           },
         });
@@ -765,6 +791,9 @@ export class GlpiService {
               name: nazwa,
               version: '',
               description: null,
+              // Aplikacje z grup GLPI to szkielety pod macierz — typ
+              // dostarczenia ustawi administrator w rejestrze.
+              deliveryType: 'GENERAL_USE',
               createdById: actor.id,
             },
           });

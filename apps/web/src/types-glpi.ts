@@ -3,6 +3,8 @@
  */
 // ─── Integracja GLPI ──────────────────────────────────────────
 
+import type { DeliveryType } from './types-application';
+
 export type GlpiAccessLevel = 'OWNER' | 'ADMIN' | 'USER' | 'READ_ONLY';
 
 /** Stan ustawień GLPI — sekrety wracają wyłącznie jako flagi `has*`. */
@@ -96,7 +98,8 @@ export interface GlpiImportPayload {
     position: string | null;
     department: string | null;
   }>;
-  software?: Array<{ name: string; version: string }>;
+  /** Typ dostarczenia — brak pola znaczy „zostaw domyślne" (GENERAL_USE). */
+  software?: Array<{ name: string; version: string; deliveryType?: DeliveryType }>;
   access?: Array<{ personEmail: string; applicationName: string }>;
 }
 

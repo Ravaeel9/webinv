@@ -4,8 +4,12 @@ import {
   useGlpiImportApply,
   useGlpiImportPreview,
 } from '../../lib/queries';
+import { DELIVERY_TYPE_ORDER } from '../../lib/application-form';
 import {
+  DELIVERY_TYPE_DESCS,
+  DELIVERY_TYPE_LABELS,
   GLPI_POWODY,
+  type DeliveryType,
   type GlpiImportPreview,
   type GlpiSekcja,
 } from '../../types';
@@ -60,6 +64,25 @@ export function GlpiImportModal({
     new Set(['persons', 'software', 'access']),
   );
   const [podglad, setPodglad] = useState<GlpiImportPreview | null>(null);
+  // Typ dostarczenia dla importowanego oprogramowania: globalny wybór
+  // (domyślnie „Aplikacja ogólnego użytku", czyli zachowanie sprzed
+  // tej zmiany) z nadpisaniem per wiersz. Nadpisania trzymamy po
+  // `glpiId` — podgląd jest tylko migawką, a zapis i tak rewaliduje.
+  const [typGlobalny, setTypGlobalny] = useState<DeliveryType>('GENERAL_USE');
+  const [typyWierszy, setTypyWierszy] = useState<Record<number, DeliveryType>>({});
+
+  const typWiersza = (glpiId: number): DeliveryType => typyWierszy[glpiId] ?? typGlobalny;
+
+  const zmienTypGlobalny = (typ: DeliveryType) => {
+    setTypGlobalny(typ);
+    // Zmiana globalna ustawia wszystkie wiersze — nadpisania gasną,
+    // żeby tabela odzwierciedlała to, co rzeczywiście poleci do zapisu.
+    setTypyWierszy({});
+  };
+
+  const zmienTypWiersza = (glpiId: number, typ: DeliveryType) => {
+    setTypyWierszy((poprzednie) => ({ ...poprzednie, [glpiId]: typ }));
+  };
 
   const pobieraj = useGlpiImportPreview();
   const zapisz = useGlpiImportApply();
@@ -86,6 +109,8 @@ export function GlpiImportModal({
 
   const pokazPodglad = () => {
     const wybrane = SEKCJE.filter((s) => sekcje.has(s.klucz)).map((s) => s.klucz);
+    // Nowa migawka = nowe wiersze; nadpisania typów gaszą się wraz z nią.
+    setTypyWierszy({});
     pobieraj.mutate(wybrane, { onSuccess: (dane) => setPodglad(dane) });
   };
 
@@ -105,7 +130,7 @@ export function GlpiImportModal({
         ? {
             software: podglad.oprogramowanie.rows
               .filter((r) => r.status === 'NEW')
-              .map((r) => ({ name: r.name, version: r.version })),
+              .map((r) => ({ name: r.name, version: r.version, deliveryType: typWiersza(r.glpiId) })),
           }
         : {}),
       ...(sekcje.has('access')
@@ -188,7 +213,16 @@ export function GlpiImportModal({
         <ErrorMessage error={pobieraj.error} />
         <ErrorMessage error={zapisz.error} />
 
-        {podglad && <PodgladDanych podglad={podglad} sekcje={sekcje} />}
+        {podglad && (
+          <PodgladDanych
+            podglad={podglad}
+            sekcje={sekcje}
+            typGlobalny={typGlobalny}
+            typWiersza={typWiersza}
+            zmienTypGlobalny={zmienTypGlobalny}
+            zmienTypWiersza={zmienTypWiersza}
+          />
+        )}
       </div>
     </Modal>
   );
@@ -198,9 +232,17 @@ export function GlpiImportModal({
 function PodgladDanych({
   podglad,
   sekcje,
+  typGlobalny,
+  typWiersza,
+  zmienTypGlobalny,
+  zmienTypWiersza,
 }: {
   podglad: GlpiImportPreview;
   sekcje: Set<GlpiSekcja>;
+  typGlobalny: DeliveryType;
+  typWiersza: (glpiId: number) => DeliveryType;
+  zmienTypGlobalny: (typ: DeliveryType) => void;
+  zmienTypWiersza: (glpiId: number, typ: DeliveryType) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -228,21 +270,59 @@ function PodgladDanych({
       )}
 
       {sekcje.has('software') && (
-        <SekcjaPreview
-          tytul="Oprogramowanie"
-          podsumowanie={podglad.oprogramowanie.summary}
-          liczbaKolumn={3}
-          naglowki={['Nazwa', 'Wersja', 'Status']}
-          wiersze={podglad.oprogramowanie.rows.map((r) => (
-            <tr key={r.glpiId} className="table-row-hover">
-              <Td className="text-fg">{r.name || '—'}</Td>
-              <Td className="text-fg-muted">{r.version || '—'}</Td>
-              <Td>
-                <StatusWiersza status={r.status} reason={r.reason} />
-              </Td>
-            </tr>
-          ))}
-        />
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-sm text-fg-muted" htmlFor="glpi-typ-globalny">
+              Typ dostarczenia dla importowanego oprogramowania:
+            </label>
+            <select
+              id="glpi-typ-globalny"
+              value={typGlobalny}
+              onChange={(e) => zmienTypGlobalny(e.target.value as DeliveryType)}
+              className="input py-1 text-xs max-w-xs"
+            >
+              {DELIVERY_TYPE_ORDER.map((typ) => (
+                <option key={typ} value={typ}>
+                  {DELIVERY_TYPE_LABELS[typ]}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-fg-muted">{DELIVERY_TYPE_DESCS[typGlobalny]}</span>
+          </div>
+          <SekcjaPreview
+            tytul="Oprogramowanie"
+            podsumowanie={podglad.oprogramowanie.summary}
+            liczbaKolumn={4}
+            naglowki={['Nazwa', 'Wersja', 'Typ', 'Status']}
+            wiersze={podglad.oprogramowanie.rows.map((r) => (
+              <tr key={r.glpiId} className="table-row-hover">
+                <Td className="text-fg">{r.name || '—'}</Td>
+                <Td className="text-fg-muted">{r.version || '—'}</Td>
+                <Td>
+                  {r.status === 'NEW' ? (
+                    <select
+                      value={typWiersza(r.glpiId)}
+                      onChange={(e) => zmienTypWiersza(r.glpiId, e.target.value as DeliveryType)}
+                      className="input py-1 text-xs max-w-xs"
+                      aria-label={`Typ dostarczenia dla ${r.name || 'aplikacji'}`}
+                    >
+                      {DELIVERY_TYPE_ORDER.map((typ) => (
+                        <option key={typ} value={typ}>
+                          {DELIVERY_TYPE_LABELS[typ]}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-fg-subtle">—</span>
+                  )}
+                </Td>
+                <Td>
+                  <StatusWiersza status={r.status} reason={r.reason} />
+                </Td>
+              </tr>
+            ))}
+          />
+        </>
       )}
 
       {sekcje.has('access') && (
