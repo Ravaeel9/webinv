@@ -1,4 +1,4 @@
-.PHONY: help install install-lowmem init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean export-demo
+.PHONY: help install install-lowmem init up up-dev down restart logs ps build rebuild release release-dry release-minor migrate generate db-up studio dev-api dev-web typecheck psql shell backup restore reset clean export-demo uninstall
 
 # Ścieżka wydania żyje w scripts/release.sh, nie tutaj: kroków jest
 # dużo i kolejność ma znaczenie (testy → wersja → commit → tag → build →
@@ -201,3 +201,6 @@ reset: ## USUŃ bazę i przelicz od zera (pyta o potwierdzenie)
 
 clean: ## Usuń obrazy i nieużywane wolumeny tego projektu
 	$(COMPOSE) down -v --remove-orphans
+
+uninstall: ## Usuń projekt z maszyny (Docker + katalog — pyta o potwierdzenie)
+	@./scripts/uninstall.sh
