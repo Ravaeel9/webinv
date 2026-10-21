@@ -101,8 +101,6 @@ model User {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  // Aplikacje, którymi użytkownik administruje
-  administeredApps  Application[] @relation("AppAdmins")
   // Aplikacje utworzone przez użytkownika
   createdApps       Application[] @relation("AppCreator")
 
@@ -171,11 +169,16 @@ model Application {
   description String? @db.Text
   purpose     String? @db.Text
 
-  // Kto odpowiada — sam adres e-mail, celowo bez relacji do `users`.
-  // Właścicielem bywa osoba spoza organizacji albo ktoś bez konta,
-  // więc wolny tekst jest tu poprawniejszy niż klucz obcego.
-  ownerEmail String? @map("owner_email") @db.Citext
-  admins     User[]  @relation("AppAdmins")
+  // Kto odpowiada — celowo osoby z ewidencji (`Person`), tym samym
+  // katalogiem, z którego bierze się macierz uprawnień. Dawniej były tu
+  // dwa mechanizmy: wolny e-mail właściciela i konta panelu jako
+  // administratorzy — właściciel bez konta wypadał wtedy poza ewidencją,
+  // a „administrator” prowadzony był na dwóch listach naraz. Skrzynka
+  // zespołowa jako właściciel ma dziś tylko jedno miejsce: pole zostaje
+  // puste (NULL), bo katalog imienny celowo nie zna skrzynek.
+  ownerId String? @map("owner_person_id") @db.Uuid
+  owner   Person? @relation("AppOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  admins  Person[] @relation("AppAdmins")
 
   // Kiedy
   introducedOn DateTime? @map("introduced_on") @db.Date
@@ -247,7 +250,7 @@ model Application {
   @@index([status])
   @@index([securityClass])
   @@index([criticality])
-  @@index([ownerEmail])
+  @@index([ownerId])
   @@index([introducedOn])
   @@index([sunsetOn])
   @@index([deletedAt])
@@ -283,6 +286,8 @@ model Person {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   access ApplicationAccess[]
+  ownedApps Application[] @relation("AppOwner")
+  adminApps Application[] @relation("AppAdmins")
 
   @@index([lastName])
   @@map("persons")
