@@ -280,8 +280,8 @@ export function ApplicationsListPage() {
             </Select>
           )}
 
-          {/* Właściciel to adres, nie konto — lista pochodzi
-              z aplikacji, więc obejmuje też osoby bez konta. */}
+          {/* Właściciel to osoba z ewidencji — lista pochodzi
+          z aplikacji, więc obejmuje tylko realnie występujących wymienionych. */}
           {!isGuest && (
             <Select
               label="Właściciel"
@@ -290,9 +290,9 @@ export function ApplicationsListPage() {
               className="w-56"
             >
               <option value="">Wszystkie</option>
-              {owners.data?.owners.map((email) => (
-                <option key={email} value={email}>
-                  {email}
+              {owners.data?.owners.map((w) => (
+                <option key={w.id} value={w.email}>
+                  {w.fullName} ({w.email})
                 </option>
               ))}
             </Select>
@@ -768,12 +768,12 @@ function ApplicationRow({
 
         {showRestricted && (
           <td className="px-3 py-2.5 whitespace-nowrap">
-            {app.ownerEmail ? (
+            {app.owner ? (
               <a
-                href={`mailto:${app.ownerEmail}`}
+                href={`mailto:${app.owner.email}`}
                 className="text-brand-600 hover:underline dark:text-brand-400"
               >
-                {app.ownerEmail}
+                {app.owner.fullName}
               </a>
             ) : (
               <span className="meta-text text-amber-800 dark:text-amber-300">
@@ -838,8 +838,8 @@ function RowActions({
             aria-hidden="true"
           />
           <div
-            className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg
-                       border border-line bg-surface py-1 shadow-lg"
+            className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-xl
+                       border border-line bg-surface py-1 shadow-lg shadow-brand-950/10"
           >
             <Link
               to={`/aplikacje/${app.id}`}

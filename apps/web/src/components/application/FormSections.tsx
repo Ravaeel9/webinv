@@ -21,6 +21,7 @@ import {
 } from '../../types';
 import type { FormState } from '../../lib/application-form';
 import { DELIVERY_TYPE_ORDER } from '../../lib/application-form';
+import type { Person } from '../../types-access';
 import { IpAddressPicker } from '../ipam/IpAddressPicker';
 import { Checkbox, Select, Textarea, TextInput } from '../ui/Field';
 
@@ -275,16 +276,34 @@ export function OpisSection({ ctx }: { ctx: FormCtx }) {
 
 export function OdpowiedzialniSection({
   ctx,
-  /** Zapytanie o użytkowników — sekcja pilnuje tylko jego trzech stanów. */
-  users,
+  /** Zapytanie o katalog osób — sekcja pilnuje tylko jego trzech stanów. */
+  osoby,
+  /** Wymagane do wyszukiwania w liście administratorów. */
+  szukaj,
+  onSzukaj,
 }: {
   ctx: FormCtx;
-  users: {
+  osoby: {
     isLoading: boolean;
-    data?: { users: { id: string; username: string; fullName: string }[] };
+    data?: { persons: Person[] };
   };
+  szukaj: string;
+  onSzukaj: (wartosc: string) => void;
 }) {
   const { form, toggle } = ctx;
+  const wszystkie = osoby.data?.persons ?? [];
+  const tekst = szukaj.trim().toLowerCase();
+  const filtr = tekst
+    ? wszystkie.filter((p) =>
+        `${p.firstName} ${p.lastName} ${p.email}`
+          .toLowerCase()
+          .includes(tekst),
+      )
+    : wszystkie;
+
+  const aktywni = filtr.filter((p) => p.isActive);
+  const nieaktywni = filtr.filter((p) => !p.isActive);
+
   return (
     <fieldset className="card px-5 py-4">
       <legend className="group-title">
@@ -292,15 +311,20 @@ export function OdpowiedzialniSection({
       </legend>
 
       <div className="space-y-4">
-        <TextInput
-          label="Właściciel (e-mail)"
-          type="email"
-          autoComplete="off"
-          value={form.ownerEmail}
-          onChange={(e) => ctx.set('ownerEmail', e.target.value)}
-          error={ctx.errors.ownerEmail}
-          hint="Adres e-mail osoby odpowiedzialnej za aplikację — nie musi mieć konta w systemie."
-        />
+        <Select
+          label="Właściciel"
+          value={form.ownerId}
+          onChange={(e) => ctx.set('ownerId', e.target.value)}
+          error={ctx.errors.ownerId}
+          hint="Osoba odpowiedzialna za aplikację, z ewidencji — ten sam katalog, z którego bierze się macierz uprawnień."
+        >
+          <option value="">— nieprzypisany —</option>
+          {posortowane(wszystkie).map((osoba) => (
+            <option key={osoba.id} value={osoba.id}>
+              {osoba.firstName} {osoba.lastName} ({osoba.email})
+            </option>
+          ))}
+        </Select>
 
         <fieldset>
           <legend className="label">Administratorzy</legend>
@@ -308,30 +332,56 @@ export function OdpowiedzialniSection({
             Osoby z uprawnieniami administracyjnymi w tej aplikacji.
           </p>
 
+          <TextInput
+            label="Szukaj"
+            value={szukaj}
+            onChange={(e) => onSzukaj(e.target.value)}
+            placeholder="nazwisko albo e-mail"
+            className="mb-2"
+          />
+
           <div className="scroll-thin max-h-48 overflow-y-auto rounded-lg border border-line">
-            {users.isLoading ? (
+            {osoby.isLoading ? (
               <p className="px-3 py-3 text-sm text-fg-muted">
                 Ładowanie…
               </p>
-            ) : users.data?.users.length === 0 ? (
+            ) : aktywni.length === 0 && nieaktywni.length === 0 ? (
               <p className="px-3 py-3 text-sm text-fg-muted">
-                Brak aktywnych użytkowników.
+                Nic nie pasuje do wyszukiwania.
               </p>
             ) : (
               <ul className="divide-y divide-line">
-                {users.data?.users.map((user) => (
-                  <li key={user.id}>
+                {aktywni.map((osoba) => (
+                  <li key={osoba.id}>
                     <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-page">
                       <input
                         type="checkbox"
                         className="size-4 rounded border-line-strong text-brand-600"
-                        checked={form.adminIds.includes(user.id)}
-                        onChange={() => toggle('adminIds', user.id)}
+                        checked={form.adminIds.includes(osoba.id)}
+                        onChange={() => toggle('adminIds', osoba.id)}
                       />
                       <span className="field-value min-w-0 flex-1">
-                        {user.fullName}
+                        {osoba.firstName} {osoba.lastName}
                         <span className="ml-1.5 meta-text">
-                          {user.username}
+                          {osoba.email}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+                {nieaktywni.map((osoba) => (
+                  <li key={osoba.id}>
+                    <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-fg-muted hover:bg-page">
+                      <input
+                        type="checkbox"
+                        className="size-4 rounded border-line-strong text-brand-600"
+                        checked={form.adminIds.includes(osoba.id)}
+                        onChange={() => toggle('adminIds', osoba.id)}
+                      />
+                      <span className="field-value min-w-0 flex-1">
+                        {osoba.firstName} {osoba.lastName}
+                        <span className="ml-1.5 meta-text">
+                          nieaktywna · {osoba.email}
                         </span>
                       </span>
                     </label>
@@ -344,6 +394,11 @@ export function OdpowiedzialniSection({
       </div>
     </fieldset>
   );
+}
+
+/** Osoby w porządku nazwisk — pozycja selecta właściciela jest stabilna. */
+function posortowane(osoby: Person[]): Person[] {
+  return [...osoby].sort((a, b) => a.lastName.localeCompare(b.lastName, 'pl'));
 }
 
 export function DatySection({ ctx }: { ctx: FormCtx }) {

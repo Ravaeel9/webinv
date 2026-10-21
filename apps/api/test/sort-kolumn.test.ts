@@ -249,7 +249,7 @@ describe('wiersz nagłówka tabeli aplikacji', () => {
       { nazwa: 'Wniosek o dostęp', znacznik: /app\.accessRequestRequired/ },
       { nazwa: 'Bezpieczeństwo', znacznik: /app\.securityClass/ },
       { nazwa: 'Krytyczność', znacznik: /app\.criticality/ },
-      { nazwa: 'Właściciel', znacznik: /app\.ownerEmail/ },
+      { nazwa: 'Właściciel', znacznik: /app\.owner\.fullName/ },
       { nazwa: 'Akcje', znacznik: /<RowActions/ },
     ];
 

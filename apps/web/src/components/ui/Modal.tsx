@@ -100,10 +100,10 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`relative z-10 w-full ${width} animate-in-up rounded-xl
-                    bg-surface shadow-xl focus:outline-none`}
+        className={`relative z-10 w-full ${width} animate-in-up rounded-2xl
+                    bg-surface shadow-xl shadow-brand-950/20 focus:outline-none`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-fg">{title}</h2>
             {description && (
@@ -115,17 +115,17 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Zamknij"
-            className="-mr-1 shrink-0 rounded-lg p-1.5 text-fg-subtle
+            className="-mr-1 shrink-0 rounded-full p-1.5 text-fg-subtle
                        hover:bg-surface-2 hover:text-fg-muted"
           >
             <IconX className="size-5" />
           </button>
         </div>
 
-        <div className="px-5 py-4">{children}</div>
+        <div className="px-6 py-5">{children}</div>
 
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-line bg-page px-5 py-3">
+          <div className="flex justify-end gap-2 border-t border-line bg-page px-6 py-3.5">
             {footer}
           </div>
         )}

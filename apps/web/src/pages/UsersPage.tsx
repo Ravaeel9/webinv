@@ -240,7 +240,7 @@ function UserRow({
                   onClick={() => setOpen(false)}
                   aria-hidden="true"
                 />
-                <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-lg">
+                <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg shadow-brand-950/10">
                   <MenuItem
                     icon={<IconPencil className="size-4 text-fg-muted" />}
                     onClick={() => { setOpen(false); onEdit(); }}

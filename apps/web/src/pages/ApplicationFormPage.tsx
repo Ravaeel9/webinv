@@ -38,6 +38,7 @@ import {
   type FormState,
 } from '../lib/application-form';
 import { useApplicationFormState } from '../components/application/use-application-form';
+import type { Person } from '../types-access';
 import {
   DatySection,
   HostingSection,
@@ -64,9 +65,10 @@ export function ApplicationFormPage() {
   const { can } = useAuth();
 
   const { data, isLoading, error: loadError } = useApplication(id);
-  const { environments, users } = useApplicationFormOptions();
-  // `users` zostało potrzebne dla administratorów — właściciel to
-  // teraz zwykły adres, więc formularz nie potrzebuje słownika kont.
+  const { environments, osoby } = useApplicationFormOptions();
+  // Osoby potrzebne dla właściciela i administratorów — ten sam katalog
+  // co macierz uprawnień, więc wybór odpowiedzialnych nie wymaga
+  // drugiego słownika kont.
 
   // Wejście i punkt odniesienia przypisań: w trybie edycji formularz
   // montuje się dopiero po tej odpowiedzi (także po porażce — wtedy
@@ -121,7 +123,7 @@ export function ApplicationFormPage() {
       wartości={wartości}
       assignedId={() => assignedId(assigned)}
       environments={environments}
-      users={users}
+      osoby={osoby}
     />
   );
 }
@@ -137,7 +139,7 @@ function ApplicationFormBody({
   wartości,
   assignedId: assignedIdTeraz,
   environments,
-  users,
+  osoby,
 }: {
   /** Id z routingu lub brak — wtedy tworzymy. */
   id?: string;
@@ -150,9 +152,9 @@ function ApplicationFormBody({
     isLoading: boolean;
     data?: { environments: { id: string; name: string }[] };
   };
-  users: {
+  osoby: {
     isLoading: boolean;
-    data?: { users: { id: string; username: string; fullName: string }[] };
+    data?: { persons: Person[] };
   };
 }) {
   const isEdit = tryb === 'edit';
@@ -163,6 +165,9 @@ function ApplicationFormBody({
   // wpis PATCH-em — drugie kliknięcie „Zapisz" nie może POST-ować
   // duplikatu aplikacji, która już w bazie leży.
   const [createdId, setCreatedId] = useState<string | null>(null);
+  // Tekst wyszukiwania w liście administratorów — lokalny dla ciała
+  // formularza, więc zmiana tryby create/edit nie zostawia starego.
+  const [szukajOsob, setSzukajOsob] = useState('');
   const effectiveId = id ?? createdId ?? '';
 
   const update = useUpdateApplication(effectiveId);
@@ -338,7 +343,12 @@ function ApplicationFormBody({
         )}
 
         <OpisSection ctx={ctx} />
-        <OdpowiedzialniSection ctx={ctx} users={users} />
+        <OdpowiedzialniSection
+          ctx={ctx}
+          osoby={osoby}
+          szukaj={szukajOsob}
+          onSzukaj={setSzukajOsob}
+        />
         <DatySection ctx={ctx} />
         <KlasyfikacjaSection ctx={ctx} />
         <SrodowiskaSection ctx={ctx} environments={environments} />

@@ -3,6 +3,22 @@
  */
 import type { UserSummary } from './types-identity';
 
+/**
+ * Osoba z ewidencji w ujęciu karty aplikacji — bez `accessCount`, bo tu
+ * liczy się kontakt, nie liczba przypisań. `fullName` skleja serwis
+ * (serialize), więc UI nie skleja go w każdym miejscu po nowemu.
+ */
+export interface PersonSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  position: string | null;
+  department: string | null;
+  isActive: boolean;
+}
+
 export type SecurityClass =
   | 'PUBLIC'
   | 'INTERNAL'
@@ -63,9 +79,13 @@ export interface Application {
    * `undefined` oznacza „nie wolno ci tego widzieć”, a nie `null`
    * oznacające „brak wartości”. UI rozróżnia te dwa przypadki.
    */
-  /** Adres e-mail właściciela — nie musi odpowiadać żadnemu kontu. */
-  ownerEmail?: string | null;
-  admins: UserSummary[];
+  /**
+   * Właściciel — osoba z ewidencji (`persons`), ten sam katalog co
+   * macierz uprawnień. `null` znaczy „nieprzypisany”; `undefined`
+   * (pole nieobecne) znaczy „gościu, tego widzieć nie wolno”.
+   */
+  owner?: PersonSummary | null;
+  admins: PersonSummary[];
   introducedOn: string | null;
   sunsetOn: string | null;
   securityClass?: SecurityClass;

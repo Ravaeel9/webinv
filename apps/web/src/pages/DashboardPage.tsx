@@ -345,7 +345,7 @@ export function DashboardPage() {
                         </span>
                       </p>
                       <p className="truncate meta-text">
-                        {app.ownerEmail ?? 'Bez właściciela'}
+                        {app.owner?.fullName ?? 'Bez właściciela'}
                         {app.deliveryType !== 'GENERAL_USE'
                           ? ` · ${DELIVERY_TYPE_LABELS[app.deliveryType]}`
                           : ''}

@@ -9,7 +9,7 @@ import type {
   ApplicationFilters,
   ApplicationListResponse,
   Environment,
-  UserOption,
+  Person,
 } from '../types';
 import { qk } from './queries-keys';
 
@@ -57,9 +57,13 @@ export function useApplication(id: string | undefined) {
 /**
  * Słowniki potrzebne formularzowi oraz filtrom na liście.
  *
- * `includeUsers` steruje zapytaniem o użytkowników: `/users/options`
- * wymaga sesji, a lista aplikacji jest publiczna. Bez tego wyłącznika
- * gość dostawałby 401 przy każdym wejściu na `/aplikacje`.
+ * Katalog osób idzie z formularzem zawsze (formularz jest za `app:write`,
+ * więc sesja i tak istnieje); `includeInactive=true`, bo właścicielem albo
+ * administratorem może być osoba wisząca po dezaktywacji — pominęłoby jej
+ * treść i próbowało cicho zerwać relację.
+ *
+ * Adresy właścicieli do selecta na liście aplikacji znamy na aplikacji,
+ * nie w katalogu — filtr pokazuje tylko realnie występujących.
  */
 export function useApplicationFormOptions(includeUsers = true) {
   const environments = useQuery({
@@ -68,23 +72,27 @@ export function useApplicationFormOptions(includeUsers = true) {
     staleTime: 5 * 60_000,
   });
 
-  const users = useQuery({
-    queryKey: qk.userOptions,
-    queryFn: () => api.get<{ users: UserOption[] }>('/users/options'),
+  const osoby = useQuery({
+    queryKey: [...qk.persons, 'formularz'],
+    queryFn: () =>
+      api.get<{ persons: Person[] }>(
+        `/access/persons${buildQuery({ includeInactive: 'true' })}`,
+      ),
     staleTime: 5 * 60_000,
     enabled: includeUsers,
   });
 
-  // Adresy właścicieli do selecta na liście aplikacji. Zdobywamy je
-  // z aplikacji, nie z `users` — właściciel nie musi mieć konta.
   const owners = useQuery({
     queryKey: qk.ownerOptions,
-    queryFn: () => api.get<{ owners: string[] }>('/applications/owner-options'),
+    queryFn: () =>
+      api.get<{ owners: { id: string; fullName: string; email: string }[] }>(
+        '/applications/owner-options',
+      ),
     staleTime: 5 * 60_000,
     enabled: includeUsers,
   });
 
-  return { environments, users, owners };
+  return { environments, osoby, owners };
 }
 
 function useInvalidateApplicationData() {
