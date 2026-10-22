@@ -130,10 +130,23 @@ fi
 
 step "Commit i tag v$NEW"
 
+# Changelog taga: tematy commitów od ostatniego taga. Własna linia
+# „release: …" jest szumem dla czytelnika zmian — ją wycinamy.
+# Pierwsze wydanie w historii (brak poprzedniego taga) dostaje całą
+# listę, bo wtedy nie ma od czego liczyć — i to jest w porządku.
 if [ "$DRY" = "0" ]; then
   git add package.json package-lock.json
   git commit -q -m "release: $NEW"
-  git tag "v$NEW"
+  POPRZEDNI=$(git describe --tags --abbrev=0 2>/dev/null || true)
+  CHANGELOG=$(git log --no-merges --format='- %s' \
+    "${POPRZEDNI:+$POPRZEDNI..}HEAD" | grep -v '^- release:' || true)
+  git tag -a "v$NEW" \
+    -m "Wydanie $NEW" -m "$CHANGELOG"
+else
+  POPRZEDNI=$(git describe --tags --abbrev=0 2>/dev/null || true)
+  echo "  [sucho] tag adnotowany v$NEW z changelogiem od $POPRZEDNI:"
+  git log --no-merges --format='  - %s' \
+    "${POPRZEDNI:+$POPRZEDNI..}HEAD" | grep -v 'release:' || true
 fi
 
 # ─── 4. Budowanie ────────────────────────────────────────────
