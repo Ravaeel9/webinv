@@ -15,6 +15,18 @@ Nigdy przez gołe `docker compose build` / `docker compose up`.
 | Podgląd wydania bez zmian | `./scripts/release.sh --dry` |
 | Wydanie bez wysyłania na origin | `./scripts/release.sh --no-push` |
 
+### Przebudowa po implementacji
+
+Po zakończeniu implementacji — gdy testy i typy przeszły, a zmiany
+dotykają `apps/api` albo `apps/web` — uruchamiamy `make up`, żeby
+kontenery działały na świeżo zbudowanych obrazach. Dotyczy to też
+zmian bez zapisu do repo: drzewo robocze może zostać brudne, bo
+`make up` nie wymaga commita.
+
+Wyjątek: `./scripts/release.sh` sam przebudowuje obrazy i weryfikuje
+wersję w bundlu, więc bezpośrednio po nim osobnego `make up` nie robi
+nic. Bezpośrednio przed nim — owszem, jeśli wynik sprawdza się ręcznie.
+
 ### Dlaczego nie `docker compose build` bezpośrednio
 
 Wersja trafia do obrazu web jako build-arg `VITE_APP_VERSION`
