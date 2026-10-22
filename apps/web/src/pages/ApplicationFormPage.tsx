@@ -378,7 +378,7 @@ function ApplicationFormBody({
           />
         )}
 
-        <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-line bg-surface/95 py-3 backdrop-blur">
+        <div className="mt-6 flex items-center justify-end gap-2 border-t border-line pt-3">
           {/* Link, nie `Button` — `<Link><Button/></Link>` to `<a><button>`,
               czyli HTML, którego nie da się dobrze obsłużyć klawiaturą.
               Wygląd bierze z `buttonClass`, żeby nie powtarzać wariantu
