@@ -18,6 +18,10 @@ build/
 # Kopie konfiguracji z sekretami (tworzy je install.sh przy --new-env)
 .env.bak.*
 
+# Certyfikat root wewnętrznego CA (montowany do kontenera api przez
+# docker-compose.yml jako NODE_EXTRA_CA_CERTS) — specyficzny dla instalacji
+ca.crt
+
 # Prisma
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal

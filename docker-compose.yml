@@ -69,6 +69,15 @@ services:
       SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME:-Administrator Systemu}
       # Dane demonstracyjne — domyślnie wyłączone, patrz .env.example
       SEED_DEMO_APPS: ${SEED_DEMO_APPS:-false}
+      # Wewnętrzne CA dla https (np. GLPI za certyfikatem od HomeInt-CA):
+      # plik ca.crt obok docker-compose.yml montowany jest poniżej.
+      # Node bez tego odrzuci certyfikat podpisany własnym CA.
+      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-/etc/ssl/glpi-ca.crt}
+    volumes:
+      # Plik ca.crt (certyfikat root wewnętrznego CA) — tylko do odczytu.
+      # Gdy go nie ma, compose utworzy pusty katalog, a Node po prostu
+      # zignoruje taki NODE_EXTRA_CA_CERTS z ostrzeżeniem w logu.
+      - ./ca.crt:/etc/ssl/glpi-ca.crt:ro
     healthcheck:
       test:
         - CMD

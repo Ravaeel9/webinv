@@ -76,13 +76,29 @@ export type GrupaGlpi = {
 
 export type CzlonkostwoGlpi = { users_id: number; groups_id: number };
 
+/**
+ * Wywodzi kod przyczyny błędu sieci. Realny `fetch` Node'a rzuca
+ * `TypeError: fetch failed`, a sens (odrzucone połączenie, nieznany
+ * host, niezaufany certyfikat TLS) siedzi w `cause.code` — bez niego
+ * panel nie pozwala odróżnić złego adresu od problemu z certyfikatem.
+ */
+function przyczynaSieciowa(blad: unknown): string {
+  const przyczyna = (blad as { cause?: { code?: string; message?: string } } | null)?.cause;
+  return przyczyna?.code ?? przyczyna?.message ?? (blad as Error | undefined)?.message ?? '';
+}
+
 /** Skleja odpowiedź JSON paginacji — albo rzuca czytelnym błędem GLPI. */
 async function odpowiedz<T>(url: string, init: RequestInit, http: HttpFn): Promise<T> {
   let raw: Awaited<ReturnType<HttpFn>>;
   try {
     raw = await http(url, init);
-  } catch {
-    throw new Blad(`Nie można połączyć się z GLPI pod adresem ${url}. Sprawdź adres i sieć.`);
+  } catch (blad) {
+    const kod = przyczynaSieciowa(blad);
+    throw new Blad(
+      `Nie można połączyć się z GLPI pod adresem ${url}` +
+        (kod ? ` (${kod})` : '') +
+        '. Sprawdź adres i sieć.',
+    );
   }
 
   if (!raw.ok) {
@@ -151,8 +167,13 @@ async function pobierzWszystko<T>(
     const start = wynik.length;
     const adres = budujAdres(start, ROZMIAR_STRONY);
     const init = { headers: naglowki };
-    const raw = await http(adres, init).catch(() => {
-      throw new Blad(`Nie można połączyć się z GLPI pod adresem ${adres}. Sprawdź adres i sieć.`);
+    const raw = await http(adres, init).catch((blad) => {
+      const kod = przyczynaSieciowa(blad);
+      throw new Blad(
+        `Nie można połączyć się z GLPI pod adresem ${adres}` +
+          (kod ? ` (${kod})` : '') +
+          '. Sprawdź adres i sieć.',
+      );
     });
 
     if (!raw.ok) {

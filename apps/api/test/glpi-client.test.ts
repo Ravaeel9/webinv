@@ -124,6 +124,45 @@ describe('GlpiClient — OAuth (v2.3)', () => {
     });
   });
 
+  it('błąd sieci z przyczyną (cause.code) trafia do komunikatu — bez tego panel nie pokaże, CZEGO dotyczy błąd', async () => {
+    // Realny `fetch` Node'a przy odrzuconym połączeniu rzuca
+    // `TypeError: fetch failed` z `cause.code = 'ECONNREFUSED'`;
+    // przy certyfikacie — np. `UNABLE_TO_VERIFY_LEAF_SIGNATURE`.
+    // Bez kodu w komunikacie panel nie pozwala odróżnić „zły adres"
+    // od „niezaufany certyfikat".
+    const bladSieci = Object.assign(new Error('fetch failed'), {
+      cause: { code: 'ECONNREFUSED' },
+    });
+    const { http } = siec({
+      'http://192.168.0.100/api.php/token': bladSieci,
+    });
+    const klient = new GlpiClient(http);
+
+    await assert.rejects(() => klient.sesja(KONFIG), (blad: unknown) => {
+      assert.ok(blad instanceof GlpiBlad);
+      assert.match((blad as Error).message, /Nie można połączyć się z GLPI/);
+      assert.match((blad as Error).message, /ECONNREFUSED/);
+      return true;
+    });
+  });
+
+  it('błąd paginacji z przyczyną też pokazuje kod (pobierzWszystko)', async () => {
+    const bladSieci = Object.assign(new Error('fetch failed'), {
+      cause: { code: 'ENOTFOUND' },
+    });
+    const { http } = siec({
+      'http://192.168.0.100/api.php/token': { body: TOKEN_ODP },
+      'http://192.168.0.100/api.php/v2.3/Administration/User?start=0&limit=500': bladSieci,
+    });
+    const klient = new GlpiClient(http);
+
+    await assert.rejects(() => klient.pobierzUzytkownikow(KONFIG, SESJA), (blad: unknown) => {
+      assert.ok(blad instanceof GlpiBlad);
+      assert.match((blad as Error).message, /ENOTFOUND/);
+      return true;
+    });
+  });
+
   it('legacy initSession na adresie nowego API: komunikat wskazuje literówkę, nie JSON', async () => {
     // Typowy błąd konfiguracji: w polu „Adres legacy API" siedzi `/api.php`
     // zamiast `/apirest.php` — nowe API widzi token osobisty, traktuje go
