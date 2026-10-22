@@ -152,6 +152,30 @@ Zalecenia:
 
 ## Aktualizacja
 
+Na serwerze:
+
+```bash
+cd /opt/webinv
+make update
+```
+
+`scripts/update.sh` robi całą sekwencję sam: kopię bazy (`make backup`),
+pobiera tagi, przełącza się na **najnowszy tag wydania** `vX.Y.Z` (nie na
+HEAD gałęzi main — plakietka wersji ma pokazywać wydanie bez dopisku
+`-dev`), buduje i uruchamia (`make up`), czeka na zdrowie kontenerów i
+weryfikuje, że nowa wersja naprawdę znalazła się w bundlu frontendu.
+Na najnowszym wydaniu kończy się komunikatem „nic do zrobienia”.
+
+Opcje:
+
+| Opcja | Znaczenie |
+|---|---|
+| `--dry` | Pokazuje plan (tag, kopię, build), niczego nie zmienia |
+| `--no-backup` | Pomija kopię bazy — świadome ryzyko |
+| `--no-cache` | Przebudowa obrazów od zera (`make rebuild`) |
+
+Ręcznie (równoważnie, gdyby skrypt nie mógł ruszyć):
+
 ```bash
 cd /opt/webinv
 git pull
@@ -162,10 +186,17 @@ make up
 Migracje stosują się same przy starcie kontenera API
 (`node scripts/migrate.mjs && node dist/main.js`). Jeśli migracja się nie
 powiedzie, kontener nie wstaje i logi jasno mówią dlaczego — to celowe,
-żeby nie puszczać aplikacji na niespójnej bazie.
+żeby nie puszczać aplikacji na niespójnej bazie. Skrypt wykrywa pętlę
+restartu API, wypisuje logi i podaje polecenia cofnięcia; to samo ręcznie:
+
+```bash
+make restore f=<najnowsza kopia z ./backups/>
+git checkout <poprzedni tag> && make up
+```
 
 Przed migracją zdarzeń destrukcyjnych (usunięcie kolumny, zmiana typu na
-węższy) zrób `make backup`.
+węższy) zrób `make backup` — skrypt robi to domyślnie, o ile nie podano
+`--no-backup`.
 
 ## Aktualizacja instalatora
 
