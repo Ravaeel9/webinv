@@ -73,4 +73,19 @@ describe('buildOrderBy — stabilne sortowanie przy remisie', () => {
     assert.deepEqual(buildOrderBy('securityClass', true), [{ name: 'asc' }]);
     assert.deepEqual(buildOrderBy('ownerEmail', true), [{ name: 'asc' }]);
   });
+
+  it('właściciel sortuje przez relację do osoby, w obu kierunkach', () => {
+    // Właściciel to relacja (`owner.email`), nie płaska kolumna — flip
+    // kierunku musi wchodzić w głębię fragmentu. Dawniej płaski flip
+    // na głębokim fragmencie zostawiałby kierunek bez zmian, więc
+    // `-ownerEmail` sortowałoby rosnąco.
+    assert.deepEqual(buildOrderBy('ownerEmail', false), [
+      { owner: { email: 'asc' } },
+      { name: 'asc' },
+    ]);
+    assert.deepEqual(buildOrderBy('-ownerEmail', false), [
+      { owner: { email: 'desc' } },
+      { name: 'asc' },
+    ]);
+  });
 });

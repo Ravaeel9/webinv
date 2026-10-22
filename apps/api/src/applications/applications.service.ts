@@ -189,6 +189,9 @@ const PUBLIC_HIDDEN_FIELDS = [
   'securityClass',
   'criticality',
   'owner',
+  // Skalarne id właściciela to nie dane osobowe, ale stabilny identyfikator:
+  // gość ułożyłby z niego grupy aplikacji współdzielących właściciela.
+  'ownerId',
   // Blok „hosting i wsparcie". `deliveryType` i `baseUrl` zostają —
   // to informacja techniczna, bez której widok publiczny nie mówi,
   // czy aplikację da się w ogóle otworzyć z sieci. Reszta opisuje
@@ -225,11 +228,27 @@ const PUBLIC_HIDDEN_FIELDS = [
 export function toPublicView<
   T extends Partial<Record<(typeof PUBLIC_HIDDEN_FIELDS)[number], unknown>>,
 >(app: T): Omit<T, (typeof PUBLIC_HIDDEN_FIELDS)[number]> {
-  const view = { ...app };
+  const view = { ...app } as Record<string, unknown>;
   for (const field of PUBLIC_HIDDEN_FIELDS) {
     delete view[field];
   }
-  return view;
+  // Administratorzy docierali gościowi i wcześniej (jako konta panelu z
+  // username/fullName/email), więc to nie jest nowa polityka ukrywania —
+  // ale osoba niesie teraz więcej metadanych pracowniczych (stanowisko,
+  // dział, aktywność). Widok publiczny dostaje tylko kontakt: id,
+  // nazwisko, e-mail — dokładnie dawny poziom ekspozycji.
+  if (Array.isArray(view.admins)) {
+    view.admins = view.admins.map((admin) =>
+      admin && typeof admin === 'object'
+        ? {
+            id: (admin as { id?: string }).id,
+            fullName: (admin as { fullName?: string }).fullName,
+            email: (admin as { email?: string }).email,
+          }
+        : admin,
+    );
+  }
+  return view as Omit<T, (typeof PUBLIC_HIDDEN_FIELDS)[number]>;
 }
 
 /**

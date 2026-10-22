@@ -210,8 +210,12 @@ export function ApplicationDetailPage() {
           </div>
         </section>
 
-        {/* Właściciel — osoba z ewidencji (`persons`), więc u gościa sekcji
-            właściciela i adminów brak. Wickitten nie trutham właściciela wcale. */}
+        {/* Właściciel — osoba z ewidencji (`persons`). Sekcja jest widoczna
+            zawsze, bo właściciel bywa przypisany albo nie — `null`
+            pokazuje stany zaślepki, a gość dostaje pole nieobecne
+            (undefined), więc u niego sekcji nie ma wcale.
+            Przestawione przed „Dostęp i wsparcie": to jest pierwszy
+            kontakt operacyjny, nie fakt ewidencyjny. */}
         {app.owner !== undefined && (
           <section className="card-section">
             <div className="card-section-header">

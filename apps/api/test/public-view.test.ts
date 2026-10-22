@@ -23,7 +23,19 @@ const APP = {
   securityClass: 'CONFIDENTIAL',
   criticality: 4,
   owner: 'a@firma.local',
-  admins: [],
+  ownerId: '00000000-0000-0000-0000-0000000000aa',
+  admins: [
+    {
+      id: 'p1',
+      firstName: 'Jan',
+      lastName: 'Kowalski',
+      fullName: 'Jan Kowalski',
+      email: 'jan@firma.pl',
+      position: 'Administrator',
+      department: 'IT',
+      isActive: true,
+    },
+  ],
   environments: [],
   annualCost: 48000,
 } as const;
@@ -45,6 +57,29 @@ describe('toPublicView', () => {
     // obiekt znika z odpowiedzi.
     const view = toPublicView({ ...APP });
     assert.equal('owner' in view, false);
+  });
+
+  it('usuwa identyfikator właściciela (ownerId)', () => {
+    // Samo usunięcie obiektu `owner` nie wystarcza: skalarne `ownerId`
+    // to stabilny identyfikator, po którym gość rozpozna aplikacje
+    // współdzielące właściciela — kolejność wyników zrobi z niego
+    // filtr, którego nie kupił.
+    const view = toPublicView({ ...APP });
+    assert.equal('ownerId' in view, false);
+  });
+
+  it('przystrzyga administratorów do kontaktu (id, fullName, email)', () => {
+    // Dawniej gość widział konta panelu jako username/fullName/email.
+    // Osoby niosą teraz więcej metadanych (stanowisko, dział, aktywność)
+    // — to dane pracownicze i w publicznym widoku muszą wrócić do
+    // dawnego poziomu ekspozycji, nie dalej.
+    const view = toPublicView({ ...APP });
+    assert.equal(view.admins.length, 1);
+    assert.equal(view.admins[0]!.fullName, 'Jan Kowalski');
+    assert.equal(view.admins[0]!.email, 'jan@firma.pl');
+    assert.equal('position' in view.admins[0], false);
+    assert.equal('department' in view.admins[0], false);
+    assert.equal('isActive' in view.admins[0], false);
   });
 
   it('nie usuwa pól, które mają być widoczne', () => {
@@ -76,7 +111,7 @@ describe('toPublicView', () => {
     } as never);
     assert.equal('securityClass' in view, false);
     assert.equal('criticality' in view, false);
-    assert.equal('ownerEmail' in view, false);
+    assert.equal('owner' in view, false);
   });
 });
 
