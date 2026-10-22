@@ -28,6 +28,7 @@ import {
   usuńSzkic,
   type FormState,
 } from '../../web/src/lib/application-form';
+import { bramaZmian } from '../../web/src/lib/dirty-guard';
 import type { Application } from '../../web/src/types';
 
 /* Atrapa `localStorage`: moduł dotyka szkiców (localStorage) dopiero
@@ -275,5 +276,35 @@ describe('szkic nowej aplikacji — trwałość w localStorage', () => {
     usuńSzkic();
 
     assert.equal(odczytajSzkic(), null);
+  });
+});
+
+describe('brama niezapisanych zmian — stan czytany synchronicznie', () => {
+  /**
+   * Bug, który pilnuje ten opis: modal „Niezapisane zmiany" wyskakiwał
+   * przy zapisie, bo router oceniał nawigację predykatem z minionego
+   * rendera (react-router rejestruje blockerFunction dopiero w efekcie),
+   * a `brudny` siedział w `useState` — „zwolnienie" bramki przed
+   * `navigate()` nie było widoczne w tej samej tarczy synchronicznej.
+   * Dlatego stan bramy ma być zwykłą zmienną: `zwolnij()` musi być
+   * odczytywalne od razu, bez przerenderowania.
+   */
+  it('zwolnienie jest widoczne natychmiast, bez przerenderowania', () => {
+    const brama = bramaZmian();
+
+    assert.equal(brama.czyBrudny(), false, 'start: czysto');
+    brama.oznacz();
+    assert.equal(brama.czyBrudny(), true, 'zmiana pola robi brud');
+    brama.zwolnij();
+    assert.equal(brama.czyBrudny(), false, 'zwolnienie działa od razu');
+  });
+
+  it('ponowna zmiana po zwolnieniu znów robi brud (zapis → dalej edycja)', () => {
+    const brama = bramaZmian();
+    brama.oznacz();
+    brama.zwolnij();
+
+    brama.oznacz();
+    assert.equal(brama.czyBrudny(), true);
   });
 });

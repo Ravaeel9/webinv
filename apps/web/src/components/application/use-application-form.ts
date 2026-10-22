@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useDirtyGuard } from '../ui/DirtyGuard';
+import { bramaZmian, type BramaZmian } from '../../lib/dirty-guard';
 import {
   EMPTY,
   SZKIC_KLUCZ,
@@ -54,33 +55,34 @@ export function useApplicationFormState(opcje: {
 
   // ─── Zabezpieczenie niezapisanych zmian ─────────────────────
   //
-  // `brudny` staje się prawdą przy pierwszej ręcznej zmianie pola
-  // (`set`/`toggle`) i gaśnie po udanym zapisie. Start z wartościami
-  // z serwera idzie przez `useState`, więc nie uruchamia blokady.
-  const [brudny, setBrudny] = useState(false);
-  const dirtyGuard = useDirtyGuard(brudny);
+  // `brama` robi się brudna przy pierwszej ręcznej zmianie pola
+  // (`set`/`toggle`) i gaśnie po udanym zapisie. Zwykłe domknięcie,
+  // nie `useState` — router ocenia nawigację predykatem czytanym
+  // synchronicznie, poza cyklem renderowania (patrz `DirtyGuard`).
+  const [brama] = useState<BramaZmian>(() => bramaZmian());
+  const dirtyGuard = useDirtyGuard(brama.czyBrudny);
 
   // Autosave szkicu: po 500 ms ciszy zapisuje aktualny stan. Tylko
   // w trybie tworzenia — szkic w edycji nadpisałby stan z bazy
   // starszymi danymi i wyglądał jak błąd.
   useEffect(() => {
-    if (tryb === 'edit' || !brudny) return;
+    if (tryb === 'edit' || !brama.czyBrudny()) return;
     const timer = window.setTimeout(() => {
       zapiszSzkic(form);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [form, tryb, brudny]);
+  }, [form, tryb, brama]);
 
   const odrzućSzkic = () => {
     usuńSzkic();
     setForm({ ...EMPTY });
     setSzkicPrzywrócony(false);
-    setBrudny(false);
+    brama.zwolnij();
   };
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    setBrudny(true);
+    brama.oznacz();
     // Błąd pola znika, gdy user zaczyna poprawiać
     setErrors((prev) => {
       if (!prev[key]) return prev;
@@ -99,7 +101,7 @@ export function useApplicationFormState(opcje: {
           : [...list, value],
       };
     });
-    setBrudny(true);
+    brama.oznacz();
   };
 
   /** Podmienia błędy i zwraca `true`, gdy formularz jest kompletny. */
@@ -111,14 +113,15 @@ export function useApplicationFormState(opcje: {
 
   /** Po udanym zapisie: blokada wyjścia i szkic przestają być aktualne. */
   const oczyszczPoZapisie = () => {
-    setBrudny(false);
+    // Synchronicznie, przed `navigate()` — router ocenia nawigację
+    // predykatem z ostatniego rendera, więc stan Reacta tu nie wystarcza.
+    brama.zwolnij();
     localStorage.removeItem(SZKIC_KLUCZ);
   };
 
   return {
     form,
     errors,
-    brudny,
     dirtyGuard,
     szkicPrzywrócony,
     odrzućSzkic,

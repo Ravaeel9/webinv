@@ -14,27 +14,31 @@ import { Modal } from './Modal';
  *  - **Zamknięcie/odświeżenie karty** — `beforeunload`, jedyna możliwa
  *    bramka; przeglądarka pokazuje własny komunikat.
  *
- * Użycie: `const guard = useDirtyGuard(brudny)` i wyrenderowanie `guard`
- * obok formularza. `aktywny` ma być `false` po udanym zapisie, żeby
- * przekierowanie po zapisie nie wpadło we własną blokadę.
+ * Użycie: `const guard = useDirtyGuard(brama.czyBrudny)` i wyrenderowanie
+ * `guard` obok formularza. **Getter, nie bool** — react-router rejestruje
+ * funkcję blockera dopiero w efekcie (po renderze), więc `useState` tu
+ * kłamie przy nawigacji wywołanej synchronicznie po zapisie; getter czyta
+ * stan bramy zawsze na bieżąco (patrz `lib/dirty-guard.ts`). Po udanym
+ * zapisie wystarczy `brama.zwolnij()`, żeby przekierowanie nie wpadło
+ * we własną blokadę.
  */
-export function useDirtyGuard(aktywny: boolean): ReactNode {
+export function useDirtyGuard(czyAktywny: () => boolean): ReactNode {
   // Zamykanie karty / odświeżenie. `preventDefault` + `returnValue` —
-  // Chrome wymaga obu, Firefox czyta tylko `returnValue`.
+  // Chrome wymaga obu, Firefox czyta tylko `returnValue`. Listener
+  // jest zawsze podpięty — świeżość decyduje getter w środku.
   useEffect(() => {
-    if (!aktywny) return;
-
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!czyAktywny()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [aktywny]);
+  }, [czyAktywny]);
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      aktywny && currentLocation.pathname !== nextLocation.pathname,
+      czyAktywny() && currentLocation.pathname !== nextLocation.pathname,
   );
 
   // Bez efektu i bez stanu w komponencie wołającym: decyzja użytkownika
