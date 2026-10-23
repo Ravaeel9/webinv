@@ -82,7 +82,7 @@ describe('Dziennik zdarzeń — katalog osób', () => {
     );
     audit.wpisypierwszyReset();
 
-    await serwis.deactivatePerson(osoba.id, actor);
+    await serwis.updatePerson(osoba.id, { isActive: false }, actor);
 
     assert.equal(audit.wpisy[0]!.action, 'person.deactivated');
     assert.deepEqual(audit.wpisy[0]!.changes?.isActive, { from: true, to: false });
@@ -94,10 +94,10 @@ describe('Dziennik zdarzeń — katalog osób', () => {
       { firstName: 'Jan', lastName: 'Kowalski', email: 'j.k@firma.pl' },
       actor,
     );
-    await serwis.deactivatePerson(osoba.id, actor);
+    await serwis.updatePerson(osoba.id, { isActive: false }, actor);
     audit.wpisypierwszyReset();
 
-    await serwis.deactivatePerson(osoba.id, actor);
+    await serwis.updatePerson(osoba.id, { isActive: false }, actor);
 
     assert.equal(audit.wpisy.length, 0);
   });

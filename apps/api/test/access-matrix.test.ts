@@ -145,7 +145,7 @@ describe('AccessService — macierz uprawnień', () => {
       { email: 'e.nowak@firma.pl', firstName: 'Ewa', lastName: 'Nowak' },
       actor,
     );
-    await serwis.deactivatePerson(pierwsza.personId, actor);
+    await serwis.updatePerson(pierwsza.personId, { isActive: false }, actor);
 
     await assert.rejects(
       () =>

@@ -47,6 +47,9 @@ import {
  *  4. **Data wygaśnięcia w przeszłości** jest dozwolona przy edycji (porządkowanie
  *     danych) i odrzucona przy dodaniu (nowo nadany dostęp nie może być od razu
  *     wygasły).
+ *  5. **Twarde usunięcie osoby** (`DELETE /persons/:id`) to droga tylko dla
+ *     błędnie wprowadzonych wpisów — kaskada grantów działa jak w schemacie;
+ *     dezaktywacja idzie PATCH-em, bo przypisania mają zostać czytelne.
  */
 @Injectable()
 export class AccessService {
@@ -206,17 +209,31 @@ export class AccessService {
 
     const osoba = await this.prisma.person.update({ where: { id }, data });
 
+    const changes = AuditService.diff(
+      przed as unknown as Record<string, unknown>,
+      { ...przed, ...data } as unknown as Record<string, unknown>,
+      ['updatedAt', 'createdAt', 'accessCount'],
+    );
+    if (Object.keys(changes).length === 0) return osoba;
+
+    // Akcja dziennika wynika ze zmiany aktywności, nie z kształtu payloadu:
+    // PATCH z `isActive: false` to w dzienniku „Dezaktywowano osobę",
+    // nie „Zmieniono dane osoby".
+    const zmianaAktywnosci = data.isActive !== undefined && data.isActive !== przed.isActive;
+    const action =
+      zmianaAktywnosci
+        ? data.isActive
+          ? 'person.activated'
+          : 'person.deactivated'
+        : 'person.updated';
+
     await this.audit.record({
-      action: 'person.updated',
+      action,
       entity: 'Person',
       entityId: id,
       actorId: actor.id,
       actorName: actor.username,
-      changes: AuditService.diff(
-        przed as unknown as Record<string, unknown>,
-        { ...przed, ...data } as unknown as Record<string, unknown>,
-        ['updatedAt', 'createdAt', 'accessCount'],
-      ),
+      changes,
       ip,
     });
 
@@ -224,30 +241,37 @@ export class AccessService {
   }
 
   /**
-   * Dezaktywacja — nie kasowanie. Osoba znika z listy wyboru, ale jej
-   * przypisania w macierzach muszą zostać czytelne: to one są dowodem,
-   * kto miał dostęp.
+   * Twarde usunięcie osoby — wyłącznie dla błędnie wprowadzonych wpisów.
+   * Baza sama kaskadowo kasuje przypisania (`onDelete: Cascade` przy
+   * `ApplicationAccess.person`) i czyści powiązania właściciela, więc tu
+   * wystarczy skasować wiersz i zapisać w dzienniku migawkę: po usunięciu
+   * w katalogu nie ma już czego czytać, dlatego liczbę przypisań trzeba
+   * znać **przed** kasowaniem.
+   *
+   * Odchodzące z organizacji osoby przechodzą przez PATCH z
+   * `isActive: false` — ich przypisania mają zostać czytelne.
    */
-  async deactivatePerson(id: string, actor: AuthUser, ip?: string): Promise<PersonRow> {
+  async deletePerson(id: string, actor: AuthUser, ip?: string): Promise<void> {
     const osoba = await this.getPerson(id);
-    if (!osoba.isActive) return osoba;
+    const przypisania = await this.prisma.applicationAccess.count({
+      where: { personId: id },
+    });
 
-    const po = await this.prisma.person.update({ where: { id }, data: { isActive: false } });
+    await this.prisma.person.delete({ where: { id } });
 
     await this.audit.record({
-      action: 'person.deactivated',
+      action: 'person.deleted',
       entity: 'Person',
       entityId: id,
       actorId: actor.id,
       actorName: actor.username,
       changes: {
-        isActive: { from: true, to: false },
         fullName: { from: `${osoba.firstName} ${osoba.lastName}`, to: null },
+        email: { from: osoba.email, to: null },
+        accessCount: { from: null, to: przypisania },
       },
       ip,
     });
-
-    return po;
   }
 
   // ─── Macierz uprawnień ───────────────────────────────────────

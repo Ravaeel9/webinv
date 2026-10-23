@@ -163,6 +163,16 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         osoby[i] = { ...osoby[i]!, ...args.data, updatedAt: new Date('2026-06-01T00:00:00Z') };
         return osoby[i]!;
       },
+      delete: async (args: any) => {
+        const i = osoby.findIndex((p) => p.id === args?.where?.id);
+        if (i === -1) throw new Error('delete: brak osoby');
+        // Kaskada — to baza robi `onDelete: Cascade` przy wierszu
+        // `ApplicationAccess.person`, atrapa odwzorowuje ten sam skutek.
+        for (let g = granty.length - 1; g >= 0; g--) {
+          if (granty[g]!.personId === args.where.id) granty.splice(g, 1);
+        }
+        return osoby.splice(i, 1)[0]!;
+      },
       count: async (args: any = {}) => {
         const where = args?.where ?? {};
         return osoby.filter((p) =>

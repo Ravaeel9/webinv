@@ -132,6 +132,7 @@ export interface PersonDelegate {
     data: { firstName: string; lastName: string; email: string } & Partial<Omit<PersonRow, 'id' | 'createdAt' | 'updatedAt'>>;
   }): Promise<PersonRow>;
   update(args: { where: { id: string }; data: Partial<PersonRow> }): Promise<PersonRow>;
+  delete(args: { where: { id: string } }): Promise<PersonRow>;
   count(args: { where?: PersonWhere }): Promise<number>;
 }
 

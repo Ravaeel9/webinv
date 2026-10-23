@@ -73,6 +73,9 @@ export const FIELD_LABELS: Record<string, string> = {
   grantedOn: 'data nadania',
   expiresOn: 'data wygaśnięcia',
   note: 'notatka',
+  // Twardo usunięta osoba zostawia w dzienniku migawkę z liczbą
+  // przypisań, które zniknęły razem z nią.
+  accessCount: 'liczba przypisań',
 
   // Pozostałe zdarzenia
   count: 'liczba',

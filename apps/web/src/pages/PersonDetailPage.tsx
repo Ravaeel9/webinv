@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
   useDeactivatePerson,
+  useDeletePerson,
   usePersonGrants,
   useRevokeGrant,
   useUpdatePerson,
@@ -12,6 +13,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { TextInput } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
+import { Modal } from '../components/ui/Modal';
 import { Table, Tbody, Td, Th, Thead } from '../components/ui/Table';
 import { formatDate } from '../lib/format';
 import { ACCESS_LEVEL_LABELS } from '../types';
@@ -30,9 +32,11 @@ export function PersonDetailPage() {
   const { data, isLoading, error } = usePersonGrants(id);
   const update = useUpdatePerson();
   const deactivate = useDeactivatePerson();
+  const remove = useDeletePerson();
   const revoke = useRevokeGrant();
 
   const [localError, setLocalError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
   const [lastName, setLastName] = useState<string | null>(null);
   const [position, setPosition] = useState<string | null>(null);
@@ -63,43 +67,49 @@ export function PersonDetailPage() {
         description={osoba.email}
         back={{ to: '/uprawnienia', label: 'Wróć do uprawnień' }}
         actions={
-          canWrite &&
-          (osoba.isActive ? (
-            <Button
-              variant="secondary"
-              loading={deactivate.isPending}
-              onClick={async () => {
-                setLocalError(null);
-                try {
-                  await deactivate.mutateAsync(osoba.id);
-                } catch {
-                  // Błąd bez komunikatu wygląda jak „nie udało się zapisać",
-                  // a administrator odchodzi z wnioskiem, że kliknął i działa.
-                  setLocalError('Nie udało się zdezaktywować osoby.');
-                }
-              }}
-            >
-              Dezaktywuj
-            </Button>
-          ) : (
-            // Bez tego osoby nie da się przywrócić z poziomu interfejsu:
-            // komunikat o błudzie przy nadaniu mówi „najpierw aktywuj ją
-            // w katalogu osób", a jedynym przyciskiem było „Dezaktywuj".
-            <Button
-              variant="secondary"
-              loading={update.isPending}
-              onClick={async () => {
-                setLocalError(null);
-                try {
-                  await update.mutateAsync({ id: osoba.id, isActive: true });
-                } catch {
-                  setLocalError('Nie udało się aktywować osoby.');
-                }
-              }}
-            >
-              Aktywuj
-            </Button>
-          ))
+          canWrite && (
+            <>
+              {osoba.isActive ? (
+                <Button
+                  variant="secondary"
+                  loading={deactivate.isPending}
+                  onClick={async () => {
+                    setLocalError(null);
+                    try {
+                      await deactivate.mutateAsync(osoba.id);
+                    } catch {
+                      // Błąd bez komunikatu wygląda jak „nie udało się zapisać",
+                      // a administrator odchodzi z wnioskiem, że kliknął i działa.
+                      setLocalError('Nie udało się zdezaktywować osoby.');
+                    }
+                  }}
+                >
+                  Dezaktywuj
+                </Button>
+              ) : (
+                // Bez tego osoby nie da się przywrócić z poziomu interfejsu:
+                // komunikat o błudzie przy nadaniu mówi „najpierw aktywuj ją
+                // w katalogu osób", a jedynym przyciskiem było „Dezaktywuj".
+                <Button
+                  variant="secondary"
+                  loading={update.isPending}
+                  onClick={async () => {
+                    setLocalError(null);
+                    try {
+                      await update.mutateAsync({ id: osoba.id, isActive: true });
+                    } catch {
+                      setLocalError('Nie udało się aktywować osoby.');
+                    }
+                  }}
+                >
+                  Aktywuj
+                </Button>
+              )}
+              <Button variant="danger" onClick={() => setConfirmingDelete(true)}>
+                Usuń
+              </Button>
+            </>
+          )
         }
       />
 
@@ -246,6 +256,46 @@ export function PersonDetailPage() {
       >
         Wróć do listy osób
       </Button>
+
+      {confirmingDelete && (
+        <Modal
+          open
+          size="sm"
+          title="Usunąć osobę?"
+          onClose={() => {
+            setConfirmingDelete(false);
+            remove.reset();
+          }}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>
+                Anuluj
+              </Button>
+              <Button
+                variant="danger"
+                loading={remove.isPending}
+                onClick={async () => {
+                  await remove.mutateAsync(osoba.id);
+                  navigate('/uprawnienia', { replace: true });
+                }}
+              >
+                Usuń
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-fg-muted">
+            Czy na pewno chcesz usunąć{' '}
+            <strong className="font-semibold text-fg">
+              {osoba.firstName} {osoba.lastName}
+            </strong>
+            ? Twarde usunięcie zabiera jej wszystkie <strong className="font-semibold text-fg">przypisania</strong> w
+            macierzach aplikacji — tę operację da się cofnąć tylko przez ponowne utworzenie osoby. Jeśli osoba odchodzi
+            z organizacji, zamiast tego zostanie zdezaktywowana (przypisania zostają czytelne).
+          </p>
+          <ErrorMessage error={remove.error} className="mt-3" />
+        </Modal>
+      )}
     </>
   );
 }

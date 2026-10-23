@@ -132,9 +132,25 @@ export function useUpdatePerson() {
 
 export function useDeactivatePerson() {
   const invalidate = useAccessInvalidate();
+  // Dezaktywacja idzie PATCH-em (`isActive: false`): DELETE osób to już
+  // twarde usunięcie, które zabiera przypisania razem z osobą.
   return useMutation({
-    mutationFn: (id: string) => api.delete<{ person: Person }>(`/access/persons/${id}`),
+    mutationFn: (id: string) =>
+      api.patch<{ person: Person }>(`/access/persons/${id}`, { isActive: false }),
     onSuccess: (_wynik, id) => invalidate(undefined, id),
+  });
+}
+
+/**
+ * Twarde usunięcie osoby — tylko dla błędnie wprowadzonych wpisów.
+ * Razem z osobą kasują się jej przypisania w macierzach (kaskada
+ * w bazie), więc unikalny adres e-mail znowu można użyć przy tworzeniu.
+ */
+export function useDeletePerson() {
+  const invalidate = useAccessInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ ok: true }>(`/access/persons/${id}`),
+    onSuccess: () => invalidate(),
   });
 }
 

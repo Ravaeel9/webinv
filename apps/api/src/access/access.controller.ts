@@ -161,14 +161,15 @@ export class AccessController {
     return { person: await this.access.updatePerson(id, dto, actor, ip) };
   }
 
-  /** Kasowanie osoby to dezaktywacja — patrz `deactivatePerson` w serwisie. */
+  /** Usunięcie osoby — twarde kasowanie błędnego wpisu (`deletePerson` w serwisie). */
   @Delete('persons/:id')
   @RequirePermission('access:write')
-  async deactivatePerson(
+  async deletePerson(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() actor: AuthUser,
     @ClientIp() ip: string,
   ) {
-    return { person: await this.access.deactivatePerson(id, actor, ip) };
+    await this.access.deletePerson(id, actor, ip);
+    return { ok: true };
   }
 }

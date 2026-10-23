@@ -150,6 +150,8 @@ const ACTION_LABELS: Record<string, string> = {
   'person.created': 'Dodano osobę do katalogu',
   'person.updated': 'Zmieniono dane osoby',
   'person.deactivated': 'Dezaktywowano osobę',
+  'person.activated': 'Aktywowano osobę',
+  'person.deleted': 'Usunięto osobę z katalogu',
   'person.imported': 'Zaimportowano osoby z pliku',
 };
 

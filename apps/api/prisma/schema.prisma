@@ -278,8 +278,10 @@ model Person {
   // reorganizacji działów.
   position   String? @db.VarChar(150)
   department String? @db.VarChar(150)
-  // Nie kasujemy osoby, tylko ją wyłączamy — jej przypisania w macierzach
-  // innych aplikacji muszą zostać czytelne i widoczne.
+  // Nieaktywność (isActive=false) to zwykłe odejście z organizacji — przypisania
+  // zostają czytelne. Twarde kasowanie wiersza jest zarezerwowane dla błędnie
+  // wprowadzonych wpisów; kaskada przy `ApplicationAccess.person` sprząta
+  // wtedy przypisania razem z osobą.
   isActive Boolean @default(true) @map("is_active")
 
   createdAt DateTime @default(now()) @map("created_at")

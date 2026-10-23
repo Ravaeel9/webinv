@@ -9,8 +9,9 @@
  *    pokazywać dwa wierszy dla jednej osoby), więc duplikat musi zostać
  *    odrzucony **z identyfikatorem istniejącego wiersza** — bez niego
  *    panel nie ma jak zaproponować dodania do macierzy.
- *  - **Osoby się nie kasuje.** Przypisania w macierzach innych aplikacji
- *    muszą zostać czytelne, więc istnieje `isActive`, a nie `DELETE`.
+ *  - **Dezaktywacja, nie kasowanie, jest zwykłym krokiem.** Przypisania w macierzach
+ *    innych aplikacji muszą zostać czytelne, więc istnieje `isActive`; twarde
+ *    usuwanie (`deletePerson`) zostawiamy dla błędnie wprowadzonych wpisów.
  */
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
@@ -99,18 +100,18 @@ describe('AccessService — katalog osób', () => {
     const serwis = new AccessService(port, fakeAudit() as never);
     const osoba = await serwis.createPerson(JAN, actor);
 
-    const po = await serwis.deactivatePerson(osoba.id, actor);
+    const po = await serwis.updatePerson(osoba.id, { isActive: false }, actor);
 
     assert.equal(po.isActive, false);
     assert.equal(osoby.length, 1, 'osoba musi zostać w katalogu');
   });
 
-  it('edycja i dezaktywacja zgłaszają brak osoby jako 404', async () => {
+  it('edycja i usunięcie zgłaszają brak osoby jako 404', async () => {
     const { port } = fakeDb();
     const serwis = new AccessService(port, fakeAudit() as never);
 
     await assert.rejects(() => serwis.updatePerson(randomUUID(), { lastName: 'X' }, actor), NotFoundException);
-    await assert.rejects(() => serwis.deactivatePerson(randomUUID(), actor), NotFoundException);
+    await assert.rejects(() => serwis.deletePerson(randomUUID(), actor), NotFoundException);
   });
 
   it('edycja odrzuca nazwę składającą się z samej spacji', async () => {
@@ -136,7 +137,7 @@ describe('AccessService — katalog osób', () => {
       { firstName: 'Ewa', lastName: 'Nowak', email: 'e.nowak@firma.pl' },
       actor,
     );
-    await serwis.deactivatePerson(wygaszona.id, actor);
+    await serwis.updatePerson(wygaszona.id, { isActive: false }, actor);
 
     const wszyscy = await serwis.listPersons({});
     assert.equal(wszyscy.length, 2);
