@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useAccessMatrix, useApplications, usePersons } from '../lib/queries';
+import { useAccessMatrix, useApplications, usePersons, usePersonsCount } from '../lib/queries';
 import { accessMatrixCsv } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/layout/AppLayout';
@@ -107,6 +107,10 @@ function PersonsTab() {
   const [department, setDepartment] = useState('');
   const [includeInactive, setIncludeInactive] = useState(true);
   const { data, isLoading, error } = usePersons({ search, department, includeInactive });
+  // Licznik z bazy, nie z listy: lista jest przefiltrowana, a pasek ma
+  // odpowiadać na pytanie „ile osób w ogóle mamy w katalogu".
+  const { data: licznik } = usePersonsCount();
+  const podsumowanie = licznik?.count;
 
   const osoby = data?.persons ?? [];
 
@@ -132,6 +136,14 @@ function PersonsTab() {
           checked={includeInactive}
           onChange={(e) => setIncludeInactive(e.target.checked)}
         />
+        {podsumowanie && (
+          <div className="ml-auto pb-1 text-sm text-fg-muted">
+            W katalogu:{' '}
+            <strong className="text-fg tabular-nums">{podsumowanie.total}</strong>{' '}
+            {podsumowanie.total === 1 ? 'osoba' : 'osób'} (
+            {podsumowanie.active} aktywnych, {podsumowanie.inactive} nieaktywnych)
+          </div>
+        )}
       </div>
 
       <ErrorMessage error={error} className="mb-3" />

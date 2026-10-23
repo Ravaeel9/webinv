@@ -15,6 +15,7 @@ import { TextInput } from '../components/ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../components/ui/Feedback';
 import { Modal } from '../components/ui/Modal';
 import { Table, Tbody, Td, Th, Thead } from '../components/ui/Table';
+import { IconTrash, IconUsers } from '../components/ui/icons';
 import { formatDate } from '../lib/format';
 import { ACCESS_LEVEL_LABELS } from '../types';
 
@@ -181,7 +182,10 @@ export function PersonDetailPage() {
 
       <section className="card-section">
         <div className="card-section-header">
-          <span className="section-icon tone-info" />
+          {/* Konwencja kart: SVG w sekcji, nie gołe kolorowe kółko. */}
+          <span className="section-icon tone-info">
+            <IconUsers />
+          </span>
           <h2 className="section-title">Dostęp do aplikacji</h2>
         </div>
         <div className="card-section-body">
@@ -222,9 +226,14 @@ export function PersonDetailPage() {
                     </Td>
                     {canWrite && (
                       <Td className="text-right">
+                        {/* Ikona kosza zamiast tekstu — kolumna akcji grantów
+                            jest czysto ikonowa (nagłówek sr-only „Akcje"), a
+                            kosz to konwencja odbioru w całym panelu. */}
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label="Odbierz dostęp"
+                          title="Odbierz dostęp"
                           onClick={async () => {
                             setLocalError(null);
                             try {
@@ -237,7 +246,7 @@ export function PersonDetailPage() {
                             }
                           }}
                         >
-                          Odebraj
+                          <IconTrash className="size-4" />
                         </Button>
                       </Td>
                     )}

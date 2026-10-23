@@ -38,6 +38,7 @@ export const qk = {
   // się jednocześnie w macierzy aplikacji, w macierzy zbiorczej i w katalogu
   // osób, więc jedno unieważnienie musi trafić we wszystkie trzy.
   persons: ['access', 'persons'] as const,
+  personsCount: ['access', 'persons-count'] as const,
   person: (id: string) => ['access', 'person', id] as const,
   applicationAccess: (appId: string) => ['access', 'application', appId] as const,
   accessMatrix: ['access', 'matrix'] as const,

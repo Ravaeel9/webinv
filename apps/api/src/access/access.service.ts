@@ -120,6 +120,19 @@ export class AccessService {
     return osoba;
   }
 
+  /**
+   * Licznik katalogu osób — pasek podsumowania nad listą na /uprawnienia.
+   * Liczenie idzie do bazy (COUNT), bo lista osób jest filtrowana
+   * i nie mówi nic o globalnym stanie katalogu.
+   */
+  async licznikOsob(): Promise<{ total: number; active: number; inactive: number }> {
+    const [total, active] = await Promise.all([
+      this.prisma.person.count({}),
+      this.prisma.person.count({ where: { isActive: true } }),
+    ]);
+    return { total, active, inactive: total - active };
+  }
+
   async createPerson(
     dto: {
       firstName: string;

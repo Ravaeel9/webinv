@@ -14,6 +14,7 @@ import {
   type HeaderMapping,
   type Person,
   type PersonFilters,
+  type PersonsCount,
   type PersonsImportPreview,
   type PersonsImportResult,
 } from '../types';
@@ -31,6 +32,14 @@ export function usePersons(filters: PersonFilters = {}) {
           sort: filters.sort,
         })}`,
       ),
+    staleTime: 30_000,
+  });
+}
+
+export function usePersonsCount() {
+  return useQuery({
+    queryKey: qk.personsCount,
+    queryFn: () => api.get<{ count: PersonsCount }>('/access/persons/count'),
     staleTime: 30_000,
   });
 }

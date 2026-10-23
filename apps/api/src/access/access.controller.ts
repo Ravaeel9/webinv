@@ -130,6 +130,13 @@ export class AccessController {
     };
   }
 
+  /** Licznik katalogu osób — liczby z bazy, niezależne od filtrów listy. */
+  @Get('persons/count')
+  @RequirePermission('access:read')
+  async personsCount() {
+    return { count: await this.access.licznikOsob() };
+  }
+
   @Get('persons/:id')
   @RequirePermission('access:read')
   async person(@Param('id', ParseUUIDPipe) id: string) {

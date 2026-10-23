@@ -26,6 +26,13 @@ export interface Person {
   accessCount: number;
 }
 
+/** Globalny licznik katalogu osób — z bazy, niezależnie od filtrów listy. */
+export interface PersonsCount {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
 /** Osoba wraz z listą przypisań — szczegóły osoby. */
 export interface PersonDetailResponse {
   person: Omit<Person, 'accessCount'>;
