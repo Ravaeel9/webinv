@@ -382,8 +382,8 @@ Wszystkie trasy wymagają sesji i uprawnienia `access:read` albo
 | GET | `/api/access/persons` | `access:read` | katalog osób |
 | GET | `/api/access/persons/:id` | `access:read` | osoba i jej przypisania |
 | POST | `/api/access/persons` | `access:write` | nowa osoba w katalogu |
-| PATCH | `/api/access/persons/:id` | `access:write` | edycja danych osoby |
-| DELETE | `/api/access/persons/:id` | `access:write` | **dezaktywacja** (`isActive=false`), nie kasowanie |
+| PATCH | `/api/access/persons/:id` | `access:write` | edycja danych osoby (`isActive: false` = dezaktywacja) |
+| DELETE | `/api/access/persons/:id` | `access:write` | **twarde usunięcie** — tylko dla błędnych wpisów, kaskada przypisań; dezaktywacja idzie PATCH-em |
 
 `GET /api/access/matrix` przyjmuje filtry `applicationId`, `personId`,
 `department`, `level` i zwraca płaską listę wierszy
@@ -475,6 +475,21 @@ z przeglądarki**: każdy wiersz jest walidowany od nowa, złe wiersze są
 pomijane (licznik `skipped`). Tworzy **wyłącznie nowe** rekordy — nigdy
 niczego nie nadpisuje. Kolejność zapisu: osoby → oprogramowanie → dostępy,
 bo dostęp wskazuje osobę i aplikację, które muszą istnieć wcześniej.
+
+Sekcja „Dostępy" tworzy także **aplikacje z grup** (payload
+`applications`): podrzędna grupa grupy nadrzędnej, której nie ma
+w rejestrze, dostaje szkic aplikacji o swojej nazwie — także wtedy,
+gdy grupa nie ma żadnych członków. Typ dostarczenia szkicu przychodzi
+z wiersza (wybór w panelu); wartość spoza enumu wraca do `GENERAL_USE`.
+Licznik tych aplikacji idzie w wyniku jako osobny klucz `applications`,
+nie w grantach (`access`). Para dostępów z nieistniejącą aplikacją jest
+w podglądzie `NEW` — nie `SKIP` — bo zapis utworzy szkic i nada dostęp.
+
+Nazwa aplikacji jest unikalna globalnie — także po wierszach miękko
+usuniętych. Grupa (albo program), której nazwę nosi usunięta aplikacja,
+jest **pomijana** z powodem `APP_USUNIETA` („przywróć albo zmień nazwę")
+— w podglądzie i przy zapisie; import nie przywraca rekordów i nigdy
+nie kończy się 500 z `P2002`.
 
 ## Limit zapytań
 

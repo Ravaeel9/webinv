@@ -55,12 +55,21 @@ export function fakeGlpiDb(): FakeGlpiDb {
       },
     },
     application: {
-      findFirst: async (args) =>
-        aplikacje.find(
-          (a) =>
-            a.name.toLowerCase() === args.where.name.toLowerCase() &&
-            a.deletedAt === null,
-        ) ?? null,
+      findFirst: async (args) => {
+        const where = args?.where ?? {};
+        // `deletedAt: null` w `where` — jak w Prisma: tylko żywe wiersze.
+        // Bez tego filtra zwracamy wszystkie, także miękko usunięte —
+        // odróżnienie usuniętej aplikacji od nieistniejącej wymaga
+        // wywołania **bez** filtra.
+        const tylkoZywe = where.deletedAt === null;
+        return (
+          aplikacje.find(
+            (a) =>
+              a.name.toLowerCase() === where.name.toLowerCase() &&
+              (!tylkoZywe || a.deletedAt === null),
+          ) ?? null
+        );
+      },
       create: async (args) => {
         // Rzut na kształt z `data`: pole `deliveryType` dochodzi dopiero
         // wraz z wyborem typu w imporcie oprogramowania (zanim powstanie,

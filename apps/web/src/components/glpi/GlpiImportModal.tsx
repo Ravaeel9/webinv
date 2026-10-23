@@ -46,7 +46,7 @@ const SEKCJE: Array<{ klucz: GlpiSekcja; label: string; hint: string }> = [
   {
     klucz: 'access',
     label: 'Dostępy (grupy)',
-    hint: 'Podrzędne grupy grupy nadrzędnej stają się aplikacjami, a ich członkowie — wierszami macierzy uprawnień.',
+    hint: 'Podrzędne grupy tworzą aplikacje w rejestrze, a ich członkowie — wiersze macierzy uprawnień.',
   },
 ];
 
@@ -117,6 +117,16 @@ export function GlpiImportModal({
   const zatwierdz = () => {
     if (!podglad) return;
 
+    // Typ dostarczenia aplikacji z grupy — z nadpisania per wiersz
+    // (po `glpiId` grupy), a gdy grupy nie ma na liście — z wyboru
+    // globalnego.
+    const typGrupy = (nazwa: string): DeliveryType => {
+      const grupa = podglad.dostepy.aplikacje.find(
+        (a) => a.name.toLowerCase() === nazwa.toLowerCase(),
+      );
+      return grupa ? typWiersza(grupa.glpiId) : typGlobalny;
+    };
+
     const payload = {
       sections: SEKCJE.filter((s) => sekcje.has(s.klucz)).map((s) => s.klucz),
       ...(sekcje.has('persons')
@@ -135,9 +145,18 @@ export function GlpiImportModal({
         : {}),
       ...(sekcje.has('access')
         ? {
+            // Aplikacje z grup tworzone nawet bez członków — katalog
+            // musi być kompletny, granty przyjdą przy następnym imporcie.
+            applications: podglad.dostepy.aplikacje
+              .filter((r) => r.status === 'NEW')
+              .map((r) => ({ name: r.name, deliveryType: typWiersza(r.glpiId) })),
             access: podglad.dostepy.pary
               .filter((r) => r.status === 'NEW')
-              .map((r) => ({ personEmail: r.personEmail, applicationName: r.applicationName })),
+              .map((r) => ({
+                personEmail: r.personEmail,
+                applicationName: r.applicationName,
+                deliveryType: typGrupy(r.applicationName),
+              })),
           }
         : {}),
     };
@@ -152,7 +171,8 @@ export function GlpiImportModal({
         void queryClient.invalidateQueries({ queryKey: ['ipam'] });
         toast.pokaz(
           `Import z GLPI zakończony: osób ${wynik.persons.created}, ` +
-            `oprogramowania ${wynik.software.created}, dostępów ${wynik.access.created}.`,
+            `oprogramowania ${wynik.software.created}, ` +
+            `aplikacji z grup ${wynik.applications.created}, dostępów ${wynik.access.created}.`,
         );
         zamknij();
       },
@@ -269,42 +289,80 @@ function PodgladDanych({
         />
       )}
 
+      {podglad && (sekcje.has('software') || sekcje.has('access')) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-sm text-fg-muted" htmlFor="glpi-typ-globalny">
+            Typ dostarczenia dla importowanego oprogramowania i aplikacji z grup:
+          </label>
+          <select
+            id="glpi-typ-globalny"
+            value={typGlobalny}
+            onChange={(e) => zmienTypGlobalny(e.target.value as DeliveryType)}
+            className="input py-1 text-xs max-w-xs"
+          >
+            {DELIVERY_TYPE_ORDER.map((typ) => (
+              <option key={typ} value={typ}>
+                {DELIVERY_TYPE_LABELS[typ]}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-fg-muted">{DELIVERY_TYPE_DESCS[typGlobalny]}</span>
+        </div>
+      )}
+
       {sekcje.has('software') && (
+        <SekcjaPreview
+          tytul="Oprogramowanie"
+          podsumowanie={podglad.oprogramowanie.summary}
+          liczbaKolumn={4}
+          naglowki={['Nazwa', 'Wersja', 'Typ', 'Status']}
+          wiersze={podglad.oprogramowanie.rows.map((r) => (
+            <tr key={r.glpiId} className="table-row-hover">
+              <Td className="text-fg">{r.name || '—'}</Td>
+              <Td className="text-fg-muted">{r.version || '—'}</Td>
+              <Td>
+                {r.status === 'NEW' ? (
+                  <select
+                    value={typWiersza(r.glpiId)}
+                    onChange={(e) => zmienTypWiersza(r.glpiId, e.target.value as DeliveryType)}
+                    className="input py-1 text-xs max-w-xs"
+                    aria-label={`Typ dostarczenia dla ${r.name || 'aplikacji'}`}
+                  >
+                    {DELIVERY_TYPE_ORDER.map((typ) => (
+                      <option key={typ} value={typ}>
+                        {DELIVERY_TYPE_LABELS[typ]}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-fg-subtle">—</span>
+                )}
+              </Td>
+              <Td>
+                <StatusWiersza status={r.status} reason={r.reason} />
+              </Td>
+            </tr>
+          ))}
+        />
+      )}
+
+      {sekcje.has('access') && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm text-fg-muted" htmlFor="glpi-typ-globalny">
-              Typ dostarczenia dla importowanego oprogramowania:
-            </label>
-            <select
-              id="glpi-typ-globalny"
-              value={typGlobalny}
-              onChange={(e) => zmienTypGlobalny(e.target.value as DeliveryType)}
-              className="input py-1 text-xs max-w-xs"
-            >
-              {DELIVERY_TYPE_ORDER.map((typ) => (
-                <option key={typ} value={typ}>
-                  {DELIVERY_TYPE_LABELS[typ]}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-fg-muted">{DELIVERY_TYPE_DESCS[typGlobalny]}</span>
-          </div>
           <SekcjaPreview
-            tytul="Oprogramowanie"
-            podsumowanie={podglad.oprogramowanie.summary}
-            liczbaKolumn={4}
-            naglowki={['Nazwa', 'Wersja', 'Typ', 'Status']}
-            wiersze={podglad.oprogramowanie.rows.map((r) => (
+            tytul="Dostępy — aplikacje z grup"
+            podsumowanie={podglad.dostepy.summary}
+            liczbaKolumn={3}
+            naglowki={['Aplikacja (z grupy GLPI)', 'Typ', 'Status']}
+            wiersze={podglad.dostepy.aplikacje.map((r) => (
               <tr key={r.glpiId} className="table-row-hover">
-                <Td className="text-fg">{r.name || '—'}</Td>
-                <Td className="text-fg-muted">{r.version || '—'}</Td>
+                <Td className="text-fg">{r.name}</Td>
                 <Td>
                   {r.status === 'NEW' ? (
                     <select
                       value={typWiersza(r.glpiId)}
                       onChange={(e) => zmienTypWiersza(r.glpiId, e.target.value as DeliveryType)}
                       className="input py-1 text-xs max-w-xs"
-                      aria-label={`Typ dostarczenia dla ${r.name || 'aplikacji'}`}
+                      aria-label={`Typ dostarczenia dla ${r.name || 'aplikacji z grupy'}`}
                     >
                       {DELIVERY_TYPE_ORDER.map((typ) => (
                         <option key={typ} value={typ}>
@@ -316,25 +374,6 @@ function PodgladDanych({
                     <span className="text-fg-subtle">—</span>
                   )}
                 </Td>
-                <Td>
-                  <StatusWiersza status={r.status} reason={r.reason} />
-                </Td>
-              </tr>
-            ))}
-          />
-        </>
-      )}
-
-      {sekcje.has('access') && (
-        <>
-          <SekcjaPreview
-            tytul="Dostępy — aplikacje z grup"
-            podsumowanie={podglad.dostepy.summary}
-            liczbaKolumn={2}
-            naglowki={['Aplikacja (z grupy GLPI)', 'Status']}
-            wiersze={podglad.dostepy.aplikacje.map((r) => (
-              <tr key={r.glpiId} className="table-row-hover">
-                <Td className="text-fg">{r.name}</Td>
                 <Td>
                   <StatusWiersza status={r.status} reason={r.reason} />
                 </Td>

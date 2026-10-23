@@ -32,8 +32,8 @@ export type GlpiPort = {
   };
   application: {
     findFirst(args: {
-      where: { name: string; deletedAt: null };
-    }): Promise<{ id: string } | null>;
+      where: { name: string; deletedAt?: null };
+    }): Promise<{ id: string; deletedAt: Date | null } | null>;
     create(args: {
       data: {
         name: string;

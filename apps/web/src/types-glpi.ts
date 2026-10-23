@@ -100,11 +100,15 @@ export interface GlpiImportPayload {
   }>;
   /** Typ dostarczenia — brak pola znaczy „zostaw domyślne" (GENERAL_USE). */
   software?: Array<{ name: string; version: string; deliveryType?: DeliveryType }>;
-  access?: Array<{ personEmail: string; applicationName: string }>;
+  /** Aplikacje z grup podrzędnych (sekcja „Dostępy") — tworzone, gdy ich nie ma w rejestrze. */
+  applications?: Array<{ name: string; deliveryType?: DeliveryType }>;
+  access?: Array<{ personEmail: string; applicationName: string; deliveryType?: DeliveryType }>;
 }
 
-/** Wynik zapisu — liczniki per sekcja. */
-export type GlpiImportResult = Record<GlpiSekcja, { created: number; skipped: number }>;
+/** Wynik zapisu — liczniki per sekcja; aplikacje z grup liczone osobno. */
+export type GlpiImportResult = Record<GlpiSekcja, { created: number; skipped: number }> & {
+  applications: { created: number; skipped: number };
+};
 
 /** Polskie tłumaczenia powodów pominięcia/odrzucenia wiersza. */
 export const GLPI_POWODY: Record<string, string> = {
@@ -115,4 +119,5 @@ export const GLPI_POWODY: Record<string, string> = {
   PERSON_BRAK_EMAIl: 'Członek grupy bez adresu e-mail',
   PERSON_BRAK_W_KATALOGU: 'Osoby nie ma w katalogu web-inv',
   APP_BRAK_W_REJESTRZE: 'Aplikacji nie ma jeszcze w rejestrze',
+  APP_USUNIETA: 'Aplikacja o tej nazwie jest usunięta — przywróć ją w rejestrze albo zmień nazwę grupy',
 };

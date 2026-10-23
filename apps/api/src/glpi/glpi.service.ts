@@ -119,13 +119,23 @@ export type WierszOprogramowania = {
   deliveryType?: TypDostarczenia;
 };
 
-/** Wiersz dostępu z payloadu zapisu — para e-mail × nazwa aplikacji. */export type WierszDostepu = { personEmail: string; applicationName: string };
+/** Wiersz dostępu z payloadu zapisu — para e-mail × nazwa aplikacji. */
+export type WierszDostepu = {
+  personEmail: string;
+  applicationName: string;
+  /** Typ szkicu aplikacji, gdy grupy nie ma jeszcze w rejestrze. */
+  deliveryType?: TypDostarczenia;
+};
+
+/** Wiersz „grupa → szkic aplikacji" z sekcji dostępów. */
+export type WierszAplikacjiZGrupy = { name: string; deliveryType?: TypDostarczenia };
 
 export type PayloadZapisu = {
   sections: Sekcja[];
   persons?: WierszOsoby[];
   software?: WierszOprogramowania[];
   access?: WierszDostepu[];
+  applications?: WierszAplikacjiZGrupy[];
 };
 
 export type Licznik = { created: number; skipped: number };
@@ -572,13 +582,18 @@ export class GlpiService {
     // tu nic więcej do zaoferowania.
     const aplikacje: PodgladImportu['dostepy']['aplikacje'] = [];
     for (const grupa of dzieci) {
+      // Szukamy **bez filtra usuniętych**: `name` jest unikalne globalnie,
+      // więc aplikacja miękko usunięta blokuje nazwę tak samo jak żywa.
+      // Import niczego nie przywraca — pokazuje to zanim się kliknie zapis.
       const istniejaca = await this.prisma.application.findFirst({
-        where: { name: grupa.name, deletedAt: null },
+        where: { name: grupa.name },
       });
       aplikacje.push(
-        istniejaca
-          ? { status: 'SKIP', glpiId: grupa.id, name: grupa.name, reason: 'ISTNIEJE' }
-          : { status: 'NEW', glpiId: grupa.id, name: grupa.name, reason: null },
+        !istniejaca
+          ? { status: 'NEW', glpiId: grupa.id, name: grupa.name, reason: null }
+          : istniejaca.deletedAt
+            ? { status: 'SKIP', glpiId: grupa.id, name: grupa.name, reason: 'APP_USUNIETA' }
+            : { status: 'SKIP', glpiId: grupa.id, name: grupa.name, reason: 'ISTNIEJE' },
       );
     }
 
@@ -613,23 +628,37 @@ export class GlpiService {
       }
 
       const osoba = await this.prisma.person.findFirst({ where: { email } });
+      // Bez filtra usuniętych — usunięta aplikacja blokuje nazwę (P2002),
+      // więc para nie może liczyć na utworzenie szkicu.
       const aplikacjaWRejestrze = await this.prisma.application.findFirst({
-        where: { name: aplikacja, deletedAt: null },
+        where: { name: aplikacja },
       });
 
-      if (!osoba || !aplikacjaWRejestrze) {
+      if (!osoba) {
         wierszePar.push({
           status: 'SKIP',
           personEmail: email,
           applicationName: aplikacja,
-          reason: !osoba ? 'PERSON_BRAK_W_KATALOGU' : 'APP_BRAK_W_REJESTRZE',
+          reason: 'PERSON_BRAK_W_KATALOGU',
         });
         continue;
       }
 
-      const istniejacy = await this.prisma.applicationAccess.findFirst({
-        where: { applicationId: aplikacjaWRejestrze.id, personId: osoba.id },
-      });
+      if (aplikacjaWRejestrze?.deletedAt) {
+        wierszePar.push({
+          status: 'SKIP',
+          personEmail: email,
+          applicationName: aplikacja,
+          reason: 'APP_USUNIETA',
+        });
+        continue;
+      }
+
+      const istniejacy = aplikacjaWRejestrze
+        ? await this.prisma.applicationAccess.findFirst({
+            where: { applicationId: aplikacjaWRejestrze.id, personId: osoba.id },
+          })
+        : null;
       wierszePar.push(
         istniejacy
           ? { status: 'SKIP', personEmail: email, applicationName: aplikacja, reason: 'ISTNIEJE' }
@@ -661,10 +690,13 @@ export class GlpiService {
       throw new BadRequestException('Wybierz co najmniej jedną sekcję importu.');
     }
 
-    const wynik: Record<Sekcja, Licznik> = {
+    // `applications` nie jest sekcją — to część „Dostępów": aplikacje
+    // tworzone z nazw grup podrzędnych, liczone osobno od grantów.
+    const wynik: Record<Sekcja, Licznik> & { applications: Licznik } = {
       persons: { created: 0, skipped: 0 },
       software: { created: 0, skipped: 0 },
       access: { created: 0, skipped: 0 },
+      applications: { created: 0, skipped: 0 },
     };
 
     // Rejestry „już zrobione" — w payloadzie i w bazie.
@@ -721,21 +753,21 @@ export class GlpiService {
         }
         widzianeAplikacje.add(klucz);
 
+        // Szukamy bez filtra usuniętych: nazwa jest unikalna globalnie,
+        // więc usunięta aplikacja z tą nazwą blokuje utworzenie (P2002).
+        // Import niczego nie przywraca — wiersz jest pomijany.
         const istniejaca = await this.prisma.application.findFirst({
-          where: { name: nazwa, deletedAt: null },
+          where: { name: nazwa },
         });
         if (istniejaca) {
-          utworzoneAplikacje.set(klucz, istniejaca.id);
+          // Do rejestru trafia tylko **żywa** aplikacja — usunięta
+          // nie może dostać grantu ani obsłużyć pary.
+          if (!istniejaca.deletedAt) utworzoneAplikacje.set(klucz, istniejaca.id);
           wynik.software.skipped++;
           continue;
         }
-        // Zapis nie ufa payloadowi: wartość spoza enumu wraca do
-        // `GENERAL_USE`, zamiast trafić do bazy w nieznanej postaci.
-        const deliveryType: TypDostarczenia = (TYPY_DOSTARCZENIA as readonly string[]).includes(
-          wiersz.deliveryType ?? '',
-        )
-          ? (wiersz.deliveryType as TypDostarczenia)
-          : 'GENERAL_USE';
+        // Zapis nie ufa payloadowi: typ spoza enumu wraca do GENERAL_USE.
+        const deliveryType = this.typDostarczenia(wiersz.deliveryType);
         const utworzona = await this.prisma.application.create({
           data: {
             name: nazwa,
@@ -763,6 +795,47 @@ export class GlpiService {
         ? (poziom as Poziom)
         : 'USER';
 
+      // Najpierw aplikacje z grup — nawet grupa bez członków zostawia
+      // szkic w rejestrze (katalog jest kompletny, granty przyjdą przy
+      // następnym imporcie). Wspólny rejestr `utworzoneAplikacje`
+      // z sekcją oprogramowania gwarantuje, że jedna nazwa powstaje raz.
+      for (const wiersz of payload.applications ?? []) {
+        const nazwa = (wiersz.name ?? '').trim();
+        if (!nazwa || nazwa.length > 200) {
+          wynik.applications.skipped++;
+          continue;
+        }
+        const klucz = nazwa.toLowerCase();
+        if (utworzoneAplikacje.has(klucz)) {
+          wynik.applications.skipped++;
+          continue;
+        }
+        widzianeAplikacje.add(klucz);
+
+        const istniejaca = await this.prisma.application.findFirst({
+          where: { name: nazwa },
+        });
+        if (istniejaca) {
+          // Do rejestru trafia tylko **żywa** aplikacja — usunięta
+          // nie może dostać grantu ani obsłużyć pary.
+          if (!istniejaca.deletedAt) utworzoneAplikacje.set(klucz, istniejaca.id);
+          wynik.applications.skipped++;
+          continue;
+        }
+
+        const utworzona = await this.prisma.application.create({
+          data: {
+            name: nazwa,
+            version: '',
+            description: null,
+            deliveryType: this.typDostarczenia(wiersz.deliveryType),
+            createdById: actor.id,
+          },
+        });
+        utworzoneAplikacje.set(klucz, utworzona.id);
+        wynik.applications.created++;
+      }
+
       for (const wiersz of wiersze) {
         const email = (wiersz.personEmail ?? '').trim().toLowerCase();
         const nazwa = (wiersz.applicationName ?? '').trim();
@@ -772,14 +845,23 @@ export class GlpiService {
           utworzoneOsoby.get(email) ??
           (await this.prisma.person.findFirst({ where: { email } }))?.id;
 
-        // Aplikacja: z tego importu (software), z katalogu, albo — jeśli
-        // nic z tego — szkic z nazwy grupy, bo dostęp bez aplikacji nie
-        // ma na co wskazać (zasada z projektu integracji).
-        let applicationId =
-          utworzoneAplikacje.get(nazwa.toLowerCase()) ??
-          (await this.prisma.application.findFirst({
-            where: { name: nazwa, deletedAt: null },
-          }))?.id;
+        // Aplikacja: z tego importu (software i applications), z katalogu,
+        // albo — jeśli nic z tego — szkic z nazwy grupy, bo dostęp bez
+        // aplikacji nie ma na co wskazać (zasada z projektu integracji).
+        let applicationId = utworzoneAplikacje.get(nazwa.toLowerCase());
+        if (!applicationId) {
+          const wRejestrze = await this.prisma.application.findFirst({
+            where: { name: nazwa },
+          });
+          if (wRejestrze?.deletedAt) {
+            // Nazwa zajęta przez usuniętą aplikację — import jej nie
+            // przywraca i nie tworzy duplikatu (nazwa jest unikalna
+            // globalnie). Para trafia do pominiętych.
+            wynik.access.skipped++;
+            continue;
+          }
+          applicationId = wRejestrze?.id;
+        }
 
         if (!applicationId) {
           if (!nazwa || nazwa.length > 200) {
@@ -791,9 +873,10 @@ export class GlpiService {
               name: nazwa,
               version: '',
               description: null,
-              // Aplikacje z grup GLPI to szkielety pod macierz — typ
-              // dostarczenia ustawi administrator w rejestrze.
-              deliveryType: 'GENERAL_USE',
+              // Aplikacje z grup GLPI to szkielety pod macierz. Typ
+              // przychodzi z wiersza pary (wybór w modalu); wartość
+              // spoza enumu wraca do GENERAL_USE.
+              deliveryType: this.typDostarczenia(wiersz.deliveryType),
               createdById: actor.id,
             },
           });
@@ -828,7 +911,8 @@ export class GlpiService {
 
     const pusty = wynik.persons.created + wynik.persons.skipped +
       wynik.software.created + wynik.software.skipped +
-      wynik.access.created + wynik.access.skipped;
+      wynik.access.created + wynik.access.skipped +
+      wynik.applications.created + wynik.applications.skipped;
     if (pusty === 0) {
       throw new BadRequestException('Import nie zawiera żadnego wiersza.');
     }
@@ -844,11 +928,23 @@ export class GlpiService {
         persons: { from: null, to: wynik.persons },
         software: { from: null, to: wynik.software },
         access: { from: null, to: wynik.access },
+        applications: { from: null, to: wynik.applications },
       },
       ip,
     });
 
     return wynik;
+  }
+
+  /**
+   * Typ dostarczenia z payloadu — zapis nie ufa przeglądarce: wartość
+   * spoza enumu wraca do `GENERAL_USE`, zamiast trafić do bazy
+   * w nieznanej postaci.
+   */
+  private typDostarczenia(wartosc: TypDostarczenia | undefined): TypDostarczenia {
+    return (TYPY_DOSTARCZENIA as readonly string[]).includes(wartosc ?? '')
+      ? (wartosc as TypDostarczenia)
+      : 'GENERAL_USE';
   }
 
   /** Revalidacja wiersza osoby — ten sam kształt reguł co w serwisie access. */

@@ -93,6 +93,23 @@ export class WierszDostepuDto {
   personEmail!: string;
 
   @IsString() @MaxLength(200) applicationName!: string;
+
+  /**
+   * Typ dostarczenia szkicu aplikacji, gdy grupy jeszcze nie ma
+   * w rejestrze — opcjonalny: brak pola znaczy „zostaw domyślne".
+   */
+  @IsOptional()
+  @IsIn(TYPY_DOSTARCZENIA, { message: 'Nieznany typ dostarczenia aplikacji.' })
+  deliveryType!: TypDostarczenia;
+}
+
+/** Wiersz „grupa → szkic aplikacji" z sekcji dostępów. */
+export class WierszAplikacjiZGrupyDto {
+  @IsString() @MaxLength(200) name!: string;
+
+  @IsOptional()
+  @IsIn(TYPY_DOSTARCZENIA, { message: 'Nieznany typ dostarczenia aplikacji.' })
+  deliveryType!: TypDostarczenia;
 }
 
 export class ImportGlpiDto {
@@ -125,4 +142,11 @@ export class ImportGlpiDto {
   @ValidateNested({ each: true })
   @Type(() => WierszDostepuDto)
   access?: WierszDostepuDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5000, { message: 'Import aplikacji z grup przekracza limit 5000 wierszy.' })
+  @ValidateNested({ each: true })
+  @Type(() => WierszAplikacjiZGrupyDto)
+  applications?: WierszAplikacjiZGrupyDto[];
 }
