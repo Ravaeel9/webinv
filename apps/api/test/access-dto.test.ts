@@ -10,6 +10,7 @@
  *    wynikiem `Invalid Date` dopiero w serwisie — a serwis ma rzucać
  *    czytelny komunikat, nie `NaN`.
  */
+import 'reflect-metadata';
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { plainToInstance } from 'class-transformer';
@@ -21,6 +22,10 @@ import {
   GrantAccessDto,
   UpdateGrantDto,
 } from '../src/access/dto/access.dto';
+import {
+  MatrixImportRowDto,
+  PreviewMatrixImportDto,
+} from '../src/access/dto/import.dto';
 
 describe('Kolejność deklaracji w DTO importu', () => {
   it('klasa użyta w @Type() jest zadeklarowana wcześniej w pliku', () => {
@@ -48,6 +53,22 @@ describe('Kolejność deklaracji w DTO importu', () => {
         `${klasa} jest użyta w @Type() przed swoją deklaracją`,
       );
     }
+  });
+});
+
+describe('DTO wiersza importu macierzy', () => {
+  it('wiersz wymaga poprawnego e-maila i poziomu z enumu', async () => {
+    const baza = { email: 'jan@f.pl', level: 'USER' };
+    assert.equal((await bledy(baza, MatrixImportRowDto)).length, 0);
+    assert.ok((await bledy({ ...baza, email: 'nie-e-mail' }, MatrixImportRowDto)).includes('Wiersz ma niepoprawny adres e-mail.'));
+    assert.ok((await bledy({ ...baza, level: 'Szef' }, MatrixImportRowDto)).includes('Nieznany poziom dostępu.'));
+  });
+
+  it('wygasanie ma format daty, notatka limit 2000, id aplikacji UUID', async () => {
+    const baza = { email: 'jan@f.pl', level: 'USER' };
+    assert.ok((await bledy({ ...baza, expiresOn: '31-12-2026' }, MatrixImportRowDto)).includes('Podaj datę w formacie RRRR-MM-DD.'));
+    assert.ok((await bledy({ ...baza, note: 'x'.repeat(2001) }, MatrixImportRowDto)).length > 0);
+    assert.ok((await bledy({ ...baza, applicationId: 'nie-uuid' }, PreviewMatrixImportDto)).length > 0);
   });
 });
 

@@ -421,6 +421,8 @@ w katalogu — istniejącą dodajemy samym e-mailem. Reguły:
 |---|---|---|---|
 | POST | `/api/access/import/preview` | `access:write` | podgląd: klasyfikacja wierszy, bez zapisu |
 | POST | `/api/access/import/apply` | `access:write` | zapis wybranych wierszy |
+| POST | `/api/access/import/matrix/preview` | `access:write` | podgląd importu macierzy (plik w formacie eksportu); `{ csv, applicationId? }` — z `applicationId` tryb pojedynczej aplikacji |
+| POST | `/api/access/import/matrix/apply` | `access:write` | zapis importu macierzy (upsert grantów); `{ rows, applicationId? }` |
 
 Plik leci jako **tekst w JSON** (`{ "csv": "..." }`), nie jako `multipart` —
 tak samo jak przy imporcie nmap. Limit: 2000 wierszy i 2 MB. Rozpoznawane są
@@ -434,8 +436,14 @@ Zapis **waliduje wiersze od nowa** i pomija złe (licznik `skipped`), a istniej�
 e-mail aktualizuje zamiast duplikować. Osoby nieobecnej w pliku nie dezaktywuje —
 brak w pliku niczego nie znaczy.
 
-Import dotyczy wyłącznie katalogu osób. Dostęp do aplikacji nadaje się ręcznie
-w macierzy, bo plik nie jest wiarygodnym źródłem uprawnień.
+Import dotyczy wyłącznie katalogu osób. **Import macierzy** (`import/matrix/*`)
+jest okrężny z eksportem: przyjmuje dokładnie plik, który generują
+`/matrix/export` i `/applications/:id/export`, i działa jako upsert grantów
+(nowy grant, aktualizacja poziomu/wygasania/notatki). Osoba nieobecna
+w pliku zachowuje dostęp — plik nie odbiera uprawnień. Nieznana osoba
+jest tworzona z imienia i nazwiska z pliku; grant dla osoby nieaktywnej
+wymaga najpierw aktywacji jej w katalogu. Kolumny pochodne eksportu
+(`Status grantu`, `Nadane`, metadane aplikacji) są ignorowane.
 
 ## Ustawienia `/api/settings`
 

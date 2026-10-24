@@ -3,13 +3,19 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { MAX_CSV_BYTES, MAX_PERSON_ROWS } from '../csv';
+import { MAX_MATRIX_ROWS } from '../matrix-csv';
+import { ACCESS_LEVELS, type AccessLevelValue } from './access.dto';
 
 /**
  * Mapowanie kolumn: pole osoby → nagłówek z pliku.
@@ -104,4 +110,72 @@ export class ApplyPersonsImportDto {
     message: `Import przekracza limit ${MAX_PERSON_ROWS} wierszy.`,
   })
   rows!: ImportPersonRowDto[];
+}
+
+/**
+ * Import macierzy uprawnień z CSV — okrężny z eksportem.
+ *
+ * `MatrixImportRowDto` jest zadeklarowane **wyżej** niż `ApplyMatrixImportDto`
+ * z tego samego powodu co `HeaderMappingDto` wyżej: `@Type(() => X)` emituje
+ * `design:type`, a klasa użyta nim musi już istnieć (kolejność pilnuje test
+ * w `access-dto.test.ts`).
+ *
+ * Wiersz jest świadomie **bez** pól `errors`/`status` z podglądu: payload
+ * między podglądem a zapisem jest niezaufany, serwis waliduje każdy wiersz
+ * od nowa. Ścieżki błędów parsera (np. `ROW_WIDTH`) w payloadzie w ogóle
+ * nie występują — zapis bierze dane wierszy, nie raport z podglądu.
+ */
+export class MatrixImportRowDto {
+  @IsEmail({}, { message: 'Wiersz ma niepoprawny adres e-mail.' })
+  @MaxLength(200)
+  email!: string;
+
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(100)
+  firstName?: string;
+
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(100)
+  lastName?: string;
+
+  @IsOptional() @IsString() @MaxLength(150)
+  position?: string;
+
+  @IsOptional() @IsString() @MaxLength(150)
+  department?: string;
+
+  @IsIn(ACCESS_LEVELS, { message: 'Nieznany poziom dostępu.' })
+  level!: AccessLevelValue;
+
+  @IsDateString({}, { message: 'Podaj datę w formacie RRRR-MM-DD.' })
+  @IsOptional()
+  expiresOn?: string;
+
+  @IsOptional() @IsString() @MaxLength(2000)
+  note?: string;
+
+  /** Nazwa aplikacji z pliku — w trybie pojedynczym niepotrzebna (kontrola APP_MISMATCH w serwisie). */
+  @IsOptional() @IsString() @MaxLength(200)
+  applicationName?: string;
+}
+
+export class PreviewMatrixImportDto {
+  @IsString()
+  @MaxLength(MAX_CSV_BYTES, { message: 'Plik przekracza maksymalny rozmiar 2 MB.' })
+  csv!: string;
+
+  /** Tryb pojedynczej aplikacji — eksport karty aplikacji importowany do niej samej. */
+  @IsOptional() @IsUUID()
+  applicationId?: string;
+}
+
+export class ApplyMatrixImportDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MatrixImportRowDto)
+  @ArrayMaxSize(MAX_MATRIX_ROWS, {
+    message: `Import przekracza limit ${MAX_MATRIX_ROWS} wierszy.`,
+  })
+  rows!: MatrixImportRowDto[];
+
+  @IsOptional() @IsUUID()
+  applicationId?: string;
 }

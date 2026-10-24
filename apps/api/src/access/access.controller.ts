@@ -29,7 +29,9 @@ import {
   UpdatePersonDto,
 } from './dto/access.dto';
 import {
+  ApplyMatrixImportDto,
   ApplyPersonsImportDto,
+  PreviewMatrixImportDto,
   PreviewPersonsImportDto,
 } from './dto/import.dto';
 
@@ -143,6 +145,32 @@ export class AccessController {
     @ClientIp() ip: string,
   ) {
     return { result: await this.access.applyPersonsImport(dto.rows, actor, ip) };
+  }
+
+  // ─── Import macierzy z CSV ──────────────────────────────────
+
+  /**
+   * Podgląd importu macierzy: plik w formacie eksportu, klasyfikacja wierszy,
+   * nic nie zapisuje. Tryb pojedynczy (`applicationId`) dla eksportu karty
+   * aplikacji.
+   */
+  @Post('import/matrix/preview')
+  @RequirePermission('access:write')
+  async previewMatrixImport(@Body() dto: PreviewMatrixImportDto) {
+    return this.access.previewMatrixImport(dto.csv, dto.applicationId);
+  }
+
+  /** Zapis importu macierzy — serwis waliduje wiersze ponownie (payload niezaufany). */
+  @Post('import/matrix/apply')
+  @RequirePermission('access:write')
+  async applyMatrixImport(
+    @Body() dto: ApplyMatrixImportDto,
+    @CurrentUser() actor: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return {
+      result: await this.access.applyMatrixImport(dto.rows, actor, ip, dto.applicationId),
+    };
   }
 
   // ─── Katalog osób ───────────────────────────────────────────
