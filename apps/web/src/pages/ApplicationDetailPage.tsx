@@ -401,7 +401,7 @@ export function ApplicationDetailPage() {
             montowana u gościa, u VIEWERA ani dla programów ogólnego użytku,
             więc nie powstaje żądanie skończone 401 i nie ma pustej karty. */}
         {can('access:read') && app.deliveryType !== 'GENERAL_USE' && (
-          <ApplicationAccessSection applicationId={app.id} />
+          <ApplicationAccessSection applicationId={app.id} nazwaAplikacji={app.name} />
         )}
 
         {/* Adresy IP — ta sama reguła usługowa co wyżej (`SELF_HOSTED`),

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAccessMatrix, useApplications, usePersons, usePersonsCount } from '../lib/queries';
-import { accessMatrixCsv } from '../lib/queries';
+import { downloadAccessExport, nazwaPlikuRaportu } from '../lib/queries';
 import { useAuth } from '../lib/auth';
+import { ApiError } from '../lib/api';
 import { PageHeader } from '../components/layout/AppLayout';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -216,21 +217,6 @@ function MatrixTab() {
 
   const rows = data?.rows ?? [];
 
-  const eksportuj = () => {
-    const csv = accessMatrixCsv(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const adres = URL.createObjectURL(blob);
-    const kotwica = document.createElement('a');
-    kotwica.href = adres;
-    kotwica.download = `uprawnienia-${dzis()}.csv`;
-    kotwica.click();
-    // Adres obiektu trzymamy w pamięci przeglądarki, więc trzeba go zwolnić
-    // po kliknięciu — inaczej plik zostaje w pamięci do odświeżenia strony.
-    // Nie natychmiast: w części przeglądarek natychmiastowe unieważnienie
-    // anuluje pobieranie, które dopiero co wystartowało.
-    setTimeout(() => URL.revokeObjectURL(adres), 1000);
-  };
-
   return (
     <>
       <div className="card mb-4 flex flex-wrap items-end gap-3 px-4 py-3">
@@ -273,10 +259,7 @@ function MatrixTab() {
             </option>
           ))}
         </Select>
-        <Button variant="secondary" onClick={eksportuj} disabled={rows.length === 0}>
-          <IconDownload className="size-4" />
-          Eksportuj CSV
-        </Button>
+        <EksportRaportuButton />
       </div>
 
       <ErrorMessage error={error} className="mb-3" />
@@ -345,7 +328,52 @@ function MatrixTab() {
   );
 }
 
-/** Data w nazwie pliku — `RRRR-MM-DD`. */
-function dzis(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Przycisk serwerowego raportu całej macierzy — dowód przeglądu.
+ *
+ * Zawsze aktywny: raport obejmuje także aplikacje bez grantów
+ * (wiersze „(brak pozycji)"), więc ma sens nawet przy pustym ekranie.
+ * Plik i jego nazwa pochodzą z serwera — panel tylko zapisuje treść.
+ */
+function EksportRaportuButton() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  const pobierz = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const csv = await downloadAccessExport();
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const adres = URL.createObjectURL(blob);
+      const kotwica = document.createElement('a');
+      kotwica.href = adres;
+      kotwica.download = nazwaPlikuRaportu();
+      kotwica.click();
+      // Zwolnienie adresu nie natychmiast: w części przeglądarek
+      // anuluje pobieranie, które dopiero co wystartowało.
+      setTimeout(() => URL.revokeObjectURL(adres), 1000);
+    } catch (blad) {
+      setError(blad);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <Button
+        variant="secondary"
+        loading={busy}
+        onClick={pobierz}
+        title="Serwerowy raport całej macierzy — dowód przeglądu"
+      >
+        <IconDownload className="size-4" />
+        Eksport całkowity
+      </Button>
+      {error instanceof ApiError && (
+        <ErrorMessage error={error} className="mt-2" />
+      )}
+    </div>
+  );
 }

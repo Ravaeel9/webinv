@@ -4,9 +4,8 @@
  * unieważnienie trzech widoków naraz.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, buildQuery } from './api';
+import { api, buildQuery, extractError } from './api';
 import {
-  ACCESS_LEVEL_LABELS,
   type AccessLevel,
   type AccessMatrixFilters,
   type AccessMatrixRow,
@@ -180,51 +179,62 @@ export function useApplyPersonsImport() {
 }
 
 /**
- * Eksport macierzy uprawnień do CSV.
+ * Raport macierzy uprawnień — pobranie CSV z serwera.
  *
- * Plik budujemy po stronie przeglądarki z wierszy, które są już
- * wczytane: macierz jest jednorazowym raportem, a pobieranie drugiej
- * kopii z serwera tylko po to, by ją od razu zserializować, tylko by
- * opóźniło eksport.
- *
- * BOM `﻿` na początku i średnik jako separator: bez BOM Excel
- * otworzyłby plik w Windows-1250 i polskie znaki w nazwiskach
- * zamieniłyby się w znaki zapytania.
+ * Nie idzie przez `api`, bo to odpowiedź tekstowa z nagłówkiem
+ * Content-Disposition, nie JSON — tak samo jak eksport rejestru
+ * (`downloadApplicationsCsv`). Raport buduje serwer: ma pełne metadane
+ * aplikacji (status, klasyfikacja, krytyczność, właściciel), wiersze
+ * „(brak pozycji)" dla pustych macierzy i datę wygenerowania w pliku,
+ * więc lokalne składanie CSV z wierszy ekranu tylko zubałoby raport.
  */
-export function accessMatrixCsv(rows: AccessMatrixRow[]): string {
-  const naglowek = [
-    'Aplikacja',
-    'Imię',
-    'Nazwisko',
-    'E-mail',
-    'Stanowisko',
-    'Dział',
-    'Poziom dostępu',
-    'Data nadania',
-    'Data wygaśnięcia',
-    'Notatka',
-  ];
+export async function downloadAccessExport(
+  applicationId?: string,
+): Promise<string> {
+  const sciezka = applicationId
+    ? `/access/applications/${applicationId}/export`
+    : '/access/matrix/export';
 
-  const pole = (wartosc: string | null | undefined) =>
-    `"${String(wartosc ?? '').replace(/"/g, '""')}"`;
+  const response = await fetch(`/api${sciezka}`, {
+    credentials: 'include',
+  });
 
-  const linie = rows.map((wiersz) =>
-    [
-      wiersz.application.name,
-      wiersz.person.firstName,
-      wiersz.person.lastName,
-      wiersz.person.email,
-      wiersz.person.position,
-      wiersz.person.department,
-      ACCESS_LEVEL_LABELS[wiersz.level],
-      wiersz.grantedOn,
-      wiersz.expiresOn ?? '',
-      wiersz.note,
-    ]
-      .map(pole)
-      .join(';'),
-  );
+  if (!response.ok) {
+    throw await extractError(response);
+  }
 
-  return `\ufeff${[naglowek.map(pole).join(';'), ...linie].join('\r\n')}`;
+  return response.text();
 }
 
+/** Mapowanie polskich liter do sluga — `ł` nie rozwija się przy NFD. */
+const POLSKIE_LITERY: Record<string, string> = {
+  ą: 'a',
+  ć: 'c',
+  ę: 'e',
+  ł: 'l',
+  ń: 'n',
+  ó: 'o',
+  ś: 's',
+  ź: 'z',
+  ż: 'z',
+};
+
+/**
+ * Nazwa pliku raportu: pełny `macierz-uprawnien-RRRR-MM-DD.csv`,
+ * dla jednej aplikacji `raport-uprawnien-<slug>-RRRR-MM-DD.csv`.
+ * Slug liczymy tak samo jak na serwerze, bo pobieranie i tak idzie
+ * przez blob w przeglądarce.
+ */
+export function nazwaPlikuRaportu(nazwaAplikacji?: string): string {
+  const dzisiaj = new Date().toISOString().slice(0, 10);
+  if (!nazwaAplikacji) return `macierz-uprawnien-${dzisiaj}.csv`;
+  const slug =
+    nazwaAplikacji
+      .toLowerCase()
+      .replace(/[ąćęłńóśźż]/g, (znak) => POLSKIE_LITERY[znak] ?? znak)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'aplikacja';
+  return `raport-uprawnien-${slug}-${dzisiaj}.csv`;
+}

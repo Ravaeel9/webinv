@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import {
+  downloadAccessExport,
+  nazwaPlikuRaportu,
   useApplicationAccess,
   useRevokeGrant,
   useUpdateGrant,
 } from '../../lib/queries';
+import { ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { formatDate } from '../../lib/format';
 import { Badge } from '../ui/Badge';
@@ -11,7 +14,7 @@ import { Button } from '../ui/Button';
 import { Select, TextInput } from '../ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../ui/Feedback';
 import { Table, Tbody, Td, Th, Thead } from '../ui/Table';
-import { IconPlus, IconShield, IconTrash } from '../ui/icons';
+import { IconDownload, IconPlus, IconShield, IconTrash } from '../ui/icons';
 import { ACCESS_LEVEL_LABELS, type AccessLevel } from '../../types';
 import { PersonAccessModal } from './PersonAccessModal';
 
@@ -29,7 +32,13 @@ const POZIOMY: AccessLevel[] = ['OWNER', 'ADMIN', 'USER', 'READ_ONLY'];
  * to historia nadania, a nie stan bieżący. Usunięcie wiersza z oczu
  * administratora dawałoby fałszywe poczucie, że tych osób tu nigdy nie było.
  */
-export function ApplicationAccessSection({ applicationId }: { applicationId: string }) {
+export function ApplicationAccessSection({
+  applicationId,
+  nazwaAplikacji,
+}: {
+  applicationId: string;
+  nazwaAplikacji: string;
+}) {
   const { can } = useAuth();
   const { data, isLoading, error } = useApplicationAccess(applicationId);
   const [dodawanie, setDodawanie] = useState(false);
@@ -44,8 +53,13 @@ export function ApplicationAccessSection({ applicationId }: { applicationId: str
           <IconShield />
         </span>
         <h2 className="section-title">Uprawnienia do aplikacji</h2>
+        <RaportAplikacjiButton
+          applicationId={applicationId}
+          nazwaAplikacji={nazwaAplikacji}
+          className="ml-auto"
+        />
         {canWrite && (
-          <Button size="sm" className="ml-auto" onClick={() => setDodawanie(true)}>
+          <Button size="sm" variant="secondary" onClick={() => setDodawanie(true)}>
             <IconPlus className="size-4" />
             Wybierz osoby
           </Button>
@@ -112,6 +126,62 @@ export function ApplicationAccessSection({ applicationId }: { applicationId: str
         <PersonAccessModal applicationId={applicationId} onClose={() => setDodawanie(false)} />
       )}
     </section>
+  );
+}
+
+/**
+ * Przycisk raportu jednej aplikacji — CSV do wręczenia właścicielowi.
+ * Treść i nazwę pliku buduje serwer; panel tylko zapisuje pobraną treść.
+ */
+function RaportAplikacjiButton({
+  applicationId,
+  nazwaAplikacji,
+  className,
+}: {
+  applicationId: string;
+  nazwaAplikacji: string;
+  className?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  const pobierz = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const csv = await downloadAccessExport(applicationId);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const adres = URL.createObjectURL(blob);
+      const kotwica = document.createElement('a');
+      kotwica.href = adres;
+      kotwica.download = nazwaPlikuRaportu(nazwaAplikacji);
+      kotwica.click();
+      // Zwolnienie adresu nie natychmiast: w części przeglądarek
+      // anuluje pobieranie, które dopiero co wystartowało.
+      setTimeout(() => URL.revokeObjectURL(adres), 1000);
+    } catch (blad) {
+      setError(blad);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className={className}>
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={busy}
+        onClick={pobierz}
+        title="CSV z uprawnieniami tej aplikacji — dla właściciela"
+      >
+        <IconDownload className="size-4" />
+        Raport aplikacji
+      </Button>
+      {error instanceof ApiError && (
+        <ErrorMessage error={error} className="mt-2" />
+      )}
+    </span>
   );
 }
 
