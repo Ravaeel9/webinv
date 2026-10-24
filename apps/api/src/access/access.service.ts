@@ -28,6 +28,7 @@ import {
   parsePersonsCsv,
   type HeaderMapping,
 } from './csv';
+import { parseMatrixCsv, type ParsedMatrixRow } from './matrix-csv';
 
 /**
  * Katalog osób i macierz uprawnień do aplikacji.
@@ -809,6 +810,205 @@ export class AccessService {
     }
   }
 
+  // ─── Import macierzy z CSV ──────────────────────────────────────
+
+  /**
+   * Podgląd importu macierzy: klasyfikuje każdy wiersz, nic nie zapisuje.
+   *
+   * Import jest okrężny z eksportem — plik raportu po poprawkach właściciela
+   * wraca do ewidencji. Semantyka: **upsert** — wiersz nadaje nowy grant
+   * albo aktualizuje istniejący; osoba nieobecna w pliku zachowuje dostęp,
+   * więc pusty lub ucięty plik nic nie odbiera.
+   *
+   * Tryb pojedynczy (`applicationId`) rozpoznaje aplikację z requestu
+   * i pilnuje, żeby wiersze nie wskazywały innej. Tryb całościowy
+   * rozpoznaje aplikacje po unikalnej nazwie z kolumny „Aplikacja".
+   */
+  async previewMatrixImport(
+    text: string,
+    applicationId?: string,
+  ): Promise<MatrixImportPreview> {
+    const kontekst = applicationId
+      ? await this.requireApplicationWithMatrix(applicationId)
+      : null;
+    const wczytany = this.wczytajMacierzCsv(text, Boolean(applicationId));
+
+    const rozstrzygniete: Array<{
+      wiersz: ParsedMatrixRow;
+      aplikacja: ApplicationRefRow | null;
+      osoba: PersonRow | null;
+      grant: ApplicationAccessRow | null;
+      errors: string[];
+      diff: MatrixDiffZmiana[];
+    }> = [];
+    for (const wiersz of wczytany.rows) {
+      rozstrzygniete.push(await this.rozstrzygnijWierszMacierzy(wiersz, kontekst));
+    }
+
+    const rows = rozstrzygniete.map((r) => ({
+      ...r.wiersz,
+      // Błędy parsera + błędy rozstrzygnięcia (baza) w jednym koszu —
+      // podgląd pokazuje komplet, nie tylko składnię pliku.
+      errors: r.errors,
+      status: this.statusWierszaMacierzy(r),
+      diff: r.diff,
+    }));
+
+    const licznikAplikacji = new Map<string, { id: string; nazwa: string; wiersze: number }>();
+    for (const r of rozstrzygniete) {
+      if (!r.aplikacja) continue;
+      const wpis =
+        licznikAplikacji.get(r.aplikacja.id) ??
+        { id: r.aplikacja.id, nazwa: r.aplikacja.name, wiersze: 0 };
+      wpis.wiersze++;
+      licznikAplikacji.set(r.aplikacja.id, wpis);
+    }
+
+    return {
+      rows,
+      aplikacje: [...licznikAplikacji.values()],
+      summary: {
+        total: rows.length,
+        new: rows.filter((w) => w.status === 'NEW').length,
+        newPerson: rows.filter((w) => w.status === 'NEW_PERSON').length,
+        update: rows.filter((w) => w.status === 'UPDATE').length,
+        unchanged: rows.filter((w) => w.status === 'UNCHANGED').length,
+        invalid: rows.filter((w) => w.status === 'ERROR').length,
+      },
+    };
+  }
+
+  /** Parser macierzy z ujednoliconym tłumaczeniem błędów wejścia na 400. */
+  private wczytajMacierzCsv(text: string, pojedyncza: boolean) {
+    try {
+      return parseMatrixCsv(text, { pojedyncza });
+    } catch (blad) {
+      if (blad instanceof CsvError) {
+        throw new BadRequestException(blad.message);
+      }
+      throw blad;
+    }
+  }
+
+  /**
+   * Rozstrzyga jeden wiersz importu macierzy: aplikację, osobę i grant.
+   *
+   * Błędy wiersza zbierają się tu w jeden kosz — te z parsera (składnia
+   * pliku) i te z bazy (nieznana aplikacja, nieaktywna osoba, wygasanie
+   * w przeszłości). Zapis użyje tej samej metody po swojej walidacji,
+   * żeby podgląd i zapis nie rozeszły się regułami.
+   */
+  private async rozstrzygnijWierszMacierzy(
+    wiersz: WierszMacierzyWejscie,
+    kontekst: ApplicationRefRow | null,
+  ): Promise<{
+    wiersz: ParsedMatrixRow;
+    aplikacja: ApplicationRefRow | null;
+    osoba: PersonRow | null;
+    grant: ApplicationAccessRow | null;
+    errors: string[];
+    diff: MatrixDiffZmiana[];
+  }> {
+    const errors = [...wiersz.errors];
+
+    let aplikacja: ApplicationRefRow | null = null;
+    if (kontekst) {
+      // Tryb pojedynczy: aplikacja z requestu; kolumna „Aplikacja" jest
+      // tylko kontrolą, że właściciel nie pomylił plików.
+      if (wiersz.aplikacja !== null && wiersz.aplikacja !== kontekst.name) {
+        errors.push('APP_MISMATCH');
+      } else {
+        aplikacja = kontekst;
+      }
+    } else if (wiersz.aplikacja === null) {
+      // Całościowy bez nazwy aplikacji: nie ma czego rozpoznać.
+      errors.push('UNKNOWN_APP');
+    } else {
+      const znaleziona = await this.prisma.application.findUnique({
+        where: { name: wiersz.aplikacja },
+      });
+      if (!znaleziona || znaleziona.deletedAt) {
+        errors.push('UNKNOWN_APP');
+      } else if (znaleziona.deliveryType === 'GENERAL_USE') {
+        errors.push('GENERAL_USE_APP');
+      } else {
+        aplikacja = znaleziona;
+      }
+    }
+
+    let osoba: PersonRow | null = null;
+    let grant: ApplicationAccessRow | null = null;
+    let diff: MatrixDiffZmiana[] = [];
+
+    if (errors.length === 0) {
+      osoba = wiersz.email
+        ? await this.prisma.person.findFirst({ where: { email: wiersz.email } })
+        : null;
+
+      if (osoba && !osoba.isActive) {
+        // Reguła jak przy ręcznym nadawaniu: nieaktywna osoba nie wchodzi
+        // do macierzy, dopóki administrator nie aktywuje jej w katalogu.
+        errors.push('PERSON_INACTIVE');
+      } else if (!osoba && (!wiersz.firstName || !wiersz.lastName)) {
+        errors.push('MISSING_NAME');
+      } else if (osoba && aplikacja) {
+        grant = await this.prisma.applicationAccess.findUnique({
+          where: { applicationId_personId: { applicationId: aplikacja.id, personId: osoba.id } },
+        });
+        if (grant) {
+          diff = this.diffGranta(grant, wiersz);
+        } else if (
+          wiersz.expiresOn !== null &&
+          this.data(new Date(wiersz.expiresOn)) < this.data(new Date())
+        ) {
+          // Granica jak przy ręcznym nadawaniu: nowy dostęp nie może być
+          // od razu wygasły. Przy aktualizacji porządkowanie daty jest
+          // dozwolone — diff powyżej to pokazuje.
+          errors.push('EXPIRY_IN_PAST');
+        }
+      }
+    }
+
+    return { wiersz: wiersz as ParsedMatrixRow, aplikacja, osoba, grant, errors, diff };
+  }
+
+  /**
+   * Różnice wiersza wobec istniejącego grantu — tylko pola, które import
+   * zmienia. Pusta komórka „Wygasa"/„Notatka" czyści wartość: plik jest
+   * żądanym stanem pól grantu, a bez tego nie da się zdjąć daty wygasania.
+   */
+  private diffGranta(
+    grant: ApplicationAccessRow,
+    wiersz: WierszMacierzyWejscie,
+  ): MatrixDiffZmiana[] {
+    const zmiany: MatrixDiffZmiana[] = [];
+    if (grant.level !== wiersz.level) {
+      zmiany.push({ pole: 'poziom', od: grant.level, do: wiersz.level });
+    }
+    const odWygasa = grant.expiresOn ? this.data(grant.expiresOn) : '';
+    const doWygasa = wiersz.expiresOn ?? '';
+    if (odWygasa !== doWygasa) {
+      zmiany.push({ pole: 'wygasa', od: odWygasa, do: doWygasa });
+    }
+    const odNota = grant.note ?? '';
+    const doNota = wiersz.note ?? '';
+    if (odNota !== doNota) {
+      zmiany.push({ pole: 'notatka', od: odNota, do: doNota });
+    }
+    return zmiany;
+  }
+
+  private statusWierszaMacierzy(r: {
+    osoba: PersonRow | null;
+    grant: ApplicationAccessRow | null;
+    errors: string[];
+    diff: MatrixDiffZmiana[];
+  }): MatrixImportRowStatus {
+    if (r.errors.length > 0) return 'ERROR';
+    if (r.grant) return r.diff.length > 0 ? 'UPDATE' : 'UNCHANGED';
+    return r.osoba ? 'NEW' : 'NEW_PERSON';
+  }
+
   /** Aplikacja musi istnieć i nie być oznaczona jako usunięta. */
   private async requireApplication(applicationId: string) {
     const aplikacja = await this.prisma.application.findUnique({
@@ -973,6 +1173,48 @@ export type ImportRowInput = {
   position?: string;
   department?: string;
   isActive?: boolean;
+};
+
+// ─── Import macierzy uprawnień (CSV) ────────────────────────────
+
+/** Status wiersza importu macierzy w podglądzie. */
+export type MatrixImportRowStatus = 'NEW' | 'NEW_PERSON' | 'UPDATE' | 'UNCHANGED' | 'ERROR';
+
+/** Jedna zmiana wiersza `UPDATE` — „od → do" dla pola grantu. */
+export type MatrixDiffZmiana = {
+  pole: 'poziom' | 'wygasa' | 'notatka';
+  od: string;
+  do: string;
+};
+
+/**
+ * Wiersz macierzy po walidacji wejścia — kształt wspólny dla parsera
+ * (`ParsedMatrixRow`) i walidacji zapisu, żeby rozstrzyganie aplikacji,
+ * osoby i grantu działało na jednym typie.
+ */
+type WierszMacierzyWejscie = {
+  aplikacja: string | null;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  level: string;
+  expiresOn: string | null;
+  note: string | null;
+  errors: string[];
+};
+
+/** Odpowiedź podglądu importu macierzy. */
+export type MatrixImportPreview = {
+  rows: Array<ParsedMatrixRow & { status: MatrixImportRowStatus; diff: MatrixDiffZmiana[] }>;
+  aplikacje: Array<{ id: string; nazwa: string; wiersze: number }>;
+  summary: {
+    total: number;
+    new: number;
+    newPerson: number;
+    update: number;
+    unchanged: number;
+    invalid: number;
+  };
 };
 
 // ─── Raport macierzy uprawnień (eksport CSV) ──────────────────

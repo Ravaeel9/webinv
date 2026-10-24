@@ -181,7 +181,8 @@ export interface GrantDelegate {
 }
 
 export interface ApplicationDelegate {
-  findUnique(args: { where: { id: string } }): Promise<ApplicationRefRow | null>;
+  /** Po id albo po unikalnej nazwie — import macierzy rozpoznaje aplikacje z pliku po nazwie. */
+  findUnique(args: { where: { id: string } | { name: string } }): Promise<ApplicationRefRow | null>;
   /** Lista aplikacji do raportu — filtry `deletedAt: null` i pominięcie GENERAL_USE. */
   findMany(args: {
     where?: { deletedAt?: null; deliveryType?: { not?: DeliveryTypeName } };

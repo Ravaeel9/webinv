@@ -179,7 +179,12 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         const where = args?.where ?? {};
         return (
           osoby.find((p) =>
-            Object.entries(where).every(([k, v]) => (p as Record<string, unknown>)[k] === v),
+            Object.entries(where).every(([k, v]) => {
+              // E-mail w bazie jest `@db.Citext` — „Jan@F.pl" i „jan@f.pl"
+              // to jedna osoba, więc atrapa porównuje bez wielkości liter.
+              if (k === 'email') return p.email.toLowerCase() === String(v).toLowerCase();
+              return (p as Record<string, unknown>)[k] === v;
+            }),
           ) ?? null
         );
       },
@@ -304,6 +309,17 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
     },
     application: {
       findUnique: async (args: any) => {
+        // Nazwa aplikacji jest unikalna (`@db.Citext`) — import macierzy
+        // rozpoznaje aplikacje z pliku właśnie po niej. Atrapa porównuje
+        // bez wielkości liter, dokładnie jak citext w bazie.
+        if (args?.where?.name !== undefined) {
+          const szukana = String(args.where.name).toLowerCase();
+          const aplikacja = [...aplikacjeMap.values()].find(
+            (a) => a.name.toLowerCase() === szukana,
+          );
+          if (!aplikacja) return null;
+          return { ...aplikacja };
+        }
         const aplikacja = aplikacjeMap.get(args?.where?.id);
         if (!aplikacja) return null;
         // Kopiujemy wiersz, żeby test nie mutował stanu atrapy przez referencję.
