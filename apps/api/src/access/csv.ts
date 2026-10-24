@@ -90,7 +90,14 @@ const AKTYWNE = ['', 'true', 'yes', 'tak', 'aktywny', 'aktywna', 'aktywne', '1']
 /** …a te — nieaktywną. */
 const NIEAKTYWNE = ['false', 'no', 'nie', 'suspended', 'archived', 'nieaktywny', 'nieaktywna', 'zawieszony', 'disabled', '0'];
 
-function normalizuj(naglowek: string): string {
+/**
+ * Normalizacja nagłówka: bez wielkości liter, diakrytyków i zbędnych spacji.
+ *
+ * Wyeksportowana, bo korzysta z niej też parser macierzy uprawnień
+ * (`matrix-csv.ts`) — nagłówki raportu są dopasowywane tym samym kluczem,
+ * a „Właściciel aplikacji" z Windows-1250 i z UTF-8 ma dać ten sam wynik.
+ */
+export function normalizuj(naglowek: string): string {
   return naglowek
     .trim()
     .toLowerCase()
