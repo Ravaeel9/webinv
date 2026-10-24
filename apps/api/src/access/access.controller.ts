@@ -3,13 +3,16 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { AccessService } from './access.service';
 import {
   ClientIp,
@@ -93,6 +96,33 @@ export class AccessController {
   @RequirePermission('access:read')
   async matrix(@Query() query: MatrixQueryDto) {
     return { rows: await this.access.matrix(query) };
+  }
+
+  /**
+   * Eksport raportu całej macierzy — dowód półrocznego przeglądu.
+   * Odpowiedź CSV z nazwą pliku w nagłówku. Eksport nigdy nie jest
+   * publiczny: raport zawiera dane osobowe osób spoza panelu.
+   */
+  @Get('matrix/export')
+  @RequirePermission('access:read')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportMatrix(@Res() reply: FastifyReply) {
+    const { csv, nazwaPliku } = await this.access.exportMatrixCsv();
+    reply.header('Content-Disposition', `attachment; filename="${nazwaPliku}"`);
+    return reply.send(csv);
+  }
+
+  /** Raport macierzy jednej aplikacji — do wręczenia jej właścicielowi. */
+  @Get('applications/:id/export')
+  @RequirePermission('access:read')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportApplicationMatrix(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const { csv, nazwaPliku } = await this.access.exportMatrixCsv(id);
+    reply.header('Content-Disposition', `attachment; filename="${nazwaPliku}"`);
+    return reply.send(csv);
   }
 
   // ─── Import osób z CSV ──────────────────────────────────────
