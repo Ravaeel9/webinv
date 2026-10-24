@@ -64,6 +64,21 @@ export type ParsedMatrixRow = {
   errors: string[];
 };
 
+/**
+ * Limity długości pól — spójne z `MatrixImportRowDto` (import.dto.ts).
+ * Podgląd i zapis mają mówić jednym językiem: gdyby parser przepuszczał
+ * pole, które DTO odrzuci, jeden długi wiersz wywróciłby całość requestu
+ * HTTP 400 zamiast trafić do `skippedRows` jak pozostałe błędy wiersza.
+ */
+const LIMITY_POL: Array<[keyof Pick<ParsedMatrixRow, 'email' | 'firstName' | 'lastName' | 'position' | 'department' | 'aplikacja'>, number]> = [
+  ['email', 200],
+  ['firstName', 100],
+  ['lastName', 100],
+  ['position', 150],
+  ['department', 150],
+  ['aplikacja', 200],
+];
+
 export type ParsedMatrixCsv = {
   rows: ParsedMatrixRow[];
   summary: { total: number; valid: number; invalid: number };
@@ -182,6 +197,24 @@ export function parseMatrixCsv(
     const { firstName, lastName } = rozdzielOsobe(osoba);
 
     const aplikacja = komorka(pola, idx('aplikacja'));
+
+    // Limity pól jak w DTO (wyżej): sprawdzone tu, żeby podgląd pokazał
+    // wiersz jako błędny, a nie całość importu na 400 przy zapisie.
+    const wartosci: Record<string, string | null> = {
+      email,
+      firstName,
+      lastName,
+      position: komorka(pola, idx('stanowisko')),
+      department: komorka(pola, idx('departament')),
+      aplikacja,
+    };
+    for (const [pole, limit] of LIMITY_POL) {
+      const wartosc = wartosci[pole];
+      if (wartosc !== null && wartosc !== undefined && wartosc.length > limit) {
+        errors.push('FIELD_TOO_LONG');
+        break;
+      }
+    }
     // Duplikat w pliku: ta sama osoba w tej samej aplikacji drugi raz.
     // Klucz case-insensitive jak citext w bazie, żeby „JAN@F.PL" nie
     // utworzyło złudzenia dwóch osób.

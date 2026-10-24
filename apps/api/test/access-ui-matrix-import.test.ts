@@ -68,6 +68,9 @@ describe('Import macierzy — modal', () => {
       'INVALID_DATE',
       'MISSING_EMAIL',
       'NOTE_TOO_LONG',
+      'ROW_WIDTH',
+      'FIELD_TOO_LONG',
+      'PERSON_SAVE_FAILED',
     ]) {
       assert.ok(modal.includes(`${kod}:`), `POWODY nie ma kodu ${kod}`);
     }

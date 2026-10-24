@@ -938,8 +938,14 @@ export class AccessService {
     let aplikacja: ApplicationRefRow | null = null;
     if (kontekst) {
       // Tryb pojedynczy: aplikacja z requestu; kolumna „Aplikacja" jest
-      // tylko kontrolą, że właściciel nie pomylił plików.
-      if (wiersz.aplikacja !== null && wiersz.aplikacja !== kontekst.name) {
+      // tylko kontrolą, że właściciel nie pomylił plików. Porównanie
+      // case-insensitive jak citext nazwy — po drodze przez Excel
+      // wielkość liter bywa poprawiona ręcznie i nie jest to pomyłka
+      // pliku.
+      if (
+        wiersz.aplikacja !== null &&
+        wiersz.aplikacja.toLowerCase() !== kontekst.name.toLowerCase()
+      ) {
         errors.push('APP_MISMATCH');
       } else {
         aplikacja = kontekst;
@@ -1106,11 +1112,14 @@ export class AccessService {
             }),
           });
         } catch {
-          // Śmieciowy wiersz nie zostawia osoby „w trakcie" i nie wywraca importu.
+          // Wiersz doszedł tu w pełni zwalidowany (limitów, imienia i e-maila
+          // pilnowały wcześniejsze kody), więc wyjątek zapisu to awaria bazy
+          // albo wyścig unikalności — powód ma to mówić, a nie sugerować
+          // brak imienia, który odsiał się wcześniej.
           skippedRows.push({
             email: wiersz.email,
             aplikacja: aplikacjaDocelowa.name,
-            errors: ['MISSING_NAME'],
+            errors: ['PERSON_SAVE_FAILED'],
           });
           continue;
         }
@@ -1190,6 +1199,21 @@ export class AccessService {
 
     const notatka = wejscie.note?.trim() || null;
     if (notatka !== null && notatka.length > 2000) errors.push('NOTE_TOO_LONG');
+
+    // Limity długości pól jak w DTO i parserze: podgląd i zapis mają
+    // mówić jednym językiem, długi wiersz jest pomijany z powodem,
+    // a nie wywraca całości requestu na 400.
+    const pola: Array<[string | undefined, number]> = [
+      [email, 200],
+      [wejscie.firstName?.trim(), 100],
+      [wejscie.lastName?.trim(), 100],
+      [wejscie.position, 150],
+      [wejscie.department, 150],
+      [wejscie.applicationName?.trim(), 200],
+    ];
+    if (pola.some(([wartosc, limit]) => wartosc !== undefined && wartosc !== null && wartosc.length > limit)) {
+      errors.push('FIELD_TOO_LONG');
+    }
 
     return {
       aplikacja: wejscie.applicationName?.trim() || null,

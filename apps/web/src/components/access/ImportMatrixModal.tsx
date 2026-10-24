@@ -32,6 +32,8 @@ const POWODY: Record<string, string> = {
   ROW_WIDTH: 'wiersz ma inną liczbę kolumn niż nagłówek (zbędny przecinek?)',
   MISSING_EMAIL: 'brak adresu e-mail',
   MISSING_NAME: 'nowa osoba bez imienia lub nazwiska',
+  FIELD_TOO_LONG: 'pole ma ponad limit znaków (imię/nazwisko 100, dział i stanowisko 150)',
+  PERSON_SAVE_FAILED: 'nie udało się zapisać osoby — spróbuj ponownie',
   INVALID_LEVEL: 'nieznany poziom dostępu (dopuszczalne: OWNER, ADMIN, USER, READ_ONLY)',
   INVALID_DATE: '„Wygasa" nie jest datą w formacie RRRR-MM-DD',
   NOTE_TOO_LONG: 'notatka ma ponad 2000 znaków',
@@ -289,8 +291,8 @@ export function ImportMatrixModal({ onClose, applicationId, nazwaAplikacji }: Pr
                 <span className="text-xs font-medium">
                   Pominięte wiersze — każdy z nich wymaga poprawy w pliku:
                 </span>
-                {wynik.skippedRows.map((wiersz) => (
-                  <span key={`${wiersz.aplikacja}-${wiersz.email}`} className="text-xs">
+                {wynik.skippedRows.map((wiersz, indeks) => (
+                  <span key={`${wiersz.aplikacja}-${wiersz.email}-${indeks}`} className="text-xs">
                     {wiersz.aplikacja ? `${wiersz.aplikacja}: ` : ''}
                     {wiersz.email} — {wiersz.errors.map((kod) => POWODY[kod] ?? kod).join('; ')}
                   </span>

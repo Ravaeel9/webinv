@@ -277,6 +277,22 @@ describe('Parser CSV macierzy — błędy wierszowe', () => {
     assert.deepEqual(wynik.rows[0]!.errors, ['INVALID_LEVEL']);
   });
 
+  it('pole dłuższe niż limit DTO (nazwisko 100, stanowisko 150) → FIELD_TOO_LONG', () => {
+    // Limity jak w MatrixImportRowDto: podgląd ma mówić jednym językiem
+    // z zapisem — inaczej wiersz „OK" w podglądzie wywraca całość requestu 400.
+    const wynikNazwisko = parseMatrixCsv(
+      raportCsv([wierszCsv({ osoba: `Jan ${'K'.repeat(101)}` })]),
+      { pojedyncza: false },
+    );
+    assert.ok(wynikNazwisko.rows[0]!.errors.includes('FIELD_TOO_LONG'));
+
+    const wynikStanowisko = parseMatrixCsv(
+      raportCsv([wierszCsv({ stanowisko: 'x'.repeat(151) })]),
+      { pojedyncza: false },
+    );
+    assert.ok(wynikStanowisko.rows[0]!.errors.includes('FIELD_TOO_LONG'));
+  });
+
   it('wygasanie nie w formacie daty → INVALID_DATE', () => {
     const wynik = parseMatrixCsv(raportCsv([wierszCsv({ wygasa: 'jutro' })]), { pojedyncza: false });
     assert.deepEqual(wynik.rows[0]!.errors, ['INVALID_DATE']);

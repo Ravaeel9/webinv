@@ -473,6 +473,26 @@ describe('Import macierzy — zapis', () => {
     assert.equal(JSON.stringify(stan.granty), przed, 'grant bez różnic nie jest zapisywany');
   });
 
+  it('wiersz z polem ponad limit DTO → skipped z FIELD_TOO_LONG, nie 400 całości', async () => {
+    const stan = zSerwisem();
+    const id = stan.aplikacje[0]!.id;
+
+    const wynik = await stan.serwis.applyMatrixImport(
+      [
+        // Nieona nazwa — serwis waliduje długości sam, payload niezaufany.
+        { email: 'len@f.pl', firstName: 'Jan', lastName: 'K'.repeat(101), level: 'USER' },
+        { email: 'ok@f.pl', firstName: 'Ola', lastName: 'Poprawna', level: 'USER' },
+      ],
+      actor,
+      undefined,
+      id,
+    );
+
+    assert.equal(wynik.skipped, 1);
+    assert.deepEqual(wynik.skippedRows[0]!.errors, ['FIELD_TOO_LONG']);
+    assert.equal(wynik.createdGrants, 1);
+  });
+
   it('wiersz z błędnym poziomem (obejście DTO) pomijany z powodem, reszta zapisana', async () => {
     const stan = zSerwisem();
     const id = stan.aplikacje[0]!.id;
@@ -664,6 +684,24 @@ describe('Import macierzy — zapis', () => {
     assert.equal(wynik.skipped, 1);
     assert.deepEqual(wynik.skippedRows[0]!.errors, ['APP_MISMATCH']);
     assert.equal(stan.granty.length, 0);
+  });
+
+  it('tryb pojedynczy: nazwa aplikacji w innej wielkości liter jest CITEX-match — nie APP_MISMATCH', async () => {
+    const stan = zSerwisem([aplikacja(), aplikacja({ name: 'Wiki' })]);
+    const id = stan.aplikacje[0]!.id;
+    osobaWBazie(stan, 'jan@f.pl');
+
+    const wynik = await stan.serwis.applyMatrixImport(
+      // Kontekstem jest aplikacja o `id` („System kadrowy"); Excel po drodze
+      // poprawił wielkość liter — citext w bazie toleruje, kontrola kolumny też.
+      [{ email: 'jan@f.pl', firstName: 'Jan', lastName: 'Kowalski', level: 'USER', applicationName: 'SYSTEM KADROWY' }],
+      actor,
+      undefined,
+      id,
+    );
+
+    assert.equal(wynik.skipped, 0);
+    assert.equal(wynik.createdGrants, 1);
   });
 
   it('pusty payload → 400, a nie „import 0 wierszy"', async () => {
