@@ -13,6 +13,7 @@ import { Table, Tbody, Td, Th, Thead } from '../components/ui/Table';
 import { IconDownload, IconPlus } from '../components/ui/icons';
 import { formatDate } from '../lib/format';
 import { ImportPersonsModal } from '../components/access/ImportPersonsModal';
+import { ImportMatrixModal } from '../components/access/ImportMatrixModal';
 import { NewPersonModal } from '../components/access/NewPersonModal';
 import {
   ACCESS_LEVEL_LABELS,
@@ -210,6 +211,10 @@ function PersonsTab() {
  */
 function MatrixTab() {
   const [filters, setFilters] = useState<AccessMatrixFilters>({});
+  // Import macierzy: okrężny z eksportem — plik raportu wraca do ewidencji.
+  const [importMacierzy, setImportMacierzy] = useState(false);
+  const { can } = useAuth();
+  const edytowac = can('access:write');
   const { data, isLoading, error } = useAccessMatrix(filters);
   // Słownik aplikacji z dedykowanego endpointu: stronicowany rejestr ma
   // `@Max(200)` na limicie, a select prosił o 500 — bierze 400 i zostaje
@@ -259,6 +264,17 @@ function MatrixTab() {
           ))}
         </Select>
         <EksportRaportuButton />
+        {/* Import obok eksportu: eksport wręcza się właścicielowi, import
+            zwraca jego poprawki z powrotem do ewidencji. */}
+        {edytowac && (
+          <Button onClick={() => setImportMacierzy(true)}>
+            <IconDownload className="size-4" />
+            Importuj macierz
+          </Button>
+        )}
+        {edytowac && importMacierzy && (
+          <ImportMatrixModal onClose={() => setImportMacierzy(false)} />
+        )}
       </div>
 
       <ErrorMessage error={error} className="mb-3" />

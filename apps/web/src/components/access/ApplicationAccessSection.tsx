@@ -17,6 +17,7 @@ import { Table, Tbody, Td, Th, Thead } from '../ui/Table';
 import { IconDownload, IconPlus, IconShield, IconTrash } from '../ui/icons';
 import { ACCESS_LEVEL_LABELS, type AccessLevel } from '../../types';
 import { PersonAccessModal } from './PersonAccessModal';
+import { ImportMatrixModal } from './ImportMatrixModal';
 
 const POZIOMY: AccessLevel[] = ['OWNER', 'ADMIN', 'USER', 'READ_ONLY'];
 
@@ -42,6 +43,9 @@ export function ApplicationAccessSection({
   const { can } = useAuth();
   const { data, isLoading, error } = useApplicationAccess(applicationId);
   const [dodawanie, setDodawanie] = useState(false);
+  // Import macierzy tej aplikacji: poprawki właściciela z eksportu karty
+  // wracają do ewidencji w tej samej aplikacji, której dotyczyły.
+  const [importMacierzy, setImportMacierzy] = useState(false);
   const canWrite = can('access:write');
 
   const grants = data?.grants ?? [];
@@ -58,6 +62,17 @@ export function ApplicationAccessSection({
           nazwaAplikacji={nazwaAplikacji}
           className="ml-auto"
         />
+        {canWrite && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setImportMacierzy(true)}
+            title="Okrężny import: plik raportu tej aplikacji po poprawkach wraca do ewidencji"
+          >
+            <IconDownload className="size-4" />
+            Importuj macierz
+          </Button>
+        )}
         {canWrite && (
           <Button size="sm" variant="secondary" onClick={() => setDodawanie(true)}>
             <IconPlus className="size-4" />
@@ -121,6 +136,14 @@ export function ApplicationAccessSection({
           systemem, a rejestr pokazuje, komu go nadano.
         </p>
       </div>
+
+      {importMacierzy && (
+        <ImportMatrixModal
+          onClose={() => setImportMacierzy(false)}
+          applicationId={applicationId}
+          nazwaAplikacji={nazwaAplikacji}
+        />
+      )}
 
       {dodawanie && (
         <PersonAccessModal applicationId={applicationId} onClose={() => setDodawanie(false)} />

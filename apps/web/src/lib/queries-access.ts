@@ -11,6 +11,8 @@ import {
   type AccessMatrixRow,
   type ApplicationGrant,
   type HeaderMapping,
+  type MatrixImportPreview,
+  type MatrixImportResult,
   type Person,
   type PersonFilters,
   type PersonsCount,
@@ -174,6 +176,24 @@ export function useApplyPersonsImport() {
   return useMutation({
     mutationFn: (rows: Record<string, unknown>[]) =>
       api.post<PersonsImportResult>('/access/import/apply', { rows }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** Podgląd importu macierzy — plik w formacie eksportu, nic nie zapisuje. */
+export function useMatrixImportPreview() {
+  return useMutation({
+    mutationFn: (body: { csv: string; applicationId?: string }) =>
+      api.post<MatrixImportPreview>('/access/import/matrix/preview', body),
+  });
+}
+
+/** Zapis importu macierzy (upsert grantów) — odświeża macierz po sukcesie. */
+export function useMatrixImportApply() {
+  const invalidate = useAccessInvalidate();
+  return useMutation({
+    mutationFn: (body: { rows: Record<string, unknown>[]; applicationId?: string }) =>
+      api.post<MatrixImportResult>('/access/import/matrix/apply', body),
     onSuccess: () => invalidate(),
   });
 }

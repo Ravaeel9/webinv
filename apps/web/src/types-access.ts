@@ -126,3 +126,61 @@ export interface PersonsImportResult {
   result: { created: number; updated: number; skipped: number };
 }
 
+// ─── Import macierzy uprawnień (okrężny z eksportem) ────────────
+export type MatrixImportRowStatus = 'NEW' | 'NEW_PERSON' | 'UPDATE' | 'UNCHANGED' | 'ERROR';
+
+/** Jedna różnica wiersza `UPDATE` — „od → do" dla pola grantu. */
+export interface MatrixImportDiff {
+  pole: string;
+  od: string;
+  do: string;
+}
+
+/** Wiersz podglądu importu macierzy — rozszerzenie danych z pliku o status. */
+export interface MatrixImportPreviewRow {
+  line: number;
+  aplikacja: string | null;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  position: string | null;
+  department: string | null;
+  level: string;
+  expiresOn: string | null;
+  note: string | null;
+  status: MatrixImportRowStatus;
+  diff: MatrixImportDiff[];
+  errors: string[];
+}
+
+export interface MatrixImportPreview {
+  rows: MatrixImportPreviewRow[];
+  aplikacje: Array<{ id: string; nazwa: string; wiersze: number }>;
+  summary: {
+    total: number;
+    new: number;
+    newPerson: number;
+    update: number;
+    unchanged: number;
+    invalid: number;
+  };
+}
+
+/** Pominięty wiersz zapisu — administrator ma widzieć, co i dlaczego nie weszło. */
+export interface MatrixImportSkippedRow {
+  email: string;
+  aplikacja: string | null;
+  errors: string[];
+}
+
+export interface MatrixImportResult {
+  result: {
+    createdGrants: number;
+    updatedGrants: number;
+    createdPersons: number;
+    unchanged: number;
+    skipped: number;
+    skippedRows: MatrixImportSkippedRow[];
+  };
+}
+
