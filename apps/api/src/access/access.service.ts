@@ -28,7 +28,20 @@ import {
   parsePersonsCsv,
   type HeaderMapping,
 } from './csv';
-import { parseMatrixCsv, type ParsedMatrixRow } from './matrix-csv';
+import { parseMatrixCsv, MAX_MATRIX_ROWS, type ParsedMatrixRow } from './matrix-csv';
+import { ACCESS_LEVELS } from './dto/access.dto';
+
+/**
+ * Kształt adresu e-mail — jedno źródło prawdy dla `walidujEmail` (ręczne
+ * zapisy, import osób) i rozstrzygania wiersza macierzy (kod wierszowy
+ * `INVALID_EMAIL`). Prosty, nie pełny parser RFC: kolumna `email` jest
+ * `@db.Citext` z unikalnością, więc wadliwy adres i tak nie zapisze się
+ * dwukrotnie.
+ */
+const EMAIL_WZOR = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Poziomy akceptowane przy zapisie importu macierzy — te same co w DTO. */
+const POZIOMY_ZAPISU: readonly string[] = ACCESS_LEVELS;
 
 /**
  * Katalog osób i macierz uprawnień do aplikacji.
@@ -911,6 +924,17 @@ export class AccessService {
   }> {
     const errors = [...wiersz.errors];
 
+    // Kształt e-maila: pełna walidacja modułu (`walidujEmail` — spacje,
+    // kształt, długość), ale tłumaczona na kod wiersza, żeby podgląd pokazał
+    // popełniony błąd zamiast nieobjaśnionego odrzucenia.
+    if (wiersz.email !== '') {
+      try {
+        this.walidujEmail(wiersz.email);
+      } catch {
+        errors.push('INVALID_EMAIL');
+      }
+    }
+
     let aplikacja: ApplicationRefRow | null = null;
     if (kontekst) {
       // Tryb pojedynczy: aplikacja z requestu; kolumna „Aplikacja" jest
@@ -1007,6 +1031,176 @@ export class AccessService {
     if (r.errors.length > 0) return 'ERROR';
     if (r.grant) return r.diff.length > 0 ? 'UPDATE' : 'UNCHANGED';
     return r.osoba ? 'NEW' : 'NEW_PERSON';
+  }
+
+  /**
+   * Zapis importu macierzy: upsert grantów.
+   *
+   * Podgląd i zapis rozdziela przerwa w pracy — payload z przeglądarki jest
+   * niezaufany, więc **każdy wiersz jest walidowany od nowa** tymi samymi
+   * regułami. Wiersz, którego nie da się zapisać, jest pomijany i zliczany
+   * (z powodem, który administrator widzi w wyniku); pozostałe przechodzą.
+   *
+   * `grantedOn` ustawia baza (default) — kolumna „Nadane" z pliku jest
+   * ignorowana, dokładnie jak przy ręcznym nadawaniu.
+   */
+  async applyMatrixImport(
+    rows: MatrixApplyRowInput[],
+    actor: AuthUser,
+    ip?: string,
+    applicationId?: string,
+  ): Promise<MatrixImportResult> {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException('Import nie zawiera żadnego wiersza.');
+    }
+    if (rows.length > MAX_MATRIX_ROWS) {
+      throw new BadRequestException(`Import przekracza limit ${MAX_MATRIX_ROWS} wierszy.`);
+    }
+    const kontekst = applicationId
+      ? await this.requireApplicationWithMatrix(applicationId)
+      : null;
+
+    let createdGrants = 0;
+    let updatedGrants = 0;
+    let createdPersons = 0;
+    let unchanged = 0;
+    const skippedRows: MatrixImportResult['skippedRows'] = [];
+
+    // Duplikaty w payloadzie: podgląd je wykrywa, ale między podglądem
+    // a zapisem payload może przyjść z innego klienta — bez tego drugi
+    // wiersz nadpisywałby pierwszy po cichu.
+    const widziane = new Set<string>();
+
+    for (const wejscie of rows) {
+      const wiersz = this.zbudujWierszMacierzy(wejscie);
+      if (wiersz.email !== '') {
+        const klucz = `${wiersz.aplikacja ?? kontekst?.name ?? ''}\u0000${wiersz.email.toLowerCase()}`;
+        if (widziane.has(klucz)) wiersz.errors.push('DUPLICATE_IN_FILE');
+        else widziane.add(klucz);
+      }
+
+      const rozstrzygniety = await this.rozstrzygnijWierszMacierzy(wiersz, kontekst);
+
+      if (rozstrzygniety.errors.length > 0) {
+        skippedRows.push({
+          email: wiersz.email,
+          aplikacja: rozstrzygniety.aplikacja?.name ?? wiersz.aplikacja,
+          errors: rozstrzygniety.errors,
+        });
+        continue;
+      }
+
+      const { aplikacja: ap, grant, diff } = rozstrzygniety;
+      const aplikacjaDocelowa = ap!;
+      let osobaZap = rozstrzygniety.osoba;
+
+      if (!osobaZap) {
+        try {
+          osobaZap = await this.prisma.person.create({
+            data: this.walidujOsobe({
+              firstName: wiersz.firstName!,
+              lastName: wiersz.lastName!,
+              email: wiersz.email,
+              position: wejscie.position,
+              department: wejscie.department,
+            }),
+          });
+        } catch {
+          // Śmieciowy wiersz nie zostawia osoby „w trakcie" i nie wywraca importu.
+          skippedRows.push({
+            email: wiersz.email,
+            aplikacja: aplikacjaDocelowa.name,
+            errors: ['MISSING_NAME'],
+          });
+          continue;
+        }
+        createdPersons++;
+      }
+
+      const expiresOn = wiersz.expiresOn ? new Date(wiersz.expiresOn) : null;
+
+      // Wiersze z poziomem spoza `POZIOMY_ZAPISU` mają błąd `INVALID_LEVEL`
+      // i są pominięte przed tym miejscem, więc rzut jest bezpieczny.
+      const poziom = wiersz.level as AccessLevelName;
+
+      if (!grant) {
+        await this.prisma.applicationAccess.create({
+          data: {
+            applicationId: aplikacjaDocelowa.id,
+            personId: osobaZap.id,
+            level: poziom,
+            expiresOn,
+            note: wiersz.note,
+          },
+        });
+        createdGrants++;
+      } else if (diff.length > 0) {
+        await this.prisma.applicationAccess.update({
+          where: { applicationId_personId: { applicationId: aplikacjaDocelowa.id, personId: osobaZap.id } },
+          data: { level: poziom, expiresOn, note: wiersz.note },
+        });
+        updatedGrants++;
+      } else {
+        unchanged++;
+      }
+    }
+
+    const skipped = skippedRows.length;
+
+    // Jeden wpis z liczbami — import tysiąca wierszy nie może zasypać
+    // dziennika tysiącem wpisów (wzorzec `person.imported`).
+    await this.audit.record({
+      action: 'access.imported',
+      entity: 'ApplicationAccess',
+      entityId: null,
+      actorId: actor.id,
+      actorName: actor.username,
+      changes: {
+        createdGrants: { from: null, to: createdGrants },
+        updatedGrants: { from: null, to: updatedGrants },
+        createdPersons: { from: null, to: createdPersons },
+        unchanged: { from: null, to: unchanged },
+        skipped: { from: null, to: skipped },
+      },
+      ip,
+    });
+
+    return { createdGrants, updatedGrants, createdPersons, unchanged, skipped, skippedRows };
+  }
+
+  /**
+   * Walidacja wiersza z payloadu i przepięcie na kształt wspólny
+   * z parserem — zapis nie ufa polom „po walidacji" z przeglądarki,
+   * więc każdy wiersz przechodzi tę samą drogę co wiersz z pliku.
+   */
+  private zbudujWierszMacierzy(wejscie: MatrixApplyRowInput): WierszMacierzyWejscie {
+    const errors: string[] = [];
+
+    const email = (wejscie.email ?? '').trim();
+    if (email === '') errors.push('MISSING_EMAIL');
+
+    // Poziom spoza listy jest błędem wiersza, a nie błędem requestu —
+    // DTO (class-validator) go łapie, ale serwis nie ufa payloadowi.
+    if (!POZIOMY_ZAPISU.includes(wejscie.level ?? '')) errors.push('INVALID_LEVEL');
+
+    const wygasa = wejscie.expiresOn?.trim() ?? '';
+    if (wygasa !== '' && !(/^\d{4}-\d{2}-\d{2}$/.test(wygasa) && !Number.isNaN(new Date(wygasa).getTime()))) {
+      errors.push('INVALID_DATE');
+    }
+
+    const notatka = wejscie.note?.trim() || null;
+    if (notatka !== null && notatka.length > 2000) errors.push('NOTE_TOO_LONG');
+
+    return {
+      aplikacja: wejscie.applicationName?.trim() || null,
+      email,
+      firstName: wejscie.firstName?.trim() || null,
+      lastName: wejscie.lastName?.trim() || null,
+      level: wejscie.level,
+      expiresOn: wygasa === '' ? null : wygasa,
+      note: notatka,
+      errors,
+    };
   }
 
   /** Aplikacja musi istnieć i nie być oznaczona jako usunięta. */
@@ -1130,7 +1324,7 @@ export class AccessService {
     }
     // Prosty kształt, a nie pełny parser: kolumna `email` jest `@db.Citext`
     // z unikalnością, więc wadliwy adres i tak nie zapisze się dwukrotnie.
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wartosc)) {
+    if (!EMAIL_WZOR.test(wartosc)) {
       throw new BadRequestException(`„${wartosc}" nie wygląda na adres e-mail.`);
     }
     if (wartosc.length > 200) {
@@ -1215,6 +1409,33 @@ export type MatrixImportPreview = {
     unchanged: number;
     invalid: number;
   };
+};
+
+/**
+ * Wiersz zapisu importu macierzy — dane **niezaufane** z przeglądarki.
+ * Serwis waliduje każdy wiersz od nowa (powyższe reguły), bez pola `errors`
+ * z podglądu — tak jak import osób.
+ */
+export type MatrixApplyRowInput = {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  position?: string;
+  department?: string;
+  level: string;
+  expiresOn?: string;
+  note?: string;
+  applicationName?: string;
+};
+
+/** Wynik zapisu importu macierzy — liczniki i lista pominiętych wierszy. */
+export type MatrixImportResult = {
+  createdGrants: number;
+  updatedGrants: number;
+  createdPersons: number;
+  unchanged: number;
+  skipped: number;
+  skippedRows: Array<{ email: string; aplikacja: string | null; errors: string[] }>;
 };
 
 // ─── Raport macierzy uprawnień (eksport CSV) ──────────────────
