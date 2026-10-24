@@ -156,6 +156,9 @@ ufa payloadowi z przeglądarki (rewalidacja każdego wiersza) i tworzy
 **wyłącznie nowe** rekordy. Klient GLPI (`glpi-client.ts`) jest czystą
 warstwą bez NestJS — testowalną bez bazy i bez kontenera — a serwis do bazy
 podchodzi przez port `GlpiPort`, na wzór `AccessPort`/`IpamPort`.
+Aplikacje utworzone z grup GLPI dostają od razu `accessRequestRequired: true`
+(„Wniosek o dostęp: tak”) — grupa dostępu w GLPI oznacza dostęp wymagający
+formalnego wniosku; sekcja oprogramowania zostaje przy domyślnym `false`.
 
 ### Katalog IPAM obok rejestru
 

@@ -353,6 +353,12 @@ describe('Import GLPI — zapis', () => {
     assert.equal(db.aplikacje.length, 1);
     assert.equal(db.aplikacje[0]!.name, 'Menedżer haseł');
     assert.equal(db.aplikacje[0]!.deliveryType, 'SAAS');
+    // Oprogramowanie to nie grupy — domyślnie bez wniosku o dostęp.
+    assert.equal(
+      db.aplikacje[0]!.accessRequestRequired,
+      false,
+      'import oprogramowania nie włącza wniosku o dostęp',
+    );
   });
 
   it('wiersz oprogramowania bez typu dostarczenia trafia do rejestru jako GENERAL_USE', async () => {

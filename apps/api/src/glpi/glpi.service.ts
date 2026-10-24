@@ -829,6 +829,12 @@ export class GlpiService {
             version: '',
             description: null,
             deliveryType: this.typDostarczenia(wiersz.deliveryType),
+            // Szkic aplikacji utworzony z grupy GLPI od razu ma „Wniosek
+            // o dostęp: tak" — import grup oznacza, że dostęp wymaga
+            // formalnego wniosku, a administrator może to odznaczyć
+            // w szczegółach aplikacji (sekcja oprogramowania zostaje
+            // przy domyślnym „nie").
+            accessRequestRequired: true,
             createdById: actor.id,
           },
         });
@@ -877,6 +883,9 @@ export class GlpiService {
               // przychodzi z wiersza pary (wybór w modalu); wartość
               // spoza enumu wraca do GENERAL_USE.
               deliveryType: this.typDostarczenia(wiersz.deliveryType),
+              // Zasada jak przy wierszach `applications`: nazwa pary to
+              // nazwa grupy GLPI, więc wniosek o dostęp włączamy od razu.
+              accessRequestRequired: true,
               createdById: actor.id,
             },
           });

@@ -39,6 +39,7 @@ enum SecurityClass {
 // ─── Status wdrożenia ─────────────────────────────────────────
 enum AppStatus {
   PROD // używana produkcyjnie
+  IN_USE // używana wewnątrz organizacji
   TEST // w testach
   DEV // w środowisku deweloperskim
   PLANNED // zaplanowana, jeszcze nie wdrożona

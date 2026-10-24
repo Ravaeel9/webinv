@@ -166,6 +166,10 @@ describe('Zapis — aplikacje z grup', () => {
     assert.equal(vpn.deliveryType, 'SAAS', 'typ dostarczenia z wiersza payloadu');
     const kadry = db.aplikacje.find((a) => a.name === 'Kadry')!;
     assert.equal(kadry.deliveryType, 'GENERAL_USE', 'brak typu = domyślne');
+    // Szkice z grup GLPI od razu mają „Wniosek o dostęp: tak" —
+    // niezależnie od tego, czy grupa ma członków.
+    assert.equal(vpn.accessRequestRequired, true, 'grupa z członkami = wniosek o dostęp');
+    assert.equal(kadry.accessRequestRequired, true, 'grupa bez członków = wniosek o dostęp');
     assert.equal(db.granty.length, 1);
     assert.equal(db.granty[0]!.level, 'USER');
   });
@@ -270,6 +274,8 @@ describe('Zapis — aplikacje z grup', () => {
 
     assert.equal(db.aplikacje.length, 1);
     assert.equal(db.aplikacje[0]!.deliveryType, 'SELF_HOSTED');
+    // Szkic tworzony z pary (nazwa = grupa GLPI) też dostaje wniosek o dostęp.
+    assert.equal(db.aplikacje[0]!.accessRequestRequired, true, 'szkic z pary = wniosek o dostęp');
   });
 
   it('audyt glpi.imported raportuje licznik applications', async () => {
@@ -310,6 +316,7 @@ describe('Nazwa zajęta przez usuniętą aplikację', () => {
       name: 'VPN',
       deletedAt: new Date('2026-10-01'),
       deliveryType: 'GENERAL_USE',
+      accessRequestRequired: false,
     });
     wKatalogu(db);
     return { db, serwis };

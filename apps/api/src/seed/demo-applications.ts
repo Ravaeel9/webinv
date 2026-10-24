@@ -135,7 +135,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://firefox-source-docs.mozilla.org/',
     repoUrl: 'https://github.com/mozilla-firefox/firefox',
     runbookUrl: `${'https://intranet.' + ORG}/runbook/firefox`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: '7-Zip',
@@ -155,7 +155,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     introducedOn: '2018-06-04',
     securityClass: 'INTERNAL',
     criticality: 2,
-    status: 'PROD',
+    status: 'IN_USE',
     accessRequestRequired: false,
     deliveryType: 'GENERAL_USE',
     vendor: 'Igor Pavlov',
@@ -174,7 +174,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://www.7-zip.org/documentation.html',
     repoUrl: 'https://github.com/ip7z/7zip',
     runbookUrl: `https://intranet.${ORG}/runbook/7zip`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'VLC media player',
@@ -209,7 +209,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://docs.videolan.me/vlc-user/3.0/',
     repoUrl: 'https://code.videolan.org/videolan/vlc',
     runbookUrl: `https://intranet.${ORG}/runbook/vlc`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'LibreOffice',
@@ -250,7 +250,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://help.libreoffice.org/latest/pl/',
     repoUrl: 'https://git.libreoffice.org/core',
     runbookUrl: `https://intranet.${ORG}/runbook/libreoffice`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Notepad++',
@@ -289,7 +289,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://npp-user-manual.org/',
     repoUrl: 'https://github.com/notepad-plus-plus/notepad-plus-plus',
     runbookUrl: `https://intranet.${ORG}/runbook/notepad-plus-plus`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'KeePassXC',
@@ -309,7 +309,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     introducedOn: '2021-09-07',
     securityClass: 'CONFIDENTIAL',
     criticality: 4,
-    status: 'PROD',
+    status: 'IN_USE',
     accessRequestRequired: true,
     deliveryType: 'GENERAL_USE',
     vendor: 'KeePassXC',
@@ -329,7 +329,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://keepassxc.org/docs/',
     repoUrl: 'https://github.com/keepassxreboot/keepassxc',
     runbookUrl: `https://intranet.${ORG}/runbook/keepassxc`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Mozilla Thunderbird',
@@ -367,7 +367,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://support.mozilla.org/pl/products/thunderbird',
     repoUrl: 'https://github.com/thunderbird/thunderbird-android',
     runbookUrl: `https://intranet.${ORG}/runbook/thunderbird`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Visual Studio Code',
@@ -407,7 +407,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://code.visualstudio.com/docs',
     repoUrl: 'https://github.com/microsoft/vscode',
     runbookUrl: `https://intranet.${ORG}/runbook/vscode`,
-    environments: ['Produkcja', 'Test'],
+    environments: ['Biurowe', 'Test'],
   },
   {
     name: 'DBeaver Community',
@@ -445,7 +445,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://dbeaver.io/docs/',
     repoUrl: 'https://github.com/dbeaver/dbeaver',
     runbookUrl: `https://intranet.${ORG}/runbook/dbeaver`,
-    environments: ['Produkcja', 'Preprodukcja'],
+    environments: ['Biurowe', 'Preprodukcja'],
   },
   {
     name: 'WinSCP',
@@ -463,7 +463,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     introducedOn: '2020-08-25',
     securityClass: 'CONFIDENTIAL',
     criticality: 3,
-    status: 'PROD',
+    status: 'IN_USE',
     accessRequestRequired: true,
     deliveryType: 'GENERAL_USE',
     vendor: 'Martin Prikryl',
@@ -482,7 +482,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://winscp.net/eng/docs',
     repoUrl: 'https://github.com/winscp/winscp',
     runbookUrl: `https://intranet.${ORG}/runbook/winscp`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Zoom Workplace',
@@ -521,7 +521,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://support.zoom.com/hc/en',
     repoUrl: 'https://github.com/zoom',
     runbookUrl: `https://intranet.${ORG}/runbook/zoom`,
-    environments: ['Produkcja', 'Preprodukcja'],
+    environments: ['Biurowe', 'Preprodukcja'],
   },
   {
     name: 'Microsoft Teams',
@@ -559,7 +559,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://support.microsoft.com/pl/teams',
     repoUrl: 'https://github.com/microsoft/teams-ai',
     runbookUrl: `https://intranet.${ORG}/runbook/teams`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Jira Software',
@@ -598,7 +598,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://support.atlassian.com/jira-software-cloud/',
     repoUrl: 'https://bitbucket.org/atlassian/jira-software',
     runbookUrl: `https://intranet.${ORG}/runbook/jira`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Pandoc',
@@ -616,7 +616,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     introducedOn: '2023-08-30',
     securityClass: 'PUBLIC',
     criticality: 1,
-    status: 'PROD',
+    status: 'IN_USE',
     accessRequestRequired: false,
     deliveryType: 'GENERAL_USE',
     vendor: 'John MacFarlane',
@@ -635,7 +635,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://pandoc.org/MANUAL.html',
     repoUrl: 'https://github.com/jgm/pandoc',
     runbookUrl: `https://intranet.${ORG}/runbook/pandoc`,
-    environments: ['Produkcja', 'Deweloperskie'],
+    environments: ['Biurowe', 'Deweloperskie'],
   },
   {
     name: 'OBS Studio',
@@ -754,7 +754,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://www.postgresql.org/docs/current/app-pgadmin.html',
     repoUrl: 'https://git.postgresql.org/gitweb/workbench.git',
     runbookUrl: `https://intranet.${ORG}/runbook/workbench`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Cryptomator',
@@ -834,7 +834,7 @@ export const DEMO_APPLICATIONS: DemoApplication[] = [
     docsUrl: 'https://helpx.adobe.com/acrobat/kb/acrobat-reader-kb.html',
     repoUrl: 'https://github.com/adobe/pdf.js',
     runbookUrl: `https://intranet.${ORG}/runbook/acrobat-wycofywanie`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Okular',

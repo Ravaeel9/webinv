@@ -65,8 +65,20 @@ logowaniu (najwyżej raz na godzinę).
 | `color` | `varchar(30)` | słowo kluczowe palety UI (`emerald`, `amber`, `sky`, `violet`, `slate`) |
 
 Przy pierwszym uruchomieniu `SeedService` wstawia cztery środowiska:
-Produkcja, Test, Preprodukcja, Deweloperskie (`upsert`, więc powtórny start
-nic nie duplikuje).
+Biurowe, Test, Preprodukcja, Deweloperskie (`upsert`, więc powtórny start
+nic nie duplikuje). „Biurowe" zamiast „Produkcja": w tej organizacji
+„produkcja" znaczy środowisko z danymi klientów, a aplikacje rejestrowane
+w web-inv działają wewnątrz organizacji.
+
+Baza istniejąca przed tą zmianą ma rekord `Produkcja` — seed upsertuje
+po nazwie, więc sam go nie przemianuje. Jednorazowo:
+
+```sql
+UPDATE environments SET name = 'Biurowe' WHERE name = 'Produkcja';
+```
+
+Powiązania (`application_environments`) trzymają `environment_id`, więc
+po zmianie nazwy nic nie trzeba przepinać.
 
 ### `application_environments`
 

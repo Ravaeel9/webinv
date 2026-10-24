@@ -75,7 +75,7 @@ export type AccessGrantWithRelations = AccessGrantWithPerson & {
 export type DeliveryTypeName = 'GENERAL_USE' | 'SELF_HOSTED' | 'SAAS' | 'VENDOR_MANAGED';
 
 /** Status wdrożenia aplikacji — wartości enumu `AppStatus`. */
-export type AppStatusName = 'PROD' | 'TEST' | 'DEV' | 'PLANNED' | 'DEPRECATED' | 'RETIRED';
+export type AppStatusName = 'PROD' | 'IN_USE' | 'TEST' | 'DEV' | 'PLANNED' | 'DEPRECATED' | 'RETIRED';
 
 /** Klasyfikacja bezpieczeństwa — wartości enumu `SecurityClass`. */
 export type SecurityClassName = 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';

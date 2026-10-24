@@ -29,6 +29,7 @@ export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
 
 export const STATUS_LABELS: Record<AppStatus, string> = {
   PROD: 'Produkcja',
+  IN_USE: 'W użyciu',
   TEST: 'Test',
   DEV: 'Deweloperskie',
   PLANNED: 'Zaplanowana',
@@ -109,6 +110,7 @@ export const DELIVERY_TYPE_TONES: Record<DeliveryType, Tone> = {
 
 export const STATUS_TONES: Record<AppStatus, Tone> = {
   PROD: 'ok',
+  IN_USE: 'ok',
   TEST: 'warn',
   DEV: 'info',
   PLANNED: 'neutral',

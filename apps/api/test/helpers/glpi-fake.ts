@@ -21,6 +21,7 @@ export type FakeGlpiDb = {
     name: string;
     deletedAt: Date | null;
     deliveryType: string | null;
+    accessRequestRequired: boolean;
   }>;
   granty: Array<{ applicationId: string; personId: string; level: string }>;
   /** Ten sam zapis co `audit.wpisy` — wygodniejszy dostęp w asercjach. */
@@ -74,12 +75,19 @@ export function fakeGlpiDb(): FakeGlpiDb {
         // Rzut na kształt z `data`: pole `deliveryType` dochodzi dopiero
         // wraz z wyborem typu w imporcie oprogramowania (zanim powstanie,
         // atrapa rejestruje `null` i test patrzBehawioralny widzi to).
-        const dane = args.data as { name: string; deliveryType?: string };
+        // `accessRequestRequired` przechodzimy 1:1 — test regresji
+        // „wniosek o dostęp" musi widzieć to, co serwis podał w `data`.
+        const dane = args.data as {
+          name: string;
+          deliveryType?: string;
+          accessRequestRequired?: boolean;
+        };
         const aplikacja = {
           id: randomUUID(),
           name: dane.name,
           deletedAt: null,
           deliveryType: dane.deliveryType ?? null,
+          accessRequestRequired: dane.accessRequestRequired ?? false,
         };
         aplikacje.push(aplikacja);
         return aplikacja;

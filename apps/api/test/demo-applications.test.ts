@@ -17,6 +17,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CreateApplicationDto } from '../src/applications/dto/application.dto';
 import type { Prisma } from '@prisma/client';
+import { DEFAULT_ENVIRONMENTS } from '../src/seed/seed.service';
 import {
   DEMO_APPLICATIONS,
   DEMO_DATA,
@@ -391,6 +392,22 @@ describe('Dane demonstracyjne', () => {
     assert.deepEqual(
       bez.map((r) => r.name),
       [],
+    );
+  });
+
+  it('środowiska w danych demo istnieją w zbiorze DEFAULT_ENVIRONMENTS', () => {
+    // Seed upsertuje środowiska po nazwie, a dane demo łączą się z nimi
+    // też po nazwie — nazwa poza `DEFAULT_ENVIRONMENTS` oznacza grant na
+    // środowisko, które nigdy nie powstanie (obie sekcje muszą iść razem).
+    const domyslne = new Set(DEFAULT_ENVIRONMENTS.map((e) => e.name));
+    const użyte = [
+      ...DEMO_APPLICATIONS.flatMap((r) => r.environments ?? []),
+      ...DEMO_SERVICES.flatMap((r) => r.environments ?? []),
+    ];
+    assert.deepEqual(
+      [...new Set(użyte)].filter((n) => !domyslne.has(n)),
+      [],
+      'każda nazwa środowiska w danych demo musi istnieć w DEFAULT_ENVIRONMENTS',
     );
   });
 

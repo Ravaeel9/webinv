@@ -11,9 +11,20 @@ import { SettingsService } from '../settings/settings.service';
 
 type AppCfg = ConfigType<typeof appConfig>;
 
-/** Domyślne środowiska — powstają przy pierwszym uruchomieniu. */
-const DEFAULT_ENVIRONMENTS = [
-  { name: 'Produkcja', sortOrder: 1, color: 'emerald' },
+/**
+ * Domyślne środowiska — powstają przy pierwszym uruchomieniu.
+ * Eksport na potrzeby testu spójności danych demo (nazwy używane
+ * przez aplikacje demonstracyjne muszą istnieć w tym zbiorze).
+ *
+ * „Biurowe", nie „Produkcja": w tej organizacji „produkcja" znaczy
+ * środowisko z danymi klientów, a rejestrowane tu aplikacje działają
+ * wewnątrz organizacji. Istniejącą bazę przemianowuje jednorazowe
+ * polecenie SQL z `docs/BAZA-DANYCH.md` — seed upsertuje po nazwie,
+ * więc ciche zmienianie rekordów użytkownika przy każdym starcie
+ * kontenera byłoby nadpisywaniem jego decyzji.
+ */
+export const DEFAULT_ENVIRONMENTS = [
+  { name: 'Biurowe', sortOrder: 1, color: 'emerald' },
   { name: 'Test', sortOrder: 2, color: 'amber' },
   { name: 'Preprodukcja', sortOrder: 3, color: 'sky' },
   { name: 'Deweloperskie', sortOrder: 4, color: 'violet' },

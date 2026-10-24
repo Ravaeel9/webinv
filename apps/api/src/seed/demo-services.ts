@@ -76,7 +76,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://support.google.com/a/answer/3331065',
     repoUrl: '',
     runbookUrl: `https://intranet.${ORG}/runbook/google-workspace`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Atlassian Confluence',
@@ -120,7 +120,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://support.atlassian.com/confluence-cloud/',
     repoUrl: '',
     runbookUrl: `https://intranet.${ORG}/runbook/confluence`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'DocuSign',
@@ -164,7 +164,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://support.docusign.com/',
     repoUrl: '',
     runbookUrl: `https://intranet.${ORG}/runbook/docusign`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Calendly',
@@ -207,7 +207,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://help.calendly.com/',
     repoUrl: '',
     runbookUrl: `https://intranet.${ORG}/runbook/calendly`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: '1Password Business',
@@ -254,7 +254,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://support.1password.com/',
     repoUrl: '',
     runbookUrl: `https://intranet.${ORG}/runbook/1password`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Nextcloud',
@@ -301,7 +301,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://docs.nextcloud.com/server/latest/admin_manual/',
     repoUrl: 'https://github.com/nextcloud/server',
     runbookUrl: `https://intranet.${ORG}/runbook/nextcloud`,
-    environments: ['Produkcja', 'Preprodukcja'],
+    environments: ['Biurowe', 'Preprodukcja'],
   },
   {
     name: 'Grafana',
@@ -345,7 +345,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://grafana.com/docs/grafana/latest/',
     repoUrl: 'https://github.com/grafana/grafana',
     runbookUrl: `https://intranet.${ORG}/runbook/grafana`,
-    environments: ['Produkcja', 'Test'],
+    environments: ['Biurowe', 'Test'],
   },
   {
     name: 'Keycloak',
@@ -390,7 +390,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://www.keycloak.org/documentation/',
     repoUrl: 'https://github.com/keycloak/keycloak',
     runbookUrl: `https://intranet.${ORG}/runbook/keycloak`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Mattermost',
@@ -434,7 +434,7 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://docs.mattermost.com/',
     repoUrl: 'https://github.com/mattermost/mattermost',
     runbookUrl: `https://intranet.${ORG}/runbook/mattermost`,
-    environments: ['Produkcja'],
+    environments: ['Biurowe'],
   },
   {
     name: 'Forgejo',
@@ -478,6 +478,6 @@ export const DEMO_SERVICES: DemoService[] = [
     docsUrl: 'https://forgejo.org/docs/',
     repoUrl: 'https://codeberg.org/forgejo/forgejo',
     runbookUrl: `https://intranet.${ORG}/runbook/forgejo`,
-    environments: ['Produkcja', 'Deweloperskie'],
+    environments: ['Biurowe', 'Deweloperskie'],
   },
 ];
