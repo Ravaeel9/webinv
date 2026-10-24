@@ -77,8 +77,7 @@ function poleOrderBy(orderBy: unknown): [string, 'asc' | 'desc'] {
     throw new Error(
       `atrapa: orderBy="${orderBy}" — Prisma przyjmuje obiekt, np. { ${orderBy}: 'asc' }`,
     );
-  }
-  // Tablica obiektów to poprawna postać w Prisma (`[{ a: 'asc' }, { b: 'asc' }]`);
+  }  // Tablica obiektów to poprawna postać w Prisma (`[{ a: 'asc' }, { b: 'asc' }]`);
   // bierzemy pierwszy klucz, bo atrapa sortuje jednym polem.
   if (Array.isArray(orderBy)) {
     if (orderBy.length === 0) throw new Error('atrapa: pusta tablica orderBy');
@@ -94,6 +93,45 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
   const osoby: PersonRow[] = [];
   const granty: ApplicationAccessRow[] = [];
   const aplikacjeMap = new Map(aplikacje.map((a) => [a.id, a]));
+
+  /**
+   * Sortowanie grantów wg `orderBy` macierzy (`application.name`, potem
+   * `person.lastName`). Bez tego raport nie mógłby sprawdzić kolejności
+   * wierszy: prawdziwa baza sortuje przy odczycie, więc atrapa musi odwzorować
+   * ten sam skutek — inaczej test kolejności przechodziłby przypadkowo
+   * w kolejności wstawiania.
+   */
+  function posortujGranty(wiersze: AccessGrantWithPerson[], orderBy: unknown): void {
+    if (typeof orderBy === 'string') {
+      throw new Error('atrapa: granty — orderBy musi być obiektem, nie napisem');
+    }
+    const warunki = Array.isArray(orderBy) ? orderBy : [orderBy];
+    const sciezki = warunki
+      .map((o) => {
+        const zewnetrzny = Object.keys(o ?? {})[0];
+        const wewnetrzny = Object.keys((o as Record<string, unknown>)?.[zewnetrzny!] ?? {})[0];
+        return [zewnetrzny!, wewnetrzny!] as const;
+      })
+      .filter(([, wewnetrzny]) => Boolean(wewnetrzny));
+    wiersze.sort((a, b) => {
+      for (const [relacja, pole] of sciezki) {
+        const odczyt = (g: AccessGrantWithPerson): string => {
+          if (relacja === 'person') return String(g.person?.[pole as keyof PersonRow] ?? '');
+          if (relacja === 'application') {
+            // Sortowanie dzieje się przed dołączeniem relacji aplikacji, więc
+            // nazwa czytana wprost z mapy aplikacji — jak robi to baza.
+            return String(
+              aplikacjeMap.get(g.applicationId)?.[pole as keyof ApplicationRefRow] ?? '',
+            );
+          }
+          return '';
+        };
+        const porownanie = odczyt(a).localeCompare(odczyt(b));
+        if (porownanie !== 0) return porownanie;
+      }
+      return 0;
+    });
+  }
 
   /**
    * Licznik w takim kształcie, w jakim zwraca go Prisma przy
@@ -202,6 +240,7 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
           ...g,
           person: osoby.find((p) => p.id === g.personId)!,
         })) as AccessGrantWithPerson[];
+        if (args?.orderBy) posortujGranty(zOsoba, args.orderBy);
         if (args?.include?.person === false) {
           return zOsoba.map(({ person: _p, ...reszta }) => reszta);
         }
@@ -266,7 +305,21 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
       findUnique: async (args: any) => {
         const aplikacja = aplikacjeMap.get(args?.where?.id);
         if (!aplikacja) return null;
-        return { ...aplikacja, deletedAt: args?.where?.deletedAt === null ? null : null };
+        // Kopiujemy wiersz, żeby test nie mutował stanu atrapy przez referencję.
+        // (Poprzednia wersja nadpisywała `deletedAt` na `null` — eksport musiałby
+        // przeoczyć aplikację usuniętą, więc atrapa pokazuje faktyczny rekord.)
+        return { ...aplikacja };
+      },
+      findMany: async (args: any = {}) => {
+        const where = args?.where ?? {};
+        let wynik = [...aplikacjeMap.values()];
+        if (where.deletedAt === null) {
+          wynik = wynik.filter((a) => a.deletedAt === null);
+        }
+        if (where.deliveryType?.not !== undefined) {
+          wynik = wynik.filter((a) => a.deliveryType !== where.deliveryType.not);
+        }
+        return wynik.map((a) => ({ ...a }));
       },
     },
   } as unknown as AccessPort;

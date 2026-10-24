@@ -15,6 +15,7 @@ import {
   type AccessLevelName,
   type AccessPort,
   type ApplicationAccessRow,
+  type ApplicationRefRow,
   type GrantWhere,
   type PersonOrderBy,
   type PersonRow,
@@ -554,8 +555,7 @@ export class AccessService {
       ? granty.filter((g) => g.person.department === filters.department)
       : granty;
 
-    return przefiltrowane.map((g) => ({
-      application: { id: g.application.id, name: g.application.name },
+    return przefiltrowane.map((g) => ({      application: { id: g.application.id, name: g.application.name },
       person: {
         id: g.person.id,
         firstName: g.person.firstName,
@@ -573,6 +573,96 @@ export class AccessService {
       expiresOn: g.expiresOn ? this.data(g.expiresOn) : null,
       note: g.note,
     }));
+  }
+
+  // ─── Raport macierzy (eksport CSV) ──────────────────────────
+
+  /**
+   * Eksport raportu macierzy — pełny albo jednej aplikacji.
+   *
+   * Raport jest dowodem półrocznego przeglądu, więc pokazuje stan całej
+   * ewidencji: każdą aplikację z macierzą (także bez grantów — wiersz
+   * `(brak pozycji)`), z datą wygenerowania w pierwszej linii. Filtry
+   * katalogu tu nie działają — przegląd obejmuje wszystko albo jedną
+   * aplikację, do wręczenia jej właścicielowi.
+   *
+   * Aplikacja usunięta nie wchodzi do raportu: przegląd dotyczy żywego
+   * rejestru, a granty usuniętej aplikacji nie mogą wypaść bez nagłówka
+   * aplikacji. GENERAL_USE nie ma macierzy — pomijane razem z filtrami
+   * `matrix()`.
+   */
+  async exportMatrixCsv(
+    applicationId?: string,
+  ): Promise<{ csv: string; nazwaPliku: string }> {
+    const dzisiaj = new Date().toISOString().slice(0, 10);
+
+    let aplikacjeBaza: ApplicationRefRow[];
+    if (applicationId) {
+      const jedna = await this.prisma.application.findUnique({
+        where: { id: applicationId },
+      });
+      if (!jedna || jedna.deletedAt) {
+        throw new NotFoundException('Aplikacja nie istnieje.');
+      }
+      if (jedna.deliveryType === 'GENERAL_USE') {
+        throw new NotFoundException('Aplikacja ogólnego użytku nie ma macierzy uprawnień.');
+      }
+      aplikacjeBaza = [jedna];
+    } else {
+      aplikacjeBaza = await this.prisma.application.findMany({
+        where: { deletedAt: null, deliveryType: { not: 'GENERAL_USE' } },
+      });
+      // Sortowanie w serwisie: lista aplikacji do raportu jest jednorazowa,
+      // a `localeCompare('pl')` daje kolejność, której spodziewa się człowiek.
+      aplikacjeBaza.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+    }
+
+    const granty = await this.matrix(applicationId ? { applicationId } : {});
+    // Granty aplikacji, których nie ma na liście (usunięte), odsiewamy tu —
+    // ich aplikacja nie dostanie wiersza, więc grant nie może im towarzyszyć.
+    const identyfikatory = new Set(aplikacjeBaza.map((a) => a.id));
+
+    const wlasciciele = new Map<string, string>();
+    const identyfikatoryWlascicieli = [
+      ...new Set(
+        aplikacjeBaza.map((a) => a.ownerId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    for (const id of identyfikatoryWlascicieli) {
+      const osoba = await this.prisma.person.findUnique({ where: { id } });
+      if (osoba) wlasciciele.set(id, `${osoba.firstName} ${osoba.lastName}`);
+    }
+
+    const raportAplikacje: RaportAplikacja[] = aplikacjeBaza.map((a) => ({
+      id: a.id,
+      nazwa: a.name,
+      status: a.status ?? '',
+      klasyfikacja: a.securityClass ?? '',
+      krytycznosc: a.criticality ?? 0,
+      typDostarczania: a.deliveryType ?? '',
+      wlasciciel: a.ownerId ? (wlasciciele.get(a.ownerId) ?? '') : '',
+    }));
+
+    const raportGranty: RaportGrantu[] = granty
+      .filter((g) => identyfikatory.has(g.application.id))
+      .map((g) => ({
+        aplikacjaId: g.application.id,
+        osoba: `${g.person.firstName} ${g.person.lastName}`,
+        email: g.person.email,
+        departament: g.person.department,
+        stanowisko: g.person.position,
+        poziom: g.level,
+        nadane: g.grantedOn,
+        wygasa: g.expiresOn,
+        notatka: g.note,
+      }));
+
+    return {
+      csv: budujRaportCsv(raportAplikacje, raportGranty, dzisiaj),
+      nazwaPliku: applicationId
+        ? `raport-uprawnien-${slugNazwy(aplikacjeBaza[0]!.name)}-${dzisiaj}.csv`
+        : `macierz-uprawnien-${dzisiaj}.csv`,
+    };
   }
 
   // ─── Import osób z CSV ──────────────────────────────────────
@@ -919,6 +1009,36 @@ export type RaportGrantu = {
   wygasa: string | null;
   notatka: string | null;
 };
+
+/** Mapowanie polskich liter przed NFD — `ł` nie rozwija się do postaci bazowej. */
+const POLSKIE_LITERY: Record<string, string> = {
+  ą: 'a',
+  ć: 'c',
+  ę: 'e',
+  ł: 'l',
+  ń: 'n',
+  ó: 'o',
+  ś: 's',
+  ź: 'z',
+  ż: 'z',
+};
+
+/**
+ * Slug nazwy aplikacji do nazwy pliku: `Żółw 3D` → `zolw-3d`.
+ * Po polskich literach i odcięciu znaków diakrytycznych (NFD) zostają
+ * litery, cyfry i myślniki; pusty wynik (nazwa ze samych symboli) → `aplikacja`.
+ */
+function slugNazwy(nazwa: string): string {
+  return (
+    nazwa
+      .toLowerCase()
+      .replace(/[ąćęłńóśźż]/g, (znak) => POLSKIE_LITERY[znak]!)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'aplikacja'
+  );
+}
 
 const NAGLOWEK_RAPORTU = [
   'Aplikacja',

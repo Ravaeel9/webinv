@@ -299,8 +299,10 @@ describe('AccessService — macierz uprawnień', () => {
 
     const wszystko = await serwis.matrix({});
     assert.equal(wszystko.length, 2);
-    assert.equal(wszystko[0]!.application.name, aplikacja.name);
-    assert.equal(wszystko[0]!.person.department, 'IT');
+    // `matrix()` sortuje po nazwie aplikacji, a nie po kolejności nadawania —
+    // 'Portal klienta' przed 'System kadrowy'.
+    assert.equal(wszystko[0]!.application.name, druga.name);
+    assert.equal(wszystko[0]!.person.department, 'Księgowość');
 
     const dlaIT = await serwis.matrix({ department: 'IT' });
     assert.equal(dlaIT.length, 1);

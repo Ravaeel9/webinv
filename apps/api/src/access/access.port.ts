@@ -74,12 +74,29 @@ export type AccessGrantWithRelations = AccessGrantWithPerson & {
 
 export type DeliveryTypeName = 'GENERAL_USE' | 'SELF_HOSTED' | 'SAAS' | 'VENDOR_MANAGED';
 
-/** Aplikacja w wersji okrojonej — nazwa, identyfikator i typ dostarczenia wystarczą w macierzy. */
+/** Status wdrożenia aplikacji — wartości enumu `AppStatus`. */
+export type AppStatusName = 'PROD' | 'TEST' | 'DEV' | 'PLANNED' | 'DEPRECATED' | 'RETIRED';
+
+/** Klasyfikacja bezpieczeństwa — wartości enumu `SecurityClass`. */
+export type SecurityClassName = 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+
+/**
+ * Aplikacja w wersji okrojonej — nazwa, identyfikator i typ dostarczenia wystarczą w macierzy.
+ *
+ * Metadane raportu (status, klasyfikacja, krytyczność, właściciel) są opcjonalne:
+ * Prisma z `include: { application: true }` zwraca pełny wiersz ze wszystkimi
+ * polami skalarnymi, a atrapy i prostsze wywołania mają mniej — raport wybiera,
+ * czego potrzebuje, zamiast wymuszać pełny wiersz wszędzie.
+ */
 export type ApplicationRefRow = {
   id: string;
   name: string;
   deletedAt: Date | null;
   deliveryType?: DeliveryTypeName;
+  status?: AppStatusName;
+  securityClass?: SecurityClassName;
+  criticality?: number;
+  ownerId?: string | null;
 };
 
 /** Warunek „pole zawiera tekst", tak jak go rozumie Prisma. */
@@ -165,6 +182,10 @@ export interface GrantDelegate {
 
 export interface ApplicationDelegate {
   findUnique(args: { where: { id: string } }): Promise<ApplicationRefRow | null>;
+  /** Lista aplikacji do raportu — filtry `deletedAt: null` i pominięcie GENERAL_USE. */
+  findMany(args: {
+    where?: { deletedAt?: null; deliveryType?: { not?: DeliveryTypeName } };
+  }): Promise<ApplicationRefRow[]>;
 }
 
 /**
