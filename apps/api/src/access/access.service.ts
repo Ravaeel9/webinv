@@ -888,3 +888,136 @@ export type ImportRowInput = {
   department?: string;
   isActive?: boolean;
 };
+
+// ─── Raport macierzy uprawnień (eksport CSV) ──────────────────
+
+/**
+ * Aplikacja w wersji na potrzeby raportu — pola już spłaszczone.
+ *
+ * Osobne typy od wierszy Prisma, bo raport ma swoją kolejność kolumn
+ * i własne nazwy — builder ma być czytelny bez zaglądania w schemat bazy.
+ */
+export type RaportAplikacja = {
+  id: string;
+  nazwa: string;
+  status: string; // wartość enumu AppStatus, np. 'PROD'
+  klasyfikacja: string; // wartość enumu SecurityClass
+  krytycznosc: number; // 1–4
+  typDostarczania: string; // wartość enumu DeliveryType, nigdy GENERAL_USE
+  wlasciciel: string; // 'Imię Nazwisko' albo ''
+};
+
+/** Jeden grant w wersji na potrzeby raportu — daty jako `YYYY-MM-DD`. */
+export type RaportGrantu = {
+  aplikacjaId: string;
+  osoba: string; // 'Imię Nazwisko'
+  email: string;
+  departament: string | null;
+  stanowisko: string | null;
+  poziom: AccessLevelName; // surowe wartości enumu, jak w API
+  nadane: string;
+  wygasa: string | null;
+  notatka: string | null;
+};
+
+const NAGLOWEK_RAPORTU = [
+  'Aplikacja',
+  'Status aplikacji',
+  'Klasyfikacja',
+  'Krytyczność',
+  'Typ dostarczania',
+  'Właściciel aplikacji',
+  'Osoba',
+  'E-mail',
+  'Departament',
+  'Stanowisko',
+  'Poziom',
+  'Nadane',
+  'Wygasa',
+  'Status grantu',
+  'Notatka',
+];
+
+/**
+ * Buduje CSV raportu macierzy.
+ *
+ * Wzorzec jak eksport rejestru (`applications.service.ts`), z tą różnicą,
+ * że separator to `;` — zgodnie z dotychczasowym eksportem macierzy
+ * w przeglądarce i z decyzją w specyfikacji.
+ *
+ * Struktura pliku: linia `Raport wygenerowano: <data>` (dowód momentu
+ * przeglądu), potem wiersz nagłówkowy, potem wiersze grantów zgrupowane
+ * po aplikacji w kolejności przekazanej listy. Aplikacja bez grantów
+ * dostaje jeden wiersz `(brak pozycji)` — widać, że rejestr niczego
+ * o niej nie ewidencjonuje, a nie że ją pominięto.
+ *
+ * Status grantu: wygasający **dzisiaj** jest jeszcze aktywny — `expiresOn`
+ * to data, od której dostęp już nie obowiązuje, więc „wczoraj" oznacza
+ * `Wygasł` (ta sama granica, którą pilnuje karta aplikacji w panelu).
+ */
+export function budujRaportCsv(
+  aplikacje: RaportAplikacja[],
+  granty: RaportGrantu[],
+  dzisiaj: string,
+): string {
+  const escape = (v: unknown): string => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const poAplikacji = new Map<string, RaportGrantu[]>();
+  for (const g of granty) {
+    const wiersze = poAplikacji.get(g.aplikacjaId) ?? [];
+    wiersze.push(g);
+    poAplikacji.set(g.aplikacjaId, wiersze);
+  }
+
+  const wiersze = aplikacje.flatMap((a) => {
+    const grantyA = poAplikacji.get(a.id) ?? [];
+    if (grantyA.length === 0) {
+      return [
+        [
+          a.nazwa,
+          a.status,
+          a.klasyfikacja,
+          String(a.krytycznosc),
+          a.typDostarczania,
+          a.wlasciciel,
+          '(brak pozycji)',
+          '', '', '', '', '', '', '', '',
+        ].map(escape),
+      ];
+    }
+    return grantyA.map((g) =>
+      [
+        a.nazwa,
+        a.status,
+        a.klasyfikacja,
+        String(a.krytycznosc),
+        a.typDostarczania,
+        a.wlasciciel,
+        g.osoba,
+        g.email,
+        g.departament,
+        g.stanowisko,
+        g.poziom,
+        g.nadane,
+        g.wygasa,
+        // Granica jak w panelu: wygasa dzisiaj → jeszcze aktywny.
+        g.wygasa !== null && g.wygasa < dzisiaj ? 'Wygasł' : 'aktywny',
+        g.notatka,
+      ].map(escape),
+    );
+  });
+
+  // BOM, żeby Excel poprawnie odczytał UTF-8 (polskie znaki).
+  return (
+    '\ufeff' +
+    [
+      `Raport wygenerowano: ${dzisiaj}`,
+      NAGLOWEK_RAPORTU.join(';'),
+      ...wiersze.map((w) => w.join(';')),
+    ].join('\r\n')
+  );
+}
