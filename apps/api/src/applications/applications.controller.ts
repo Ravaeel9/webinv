@@ -22,6 +22,7 @@ import {
   type AuthUser,
 } from '../auth/decorators';
 import {
+  BulkUpdateApplicationDto,
   CreateApplicationDto,
   ListApplicationsQuery,
   UpdateApplicationDto,
@@ -116,6 +117,25 @@ export class ApplicationsController {
     @ClientIp() ip: string,
   ) {
     return { application: await this.apps.create(dto, actor, ip) };
+  }
+
+  /**
+   * Masowa aktualizacja zaznaczonych aplikacji.
+   *
+   * Zasada jak przy zwykłej edycji: tylko `app:write`. Response
+   * raportuje, ile rekordów faktycznie zmieniono, a które identyfikatory
+   * pominięto (nie istnieją albo zostały usunięte) — interfejs pokazuje
+   * to użytkownikowi, zamiast milcząco „udawać” pełny sukces.
+   */
+  @Post('bulk-update')
+  @RequirePermission('app:write')
+  @HttpCode(200)
+  async bulkUpdate(
+    @Body() dto: BulkUpdateApplicationDto,
+    @CurrentUser() actor: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return this.apps.bulkUpdate(dto, actor, ip);
   }
 
   @Patch(':id')

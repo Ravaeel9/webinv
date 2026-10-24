@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import {
   useApplicationFormOptions,
   useApplications,
+  useBulkUpdateApplications,
   useDeleteApplication,
 } from '../lib/queries';
 import { useAuth } from '../lib/auth';
@@ -43,7 +44,9 @@ import {
   type AppStatus,
   type Application,
   type ApplicationFilters,
+  type BulkUpdatePayload,
   type DeliveryType,
+  type Environment,
   type SecurityClass,
 } from '../types';
 import { ApiError } from '../lib/api';
@@ -100,6 +103,7 @@ const DELIVERY_TYPE_ORDER: DeliveryType[] = [
 export function ApplicationsListPage() {
   const { can, user } = useAuth();
   const [params, setParams] = useSearchParams();
+  const toast = useToast();
 
   // ─── Filtry ────────────────────────────────────────────────
   // Trzymamy je w URL, żeby dało się linkować do widoku
@@ -164,6 +168,39 @@ export function ApplicationsListPage() {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const offset = filters.offset ?? 0;
+
+  // ─── Zaznaczenie do masowej aktualizacji ──────────────────
+  // Zbiór identyfikatorów trzyma się między stronami — zaznaczenie
+  // nie ginie przy przewijaniu wyników. Usunięte aplikacje nie mają
+  // checkboxa, więc nigdy nie trafiają do zbioru.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const canWrite = can('app:write');
+  const zaznaczoneWidoczne = items.filter((a) => !a.deletedAt);
+  const wszystkieWidoczneZaznaczone =
+    zaznaczoneWidoczne.length > 0 &&
+    zaznaczoneWidoczne.every((a) => selected.has(a.id));
+
+  const toggleSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  /** „Zaznacz wszystkie na stronie" — drugie kliknięcie usuwa zaznaczenie. */
+  const toggleWszystkieWidoczne = () => {
+    setSelected((prev) => {
+      if (wszystkieWidoczneZaznaczone) {
+        const next = new Set(prev);
+        for (const a of zaznaczoneWidoczne) next.delete(a.id);
+        return next;
+      }
+      return new Set([...prev, ...zaznaczoneWidoczne.map((a) => a.id)]);
+    });
+  };
 
   /**
    * Gość nie widzi klasyfikacji bezpieczeństwa, krytyczności ani
@@ -387,6 +424,34 @@ export function ApplicationsListPage() {
 
       <ErrorMessage error={error} onRetry={() => refetch()} className="mb-4" />
 
+      {/* Pasek zaznaczenia — pojawia się dopiero, gdy coś zaznaczono,
+          więc zwykły odczyt listy niczym nie jest obciążony. */}
+      {canWrite && selected.size > 0 && (
+        <div className="card mb-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <span className="text-sm text-fg">
+            Zaznaczono{' '}
+            <strong className="font-semibold">
+              {selected.size}{' '}
+              {selected.size === 1
+                ? 'aplikację'
+                : selected.size < 5
+                  ? 'aplikacje'
+                  : 'aplikacji'}
+            </strong>
+          </span>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setSelected(new Set())}>
+              <IconX className="size-4" />
+              Wyczyść zaznaczenie
+            </Button>
+            <Button onClick={() => setBulkOpen(true)}>
+              <IconPencil className="size-4" />
+              Aktualizuj masowo
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Tabela */}
       <div className="card overflow-hidden">
         {isLoading ? (
@@ -434,8 +499,10 @@ export function ApplicationsListPage() {
                 <ApplicationCard
                   key={app.id}
                   app={app}
-                  canWrite={can('app:write')}
+                  canWrite={canWrite}
                   showRestricted={!isGuest}
+                  selected={selected.has(app.id)}
+                  onToggle={() => toggleSelected(app.id)}
                 />
               ))}
             </ul>
@@ -452,6 +519,19 @@ export function ApplicationsListPage() {
               <table className="w-full min-w-[900px] text-left text-sm">
                 <thead className="border-b border-line-strong bg-surface-2">
                   <tr>
+                    {/* Checkbox zaznaczenia stoi przed listą kolumn
+                        sortowalnych — nagłówek i wiersz dostają go razem. */}
+                    {canWrite && (
+                      <Th className="w-8 px-2">
+                        <input
+                          type="checkbox"
+                          aria-label="Zaznacz wszystkie aplikacje na stronie"
+                          className="size-4 cursor-pointer rounded border-line-strong text-brand-600 focus:ring-brand-500/30"
+                          checked={wszystkieWidoczneZaznaczone}
+                          onChange={toggleWszystkieWidoczne}
+                        />
+                      </Th>
+                    )}
                     {SORT_COLUMNS.filter(
                       (k) => !isGuest || !('guestHidden' in k) || !k.guestHidden,
                     ).map((kolumna) => (
@@ -474,8 +554,10 @@ export function ApplicationsListPage() {
                     <ApplicationRow
                       key={app.id}
                       app={app}
-                      canWrite={can('app:write')}
+                      canWrite={canWrite}
                       showRestricted={!isGuest}
+                      selected={selected.has(app.id)}
+                      onToggle={() => toggleSelected(app.id)}
                     />
                   ))}
                 </tbody>
@@ -508,8 +590,32 @@ export function ApplicationsListPage() {
           </>
         )}
       </div>
+
+      {/* Okno masowej aktualizacji — zaznaczenie czyścimy dopiero po
+          udanym zapisie, żeby błąd nie odebrał użytkownikowi pracy. */}
+      {bulkOpen && (
+        <BulkUpdateModal
+          ids={[...selected]}
+          environments={environments.data?.environments ?? []}
+          onClose={() => setBulkOpen(false)}
+          onDone={(zaktualizowano, pominięto) => {
+            toast.pokaz(
+              pominięto > 0
+                ? `Zaktualizowano ${liczebnikAplikacji(zaktualizowano)}, pominięto ${pominięto}.`
+                : `Zaktualizowano ${liczebnikAplikacji(zaktualizowano)}.`,
+            );
+            setSelected(new Set());
+            setBulkOpen(false);
+          }}
+        />
+      )}
     </>
   );
+}
+
+/** Biernik dla liczby aplikacji — używa go pasek zaznaczenia i toast. */
+function liczebnikAplikacji(n: number): string {
+  return n === 1 ? '1 aplikację' : n < 5 ? `${n} aplikacje` : `${n} aplikacji`;
 }
 
 /**
@@ -524,10 +630,14 @@ function ApplicationCard({
   app,
   canWrite,
   showRestricted,
+  selected,
+  onToggle,
 }: {
   app: Application;
   canWrite: boolean;
   showRestricted: boolean;
+  selected: boolean;
+  onToggle: () => void;
 }) {
   const remove = useDeleteApplication();
   const toast = useToast();
@@ -537,40 +647,53 @@ function ApplicationCard({
     <>
       <li className={`px-4 py-3 ${app.deletedAt ? 'opacity-60' : ''}`}>
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Link
-              to={`/aplikacje/${app.id}`}
-              className="block font-medium text-fg hover:text-brand-600"
-            >
-              {app.name}
-              <span className="ml-1.5 font-normal text-fg-muted">
-                {app.version}
-              </span>
-            </Link>
-
-            {app.deliveryType !== 'GENERAL_USE' && (
-              <p className="mt-0.5 truncate meta-text">
-                {DELIVERY_TYPE_LABELS[app.deliveryType]}
-              </p>
+          <div className="flex min-w-0 items-start gap-2.5">
+            {/* Zaznaczenie do masowej aktualizacji — jak w tabeli:
+                usunięte aplikacje nie dostają checkboxa. */}
+            {canWrite && !app.deletedAt && (
+              <input
+                type="checkbox"
+                aria-label={`Zaznacz ${app.name}`}
+                className="mt-1 size-4 shrink-0 cursor-pointer rounded border-line-strong text-brand-600 focus:ring-brand-500/30"
+                checked={selected}
+                onChange={onToggle}
+              />
             )}
+            <div className="min-w-0">
+              <Link
+                to={`/aplikacje/${app.id}`}
+                className="block font-medium text-fg hover:text-brand-600"
+              >
+                {app.name}
+                <span className="ml-1.5 font-normal text-fg-muted">
+                  {app.version}
+                </span>
+              </Link>
 
-            {app.environments.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {app.environments.slice(0, 3).map((env) => (
-                  <span
-                    key={env.id}
-                    className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-fg-muted ring-1 ring-inset ring-line"
-                  >
-                    {env.name}
-                  </span>
-                ))}
-                {app.environments.length > 3 && (
-                  <span className="text-[11px] text-fg-subtle">
-                    +{app.environments.length - 3}
-                  </span>
-                )}
-              </div>
-            )}
+              {app.deliveryType !== 'GENERAL_USE' && (
+                <p className="mt-0.5 truncate meta-text">
+                  {DELIVERY_TYPE_LABELS[app.deliveryType]}
+                </p>
+              )}
+
+              {app.environments.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {app.environments.slice(0, 3).map((env) => (
+                    <span
+                      key={env.id}
+                      className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-fg-muted ring-1 ring-inset ring-line"
+                    >
+                      {env.name}
+                    </span>
+                  ))}
+                  {app.environments.length > 3 && (
+                    <span className="text-[11px] text-fg-subtle">
+                      +{app.environments.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="shrink-0">
@@ -671,10 +794,14 @@ function ApplicationRow({
   app,
   canWrite,
   showRestricted,
+  selected,
+  onToggle,
 }: {
   app: Application;
   canWrite: boolean;
   showRestricted: boolean;
+  selected: boolean;
+  onToggle: () => void;
 }) {
   const remove = useDeleteApplication();
   const toast = useToast();
@@ -693,6 +820,22 @@ function ApplicationRow({
           app.deletedAt ? 'opacity-60' : ''
         }`}
       >
+        {canWrite && (
+          <td className="px-2 py-2.5">
+            {/* Usunięta aplikacja nie uczestniczy w masowej aktualizacji —
+                jej akcje wiersza też są zablokowane. */}
+            {!app.deletedAt && (
+              <input
+                type="checkbox"
+                aria-label={`Zaznacz ${app.name}`}
+                className="size-4 cursor-pointer rounded border-line-strong text-brand-600 focus:ring-brand-500/30"
+                checked={selected}
+                onChange={onToggle}
+              />
+            )}
+          </td>
+        )}
+
         <td className="w-[24%] max-w-0 px-3 py-2.5">
           <Link
             to={`/aplikacje/${app.id}`}
@@ -923,5 +1066,184 @@ function CsvExportButton({ filters }: { filters: ApplicationFilters }) {
         <ErrorMessage error={error} className="mt-2" />
       )}
     </div>
+  );
+}
+
+/** Opcja „— nie zmieniaj —” — pusty select znaczy: pole zostaje nietknięte. */
+const NIE_ZMIENIAJ = '';
+
+/**
+ * Okno masowej aktualizacji zaznaczonych aplikacji.
+ *
+ * Każde pole startuje na „nie zmieniaj”, a do żądania trafiają tylko
+ * te, które użytkownik faktycznie ustawił — serwer (i tak) scalający
+ * PATCH dostaje więc tylko świadome zmiany. Środowiska są jedynym
+ * polem dwustopniowym: najpierw „nadpisz”, potem zestaw checkboxów,
+ * bo to nadpisanie całej listy, nie dopisanie.
+ */
+function BulkUpdateModal({
+  ids,
+  environments,
+  onClose,
+  onDone,
+}: {
+  ids: string[];
+  environments: Environment[];
+  onClose: () => void;
+  onDone: (updated: number, skipped: number) => void;
+}) {
+  const mutate = useBulkUpdateApplications();
+
+  const [deliveryType, setDeliveryType] = useState(NIE_ZMIENIAJ);
+  const [status, setStatus] = useState(NIE_ZMIENIAJ);
+  const [accessRequest, setAccessRequest] = useState(NIE_ZMIENIAJ);
+  const [securityClass, setSecurityClass] = useState(NIE_ZMIENIAJ);
+  const [criticality, setCriticality] = useState(NIE_ZMIENIAJ);
+  const [envMode, setEnvMode] = useState<'keep' | 'set'>('keep');
+  const [envs, setEnvs] = useState<Set<string>>(new Set());
+
+  const payload = useMemo<BulkUpdatePayload>(() => {
+    const body: BulkUpdatePayload = { ids };
+    if (deliveryType) body.deliveryType = deliveryType as DeliveryType;
+    if (status) body.status = status as AppStatus;
+    if (accessRequest) body.accessRequestRequired = accessRequest === 'true';
+    if (securityClass) body.securityClass = securityClass as SecurityClass;
+    if (criticality) body.criticality = Number(criticality);
+    if (envMode === 'set') body.environmentIds = [...envs];
+    return body;
+  }, [ids, deliveryType, status, accessRequest, securityClass, criticality, envMode, envs]);
+
+  // `ids` zawsze jest w ładunku, więc „coś wybrano” to więcej niż samo ids.
+  const zmienionoCokolwiek = Object.keys(payload).length > 1;
+
+  const toggleEnv = (id: string) => {
+    setEnvs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    const wynik = await mutate.mutateAsync(payload);
+    onDone(wynik.updated, wynik.skipped.length);
+  };
+
+  return (
+    <Modal
+      open
+      title="Masowa aktualizacja aplikacji"
+      description={`Zmiany dotkną ${liczebnikAplikacji(ids.length)}. Pola „nie zmieniaj” zostawiają bieżące wartości.`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Anuluj
+          </Button>
+          <Button
+            loading={mutate.isPending}
+            disabled={!zmienionoCokolwiek}
+            onClick={handleSubmit}
+          >
+            Aktualizuj
+          </Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Select
+          label="Typ dostarczenia"
+          value={deliveryType}
+          onChange={(e) => setDeliveryType(e.target.value)}
+        >
+          <option value={NIE_ZMIENIAJ}>— nie zmieniaj —</option>
+          {DELIVERY_TYPE_ORDER.map((type) => (
+            <option key={type} value={type}>
+              {DELIVERY_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </Select>
+
+        <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value={NIE_ZMIENIAJ}>— nie zmieniaj —</option>
+          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Wniosek o dostęp"
+          value={accessRequest}
+          onChange={(e) => setAccessRequest(e.target.value)}
+        >
+          <option value={NIE_ZMIENIAJ}>— nie zmieniaj —</option>
+          <option value="true">Wymagany</option>
+          <option value="false">Niewymagany</option>
+        </Select>
+
+        <Select
+          label="Bezpieczeństwo"
+          value={securityClass}
+          onChange={(e) => setSecurityClass(e.target.value)}
+        >
+          <option value={NIE_ZMIENIAJ}>— nie zmieniaj —</option>
+          {Object.entries(SECURITY_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Krytyczność"
+          value={criticality}
+          onChange={(e) => setCriticality(e.target.value)}
+          className="sm:col-span-1"
+        >
+          <option value={NIE_ZMIENIAJ}>— nie zmieniaj —</option>
+          {[4, 3, 2, 1].map((level) => (
+            <option key={level} value={level}>
+              {CRITICALITY_LABELS[level]}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Środowiska"
+          value={envMode}
+          onChange={(e) => setEnvMode(e.target.value === 'set' ? 'set' : 'keep')}
+        >
+          <option value="keep">— nie zmieniaj —</option>
+          <option value="set">Nadpisz wybranym zestawem</option>
+        </Select>
+      </div>
+
+      {envMode === 'set' && (
+        <div className="mt-3">
+          <p className="label">
+            Zestaw środowisk — każda zaznaczona aplikacja dostanie dokładnie ten
+            zestaw, a jej obecne przypisania zostaną zastąpione.
+          </p>
+          <div className="mt-2 grid max-h-48 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-line p-3">
+            {environments.map((env) => (
+              <Checkbox
+                key={env.id}
+                label={env.name}
+                checked={envs.has(env.id)}
+                onChange={() => toggleEnv(env.id)}
+              />
+            ))}
+            {environments.length === 0 && (
+              <p className="meta-text">Brak zdefiniowanych środowisk.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ErrorMessage error={mutate.error} className="mt-3" />
+    </Modal>
   );
 }

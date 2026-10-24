@@ -11,6 +11,7 @@ import { IpamService } from '../ipam/ipam.service';
 import type { AuthUser } from '../auth/decorators';
 import {
   CREATE_FIELDS,
+  type BulkUpdateApplicationDto,
   type CreateApplicationDto,
   type ListApplicationsQuery,
   type UpdateApplicationDto,
@@ -555,6 +556,83 @@ export class ApplicationsService {
     });
 
     return this.serialize(app);
+  }
+
+  /**
+   * Masowa aktualizacja zaznaczonych aplikacji.
+   *
+   * Aktualizowane są wyłącznie pola obecne w ładunku — mapowanie robi
+   * `mapPatchDto`, więc „nie zmieniaj” w selekcie i brak pola znaczy
+   * to samo. Środowiska to jedyny wyjątek: gdy `environmentIds`
+   * przyszło, nadpisujemy cały zestaw każdej zaznaczonej aplikacji
+   * (użytkownik wybrał ten tryb świadomie).
+   *
+   * Rekordy nieistniejące i usunięte (soft delete) pomijamy cicho i
+   * raportujemy w odpowiedzi — masowa zmiana na dziesiątkach wierszy
+   * nie powinna wysypywać się, bo jeden został zmieniony równolegle.
+   */
+  async bulkUpdate(
+    dto: BulkUpdateApplicationDto,
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<{ updated: number; skipped: string[] }> {
+    await this.assertEnvironmentsExist(dto.environmentIds);
+
+    const { ids, ...fields } = dto;
+    const scalars = this.mapPatchDto(fields as UpdateApplicationDto);
+
+    // Żądanie, które niczego nie zmienia, jest błędem użytkownika,
+    // nie pustą operacją — bez tego pomyłka zaznaczenia przeszłaby
+    // niezauważona, a dziennik dostałby wpisy „bez zmian”.
+    if (Object.keys(scalars).length === 0 && dto.environmentIds === undefined) {
+      throw new BadRequestException('Nie wybrano żadnego pola do aktualizacji.');
+    }
+
+    const before = await this.prisma.application.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+      include: APP_INCLUDE,
+    });
+    const skipped = ids.filter((id) => !before.some((a) => a.id === id));
+
+    const environmentData = dto.environmentIds
+      ? {
+          environments: {
+            deleteMany: {},
+            create: dto.environmentIds.map((environmentId) => ({
+              environment: { connect: { id: environmentId } },
+            })),
+          },
+        }
+      : {};
+
+    let updated = 0;
+    await this.prisma.$transaction(async () => {
+      for (const przed of before) {
+        const app = await this.prisma.application.update({
+          where: { id: przed.id },
+          data: { ...scalars, ...environmentData },
+          include: APP_INCLUDE,
+        });
+
+        await this.audit.record({
+          action: 'app.bulk_updated',
+          entity: 'Application',
+          entityId: przed.id,
+          actorId: actor.id,
+          actorName: actor.username,
+          changes: AuditService.diff(
+            przed as unknown as Record<string, unknown>,
+            app as unknown as Record<string, unknown>,
+            ['updatedAt', 'createdAt', 'admins', 'environments', 'createdBy'],
+          ),
+          ip,
+        });
+
+        updated += 1;
+      }
+    });
+
+    return { updated, skipped };
   }
 
   async update(

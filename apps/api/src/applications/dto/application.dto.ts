@@ -3,6 +3,7 @@ import { getMetadataStorage } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsEmail,
@@ -36,6 +37,7 @@ export const SECURITY_CLASSES = [
 
 export const APP_STATUSES = [
   'PROD',
+  'IN_USE',
   'TEST',
   'DEV',
   'PLANNED',
@@ -341,6 +343,68 @@ export class CreateApplicationDto {
  * na etapie usługi wiemy już, że to tworzenie, a nie aktualizacja.
  */
 export class UpdateApplicationDto extends PartialType(CreateApplicationDto) {}
+
+/**
+ * Masowa aktualizacja zaznaczonych aplikacji.
+ *
+ * Zamiast duplikować `PartialType` z całym blokiem formularza mamy tu
+ * tylko pola, które faktycznie da się masowo ustawić: klasyfikacje,
+ * status, typ dostarczenia, wniosek o dostęp i środowiska. Zmiany
+ * nazwy, właściciela czy danych wsparcia wymagają indywidualnej decyzji
+ * dla każdej aplikacji — masowo łatwo je napsuć bezrefleksyjnie.
+ *
+ * Kluczem do semantyki jest `undefined`: pole nieobecne w ładunku znaczy
+ * „nie zmieniaj”, a obecne — „ustaw wszystkim zaznaczonym”. Pusty string
+ * zamieniamy na `undefined`, więc „— nie zmieniaj —” w selekcie i brak
+ * pola zachowują się identycznie.
+ */
+export class BulkUpdateApplicationDto {
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Nie zaznaczono żadnej aplikacji.' })
+  @ArrayMaxSize(200, { message: 'Naraz można zaktualizować maksymalnie 200 aplikacji.' })
+  @IsUUID('4', { each: true, message: 'Nieprawidłowy identyfikator aplikacji.' })
+  ids!: string[];
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsIn(DELIVERY_TYPES, { message: 'Nieznany typ dostarczenia.' })
+  deliveryType?: (typeof DELIVERY_TYPES)[number];
+
+  @IsOptional()
+  @IsIn(APP_STATUSES, { message: 'Nieznany status.' })
+  status?: (typeof APP_STATUSES)[number];
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === undefined
+      ? undefined
+      : value === true || value === 'true',
+  )
+  @IsBoolean()
+  accessRequestRequired?: boolean;
+
+  @IsOptional()
+  @IsIn(SECURITY_CLASSES, { message: 'Nieznana klasyfikacja bezpieczeństwa.' })
+  securityClass?: (typeof SECURITY_CLASSES)[number];
+
+  @IsOptional()
+  @Transform(toOptionalNumber)
+  @IsInt({ message: 'Krytyczność musi być liczbą całkowitą.' })
+  @Min(1, { message: 'Krytyczność: zakres 1-4.' })
+  @Max(4, { message: 'Krytyczność: zakres 1-4.' })
+  criticality?: number;
+
+  /**
+   * Nadpisanie zestawu środowisk. Obecne tylko w ładunku — brak pola
+   * zostawia środowiska każdej aplikacji nietknięte, a pusta lista
+   * jawnie czyści przypisania.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsUUID('4', { each: true })
+  environmentIds?: string[];
+}
 
 /**
  * Nazwy pól zadeklarowanych w DTO.

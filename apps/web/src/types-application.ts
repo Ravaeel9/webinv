@@ -27,6 +27,7 @@ export type SecurityClass =
 
 export type AppStatus =
   | 'PROD'
+  | 'IN_USE'
   | 'TEST'
   | 'DEV'
   | 'PLANNED'
@@ -156,6 +157,22 @@ export interface ApplicationFilters {
   offset?: number;
   /** Pole z białej listy SORTABLE; prefiks `-` oznacza malejąco. */
   sort?: string;
+}
+
+/**
+ * Masowa aktualizacja zaznaczonych aplikacji — pola nieobecne w ładunku
+ * zostają nietknięte („nie zmieniaj”), a obecne ustawia wszystkim
+ * zaznaczonym. Środowiska (`environmentIds`, gdy przyszły) nadpisują
+ * cały zestaw każdej aplikacji.
+ */
+export interface BulkUpdatePayload {
+  ids: string[];
+  deliveryType?: DeliveryType;
+  status?: AppStatus;
+  accessRequestRequired?: boolean;
+  securityClass?: SecurityClass;
+  criticality?: number;
+  environmentIds?: string[];
 }
 
 // ─── IPAM ─────────────────────────────────────────────────────

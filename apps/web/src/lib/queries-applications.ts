@@ -8,6 +8,7 @@ import type {
   Application,
   ApplicationFilters,
   ApplicationListResponse,
+  BulkUpdatePayload,
   Environment,
   Person,
 } from '../types';
@@ -125,6 +126,19 @@ export function useUpdateApplication(id: string) {
       invalidate();
       void queryClient.invalidateQueries({ queryKey: qk.application(id) });
     },
+  });
+}
+
+export function useBulkUpdateApplications() {
+  const invalidate = useInvalidateApplicationData();
+
+  return useMutation({
+    mutationFn: (body: BulkUpdatePayload) =>
+      api.post<{ updated: number; skipped: string[] }>(
+        '/applications/bulk-update',
+        body,
+      ),
+    onSuccess: invalidate,
   });
 }
 

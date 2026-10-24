@@ -288,12 +288,14 @@ describe('wiersz nagłówka tabeli aplikacji', () => {
 
   it('kolumna Nazwa ma ograniczenie szerokości (max-w-0), żeby nie wypychać kolumny Właściciel', () => {
     const wiersz = strona().slice(strona().indexOf('function ApplicationRow'));
-    const pierwszaKomorka = wiersz.match(/<td\s+className="([^"]+)"/);
-    assert.ok(pierwszaKomorka, 'nie znaleziono pierwszej komórki <td> w ApplicationRow');
+    // Checkbox zaznaczenia stoi przed „Nazwą" i też jest `<td>`, więc
+    // szukamy komórki po jej szerokości `w-[24%]` — unikalnej dla Nazwy.
+    const pierwszaKomorka = wiersz.match(/<td\s+className="w-\[24%\][^"]*"/);
+    assert.ok(pierwszaKomorka, 'nie znaleziono komórki <td> kolumny Nazwa w ApplicationRow');
     assert.match(
-      pierwszaKomorka[1]!,
+      pierwszaKomorka[0]!,
       /\bmax-w-0\b/,
-      'pierwsza komórka (Nazwa) musi mieć max-w-0 — w table-auto samo truncate ' +
+      'komórka Nazwa musi mieć max-w-0 — w table-auto samo truncate ' +
         'rozpycha kolumnę do pełnej długości tekstu i wypycha e-mail właściciela poza tabelę',
     );
   });
