@@ -330,6 +330,24 @@ export class ApplicationsService {
   }
 
   /**
+   * Aplikacje jako słownik dla selectów (macierz uprawnień i przyszłe
+   * potrzeby): id, nazwa, typ dostarczenia.
+   *
+   * Osobny endpoint, a nie stronicowana lista z dużym `limit`: DTO listy
+   * ma `@Max(200)`, a select, który o nią prosi, bierze 400 i na zawsze
+   * zostaje pusty — bez komunikatu, bo słownik nie ma na ekranie błędu.
+   * Filtry (usunięte, GENERAL_USE) robi serwer: macierz uprawnień i tak
+   * pomija GENERAL_USE, więc jedno źródło prawdy.
+   */
+  async selectOptions() {
+    return this.prisma.application.findMany({
+      where: { deletedAt: null, deliveryType: { not: 'GENERAL_USE' } },
+      select: { id: true, name: true, deliveryType: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
    * Właściciele jako osoby — do selecta w filtrach.
    *
    * Źródłem są istniejące aplikacje, a nie cały katalog: filtr powinien

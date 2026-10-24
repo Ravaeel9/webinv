@@ -114,10 +114,18 @@ describe('Macierz uprawnień w interfejsie — wybór z katalogu i wyłączenie 
     );
   });
 
-  it('filtr aplikacji w zakładce Macierz pomija aplikacje GENERAL_USE', () => {
+  it('filtr aplikacji w zakładce Macierz korzysta ze słownika bez GENERAL_USE', () => {
+    // Odsiewanie GENERAL_USE i usuniętych robi teraz serwer w
+    // `selectOptions()` (test serwisu w applications-select-options.test.ts);
+    // select nie ma już opierać się na stronicowanym rejestrze, którego
+    // DTO odrzuca limit 500 i po cichu zostawia pusty wybór.
     assert.ok(
-      accessPage.includes("deliveryType !== 'GENERAL_USE'"),
-      'MatrixTab w AccessPage musi odfiltrować aplikacje GENERAL_USE z listy wyboru',
+      accessPage.includes('useApplicationOptions('),
+      'MatrixTab w AccessPage ma korzystać ze słownika aplikacji',
+    );
+    assert.ok(
+      !accessPage.includes('limit: 500'),
+      'limit 500 przekracza @Max(200) listy rejestru',
     );
   });
 

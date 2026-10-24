@@ -20,6 +20,7 @@ export const qk = {
   users: ['users'] as const,
   userOptions: ['user-options'] as const,
   ownerOptions: ['owner-options'] as const,
+  applicationOptions: ['application-options'] as const,
   audit: (params: Record<string, unknown>) => ['audit', params] as const,
   auditMeta: ['audit-meta'] as const,
   sessions: ['sessions'] as const,

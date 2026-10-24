@@ -159,6 +159,19 @@ export function useRestoreApplication() {
   });
 }
 
+export function useApplicationOptions() {
+  return useQuery({
+    queryKey: qk.applicationOptions,
+    queryFn: () =>
+      api.get<{
+        options: { id: string; name: string; deliveryType: string }[];
+      }>('/applications/options'),
+    // Słownik zmienia się rzadko — select nie powinien przy każdym
+    // wejściu na ekran odpytywać rejestru od nowa.
+    staleTime: 60_000,
+  });
+}
+
 /**
  * Eksport CSV. Nie idzie przez `api`, bo to odpowiedź binarna/tekstowa
  * z nagłówkiem Content-Disposition, a nie JSON — osobna ścieżka

@@ -67,6 +67,13 @@ export class ApplicationsController {
     return { owners: await this.apps.ownerOptions() };
   }
 
+  /** Słownik aplikacji dla selectów (macierz uprawnień) — filtrów i stronicowania nie ma. */
+  @Get('options')
+  @RequirePermission('app:read')
+  async selectOptions() {
+    return { options: await this.apps.selectOptions() };
+  }
+
   /** Potrzebne publicznie do filtrów na liście (lista środowisk). */
   @Get('environments')
   @Public()

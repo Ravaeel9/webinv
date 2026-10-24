@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useAccessMatrix, useApplications, usePersons, usePersonsCount } from '../lib/queries';
+import { useAccessMatrix, useApplicationOptions, usePersons, usePersonsCount } from '../lib/queries';
 import { downloadAccessExport, nazwaPlikuRaportu } from '../lib/queries';
 import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
@@ -211,9 +211,10 @@ function PersonsTab() {
 function MatrixTab() {
   const [filters, setFilters] = useState<AccessMatrixFilters>({});
   const { data, isLoading, error } = useAccessMatrix(filters);
-  // Pełna lista tylko po nazwy; limit wystarczy na filtr, a pobieranie
-  // wszystkich stron rejestru dla jednego selecta byłoby niepotrzebne.
-  const { data: aplikacje } = useApplications({ offset: 0, limit: 500 });
+  // Słownik aplikacji z dedykowanego endpointu: stronicowany rejestr ma
+  // `@Max(200)` na limicie, a select prosił o 500 — bierze 400 i zostaje
+  // na zawsze pusty. Serwer sam odsiewa usunięte i GENERAL_USE.
+  const { data: aplikacje } = useApplicationOptions();
 
   const rows = data?.rows ?? [];
 
@@ -228,13 +229,11 @@ function MatrixTab() {
           }
         >
           <option value="">wszystkie</option>
-          {(aplikacje?.items ?? [])
-            .filter((aplikacja) => aplikacja.deliveryType !== 'GENERAL_USE')
-            .map((aplikacja) => (
-              <option key={aplikacja.id} value={aplikacja.id}>
-                {aplikacja.name}
-              </option>
-            ))}
+          {(aplikacje?.options ?? []).map((aplikacja) => (
+            <option key={aplikacja.id} value={aplikacja.id}>
+              {aplikacja.name}
+            </option>
+          ))}
         </Select>
         <TextInput
           label="Dział"
