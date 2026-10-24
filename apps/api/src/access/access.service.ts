@@ -555,7 +555,8 @@ export class AccessService {
       ? granty.filter((g) => g.person.department === filters.department)
       : granty;
 
-    return przefiltrowane.map((g) => ({      application: { id: g.application.id, name: g.application.name },
+    return przefiltrowane.map((g) => ({
+      application: { id: g.application.id, name: g.application.name },
       person: {
         id: g.person.id,
         firstName: g.person.firstName,
@@ -598,12 +599,7 @@ export class AccessService {
 
     let aplikacjeBaza: ApplicationRefRow[];
     if (applicationId) {
-      const jedna = await this.prisma.application.findUnique({
-        where: { id: applicationId },
-      });
-      if (!jedna || jedna.deletedAt) {
-        throw new NotFoundException('Aplikacja nie istnieje.');
-      }
+      const jedna = await this.requireApplication(applicationId);
       if (jedna.deliveryType === 'GENERAL_USE') {
         throw new NotFoundException('Aplikacja ogólnego użytku nie ma macierzy uprawnień.');
       }

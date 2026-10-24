@@ -77,7 +77,8 @@ function poleOrderBy(orderBy: unknown): [string, 'asc' | 'desc'] {
     throw new Error(
       `atrapa: orderBy="${orderBy}" — Prisma przyjmuje obiekt, np. { ${orderBy}: 'asc' }`,
     );
-  }  // Tablica obiektów to poprawna postać w Prisma (`[{ a: 'asc' }, { b: 'asc' }]`);
+  }
+  // Tablica obiektów to poprawna postać w Prisma (`[{ a: 'asc' }, { b: 'asc' }]`);
   // bierzemy pierwszy klucz, bo atrapa sortuje jednym polem.
   if (Array.isArray(orderBy)) {
     if (orderBy.length === 0) throw new Error('atrapa: pusta tablica orderBy');
