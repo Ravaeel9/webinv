@@ -354,6 +354,9 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
           wynik = wynik.filter((w) => w.applicationId === where.applicationId);
         }
         if (where.scope) wynik = wynik.filter((w) => w.scope === where.scope);
+        if (where.createdAt?.gt) {
+          wynik = wynik.filter((w) => w.createdAt > where.createdAt!.gt!);
+        }
         // Relacja aplikacji wchodzi wyłącznie na jawnym `include` — jak w
         // prawdziwym Prisma. Atrapa, która doklejała ją zawsze, zamaskowała
         // brak `include` w serwisie: na żywym API aplikacja wpisu pokazywała
@@ -386,7 +389,11 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
       create: async (args: any) => {
         const wpis: AccessVerificationRow = {
           id: randomUUID(),
-          createdAt: new Date('2026-01-01T00:00:00Z'),
+          // Jak `DEFAULT now()` w bazie: blokada 24 h liczy od createdAt
+          // wpisu, więc atrapa musi stawiać **realną chwilę** zapisu,
+          // nie stałą z datownika testów. Wpisy wsteczne wstawiają testy
+          // wprost do tablicy `weryfikacje`.
+          createdAt: new Date(),
           ...args.data,
         };
         weryfikacje.push(wpis);

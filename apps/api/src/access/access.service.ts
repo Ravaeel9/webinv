@@ -661,6 +661,12 @@ export class AccessService {
       if (!grant) throw new NotFoundException('To przypisanie nie istnieje.');
     }
 
+    // Blokada 24 h: weryfikacja aplikacji i całej macierzy to dowód
+    // przeglądu — dwie tego samego dnia nie dowodzą dwóch przeglądów.
+    // Liczymy od `createdAt` (moment zapisu), nie od `verifiedOn`:
+    // cofnięcie daty w formularzu nie może otworzyć blokady.
+    await this.walidujOdstepWeryfikacji(dto.scope, aplikacja?.id ?? null);
+
     const wpis = await this.prisma.accessVerification.create({
       data: {
         scope: dto.scope,
@@ -751,6 +757,47 @@ export class AccessService {
         data: { verifiedOn },
       });
     }
+  }
+
+  /**
+   * Blokada 24 h między przeglądami (weryfikacja APPLICATION i MATRIX).
+   *
+   * Punkt odniesienia to `createdAt` wpisu — zapis w bazie, nie
+   * deklarowana data przeglądu; cofnięcie `verifiedOn` nie otwiera
+   * blokady. Wpis `GRANT` nie bierze udziału: drobna korekta jednego
+   * wiersza nie jest przeglądem, więc nie blokuje i nie jest blokowana.
+   * Wpis MATRIX obejmuje wszystkie aplikacje, więc blokuje weryfikację
+   * aplikacji; odwrotnie — nie (przegląd jednej aplikacji nie zwalnia
+   * z przeglądu reszty macierzy).
+   */
+  private async walidujOdstepWeryfikacji(
+    scope: VerificationScopeName,
+    applicationId: string | null,
+  ): Promise<void> {
+    if (scope === 'GRANT') return;
+
+    const granica = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const wpisy = await this.prisma.accessVerification.findMany({
+      where: { createdAt: { gt: granica } },
+    });
+
+    const ostatni = wpisy.find((w) =>
+      scope === 'MATRIX'
+        ? w.scope === 'MATRIX'
+        : w.scope === 'MATRIX' ||
+          (w.scope === 'APPLICATION' && w.applicationId === applicationId),
+    );
+    if (!ostatni) return;
+
+    const nastepna = new Date(ostatni.createdAt.getTime() + 24 * 60 * 60 * 1000);
+    const godzina = nastepna.toISOString().slice(0, 16).replace('T', ' ');
+    const co = ostatni.scope === 'MATRIX'
+      ? 'Weryfikacja całej macierzy'
+      : 'Weryfikacja tej aplikacji';
+    throw new ConflictException(
+      `${co} została już odnotowana w ciągu ostatnich 24 godzin — ` +
+        `kolejna możliwa od ${godzina} (czas serwera).`,
+    );
   }
 
   /** Data przeglądu: opcjonalna (domyślnie dziś), nigdy z przyszłości. */

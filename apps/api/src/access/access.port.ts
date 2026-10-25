@@ -252,6 +252,8 @@ export interface VerificationDelegate {
     where?: {
       applicationId?: string;
       scope?: VerificationScopeName;
+      /** Wpisy zapisane po danej chwili — do blokady 24 h między przeglądami. */
+      createdAt?: { gt?: Date };
     };
     orderBy?: Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
     /** Relacja aplikacji wchodzi tylko na jawnym `include` — jak w Prisma. */
