@@ -14,6 +14,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Select, TextInput } from '../ui/Field';
 import { EmptyState, ErrorMessage, Spinner } from '../ui/Feedback';
+import { useToast } from '../ui/Toast';
 import { Table, Tbody, Td, Th, Thead } from '../ui/Table';
 import { IconDownload, IconPlus, IconShield, IconTrash } from '../ui/icons';
 import { ACCESS_LEVEL_LABELS, type AccessLevel } from '../../types';
@@ -243,6 +244,7 @@ function GrantRow({
   const update = useUpdateGrant();
   const revoke = useRevokeGrant();
   const weryfikuj = useCreateVerification();
+  const toast = useToast();
 
   const wygaslo = Boolean(grant.expiresOn && grant.expiresOn < dzis());
   const ostrzezenie = !grant.person.isActive ? 'nieaktywna' : wygaslo ? 'wygasł' : null;
@@ -259,12 +261,20 @@ function GrantRow({
   };
 
   /** Potwierdzenie jednego wiersza: „ten dostęp jest aktualny". */
-  const zweryfikujGrant = () => {
-    weryfikuj.mutate({
-      scope: 'GRANT',
-      applicationId,
-      personId: grant.personId,
-    });
+  /** Potwierdzenie wiersza; blokada 24 h wraca jako toast (popup) —
+   *  nie jako inline w komórce, bo użytkownik nie czyta tabeli w kolankę,
+   *  a cicha porażka zachęcałaby do dalszego klikania. */
+  const zweryfikujGrant = async () => {
+    try {
+      await weryfikuj.mutateAsync({
+        scope: 'GRANT',
+        applicationId,
+        personId: grant.personId,
+      });
+    } catch (blad) {
+      if (blad instanceof ApiError) toast.pokaz(blad.message, 'blad');
+      else throw blad;
+    }
   };
 
   return (
@@ -325,13 +335,6 @@ function GrantRow({
       </Td>
       {canWrite && (
         <Td className="text-right">
-          {/* Komunikat blokady 24 h: API odrzuca potwierdzenie wiersza,
-              gdy swego rodzaju przegląd obejmujący ten dostęp padł w tym
-              oknie — odrzucenie musi być widoczne w miejscu kliknięcia,
-              cicha porażka zachęcałaby do dalszego klikania. */}
-          {weryfikuj.error instanceof ApiError && (
-            <ErrorMessage error={weryfikuj.error} className="mt-2 mb-1 text-left" />
-          )}
           {editing ? (
             <span className="flex items-center justify-end gap-2">
               <TextInput
@@ -353,6 +356,7 @@ function GrantRow({
                 size="sm"
                 variant="ghost"
                 title="Potwierdź, że ten dostęp jest aktualny"
+                loading={weryfikuj.isPending}
                 onClick={zweryfikujGrant}
               >
                 Zweryfikuj
