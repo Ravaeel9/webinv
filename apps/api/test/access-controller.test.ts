@@ -22,6 +22,8 @@ const TRASY: Array<[metoda: string, sciezka: string, uprawnienie: string]> = [
   ['Get', 'matrix', 'access:read'],
   ['Get', 'matrix/export', 'access:read'],
   ['Get', 'applications/:id/export', 'access:read'],
+  ['Get', 'verifications', 'access:read'],
+  ['Post', 'verifications', 'access:write'],
   ['Post', 'import/preview', 'access:write'],
   ['Post', 'import/apply', 'access:write'],
   ['Post', 'import/matrix/preview', 'access:write'],

@@ -70,7 +70,7 @@ describe('Typy frontendu a model Person', () => {
 
   it('macierz ma osobę, aplikację, poziom i daty jako tekst', () => {
     const interfejs = typy.match(/export interface AccessMatrixRow \{([\s\S]*?)\n\}/)?.[1] ?? '';
-    for (const pole of ['application', 'person', 'level', 'grantedOn', 'expiresOn', 'note']) {
+    for (const pole of ['application', 'person', 'level', 'grantedOn', 'expiresOn', 'note', 'verifiedOn']) {
       assert.ok(interfejs.includes(pole), `brak pola ${pole} w AccessMatrixRow`);
     }
     assert.ok(/grantedOn:\s*string/.test(interfejs), 'daty w macierzy to tekst RRRR-MM-DD');

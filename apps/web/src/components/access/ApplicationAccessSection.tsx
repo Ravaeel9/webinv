@@ -3,6 +3,7 @@ import {
   downloadAccessExport,
   nazwaPlikuRaportu,
   useApplicationAccess,
+  useCreateVerification,
   useRevokeGrant,
   useUpdateGrant,
 } from '../../lib/queries';
@@ -111,6 +112,7 @@ export function ApplicationAccessSection({
                 <Th>Poziom</Th>
                 <Th>Nadano</Th>
                 <Th>Wygasa</Th>
+                <Th>Zweryfikowano</Th>
                 {canWrite && (
                   <Th className="w-10 text-right">
                     <span className="sr-only">Akcje</span>
@@ -220,6 +222,7 @@ function GrantRow({
     level: AccessLevel;
     grantedOn: string;
     expiresOn: string | null;
+    verifiedOn: string | null;
     note: string | null;
     person: {
       id: string;
@@ -239,6 +242,7 @@ function GrantRow({
   const [note, setNote] = useState(grant.note ?? '');
   const update = useUpdateGrant();
   const revoke = useRevokeGrant();
+  const weryfikuj = useCreateVerification();
 
   const wygaslo = Boolean(grant.expiresOn && grant.expiresOn < dzis());
   const ostrzezenie = !grant.person.isActive ? 'nieaktywna' : wygaslo ? 'wygasł' : null;
@@ -252,6 +256,15 @@ function GrantRow({
       note: note || null,
     });
     setEditing(false);
+  };
+
+  /** Potwierdzenie jednego wiersza: „ten dostęp jest aktualny". */
+  const zweryfikujGrant = () => {
+    weryfikuj.mutate({
+      scope: 'GRANT',
+      applicationId,
+      personId: grant.personId,
+    });
   };
 
   return (
@@ -304,6 +317,12 @@ function GrantRow({
           </span>
         )}
       </Td>
+      <Td className="whitespace-nowrap text-fg-muted">
+        {/* „—" jest tu informacje-bearing: weryfikacja przy wierszu
+            potwierdza konkretny stan dostępu, więc brak daty znaczy
+            „nigdy nie przeglądano". */}
+        {grant.verifiedOn ? formatDate(grant.verifiedOn) : '—'}
+      </Td>
       {canWrite && (
         <Td className="text-right">
           {editing ? (
@@ -323,6 +342,14 @@ function GrantRow({
             </span>
           ) : (
             <span className="flex items-center justify-end gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Potwierdź, że ten dostęp jest aktualny"
+                onClick={zweryfikujGrant}
+              >
+                Zweryfikuj
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                 Zmień
               </Button>

@@ -22,11 +22,13 @@ import {
 } from '../auth/decorators';
 import {
   CreatePersonDto,
+  CreateVerificationDto,
   GrantAccessDto,
   MatrixQueryDto,
   PersonQueryDto,
   UpdateGrantDto,
   UpdatePersonDto,
+  VerificationQueryDto,
 } from './dto/access.dto';
 import {
   ApplyMatrixImportDto,
@@ -171,6 +173,31 @@ export class AccessController {
     return {
       result: await this.access.applyMatrixImport(dto.rows, actor, ip, dto.applicationId),
     };
+  }
+
+  // ─── Weryfikacje dostępów ───────────────────────────────────
+
+  /** Historia przeglądów — cała macierz albo zawężona do aplikacji. */
+  @Get('verifications')
+  @RequirePermission('access:read')
+  async verifications(@Query() query: VerificationQueryDto) {
+    return await this.access.listVerifications(query);
+  }
+
+  /**
+   * Nowy wpis weryfikacji. Trasa `access:write`, bo wpis zmienia stan
+   * macierzy (stampuje granty) — odczytujący bez prawa zapisu widzi
+   * historię, ale nie może potwierdzać.
+   */
+  @Post('verifications')
+  @HttpCode(201)
+  @RequirePermission('access:write')
+  async createVerification(
+    @Body() dto: CreateVerificationDto,
+    @CurrentUser() actor: AuthUser,
+    @ClientIp() ip: string,
+  ) {
+    return { verification: await this.access.createVerification(dto, actor, ip) };
   }
 
   // ─── Katalog osób ───────────────────────────────────────────

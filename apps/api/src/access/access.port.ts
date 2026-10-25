@@ -44,6 +44,8 @@ export type ApplicationAccessRow = {
   personId: string;
   level: AccessLevelName;
   grantedOn: Date;
+  /** Data ostatniego przeglądu tego grantu — `null` znaczy „nigdy". */
+  verifiedOn: Date | null;
   expiresOn: Date | null;
   note: string | null;
   createdAt: Date;
@@ -61,10 +63,11 @@ export type AccessGrantWithPerson = ApplicationAccessRow & { person: PersonRow }
  */
 export type AccessGrantDto = Omit<
   AccessGrantWithPerson,
-  'grantedOn' | 'expiresOn' | 'createdAt'
+  'grantedOn' | 'expiresOn' | 'verifiedOn' | 'createdAt'
 > & {
   grantedOn: string;
   expiresOn: string | null;
+  verifiedOn: string | null;
 };
 
 /** Przypisanie wraz z osobą i aplikacją — do macierzy zbiorczej. */
@@ -174,7 +177,11 @@ export interface GrantDelegate {
     orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
   }): Promise<AccessGrantWithPerson[] | AccessGrantWithRelations[]>;
   findUnique(args: { where: GrantKey }): Promise<ApplicationAccessRow | null>;
-  create(args: { data: Omit<ApplicationAccessRow, 'createdAt' | 'grantedOn'> }): Promise<ApplicationAccessRow>;
+  create(args: {
+    data: Omit<ApplicationAccessRow, 'createdAt' | 'grantedOn' | 'verifiedOn'> & {
+      verifiedOn?: Date | null;
+    };
+  }): Promise<ApplicationAccessRow>;
   update(args: { where: GrantKey; data: Partial<ApplicationAccessRow> }): Promise<ApplicationAccessRow>;
   delete(args: { where: GrantKey }): Promise<ApplicationAccessRow>;
   count(args: { where?: GrantWhere }): Promise<number>;
@@ -198,6 +205,61 @@ export interface AccessPort {
   person: PersonDelegate;
   applicationAccess: GrantDelegate;
   application: ApplicationDelegate;
+  accessVerification: VerificationDelegate;
+}
+
+// ─── Weryfikacje dostępów ────────────────────────────────────────
+
+/** Zakres wpisu weryfikacji — wartości enumu `VerificationScope`. */
+export type VerificationScopeName = 'MATRIX' | 'APPLICATION' | 'GRANT';
+
+/** Wiersz `AccessVerification` — pola skalarny modelu, bez relacji. */
+export type AccessVerificationRow = {
+  id: string;
+  scope: VerificationScopeName;
+  verifiedOn: Date;
+  note: string | null;
+  applicationId: string | null;
+  personId: string | null;
+  personName: string | null;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: Date;
+};
+
+/** Wpis weryfikacji wraz z nazwą aplikacji — do listy historii. */
+export type AccessVerificationWithApplication = AccessVerificationRow & {
+  application: ApplicationRefRow | null;
+};
+
+/**
+ * Wpis w kształcie odpowiedzi API: daty jako `YYYY-MM-DD`, aplikacja
+ * okrojona do id i nazwy.
+ */
+export type AccessVerificationDto = {
+  id: string;
+  scope: VerificationScopeName;
+  verifiedOn: string;
+  note: string | null;
+  application: { id: string; name: string } | null;
+  personId: string | null;
+  personName: string | null;
+  actorName: string | null;
+};
+
+export interface VerificationDelegate {
+  findMany(args: {
+    where?: {
+      applicationId?: string;
+      scope?: VerificationScopeName;
+    };
+    orderBy?: Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
+    /** Relacja aplikacji wchodzi tylko na jawnym `include` — jak w Prisma. */
+    include?: { application: true };
+  }): Promise<AccessVerificationWithApplication[]>;
+  create(args: {
+    data: Omit<AccessVerificationRow, 'id' | 'createdAt'>;
+  }): Promise<AccessVerificationRow>;
 }
 /**
  * Token wstrzykiwania portu.

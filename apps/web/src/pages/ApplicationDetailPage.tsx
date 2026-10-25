@@ -22,6 +22,7 @@ import {
 } from '../lib/format';
 import { ChangeList } from '../components/audit/ChangeList';
 import { ApplicationAccessSection } from '../components/access/ApplicationAccessSection';
+import { AccessVerificationsSection } from '../components/access/AccessVerificationsSection';
 import {
   ACCESS_REQUEST_NO,
   ACCESS_REQUEST_YES,
@@ -401,7 +402,13 @@ export function ApplicationDetailPage() {
             montowana u gościa, u VIEWERA ani dla programów ogólnego użytku,
             więc nie powstaje żądanie skończone 401 i nie ma pustej karty. */}
         {can('access:read') && app.deliveryType !== 'GENERAL_USE' && (
-          <ApplicationAccessSection applicationId={app.id} nazwaAplikacji={app.name} />
+          <>
+            <ApplicationAccessSection applicationId={app.id} nazwaAplikacji={app.name} />
+            {/* Rejestr przeglądów obok macierzy: „kiedy dostępy były
+                weryfikowane i przez kogo" to odpowiedź na to samo pytanie
+                audytorskie, co macierz. */}
+            <AccessVerificationsSection applicationId={app.id} />
+          </>
         )}
 
         {/* Adresy IP — ta sama reguła usługowa co wyżej (`SELF_HOSTED`),

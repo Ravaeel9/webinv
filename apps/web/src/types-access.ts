@@ -63,6 +63,8 @@ export interface ApplicationGrant {
   level: AccessLevel;
   grantedOn: string;
   expiresOn: string | null;
+  /** Data ostatniego przeglądu grantu — null znaczy „nigdy nie zweryfikowano". */
+  verifiedOn: string | null;
   note: string | null;
   person: AccessPerson;
 }
@@ -74,7 +76,33 @@ export interface AccessMatrixRow {
   level: AccessLevel;
   grantedOn: string;
   expiresOn: string | null;
+  /** Data ostatniego przeglądu grantu — null znaczy „nigdy nie zweryfikowano". */
+  verifiedOn: string | null;
   note: string | null;
+}
+
+// ─── Weryfikacje dostępów (przeglądy macierzy) ───────────────────
+
+/**
+ * Zakres wpisu weryfikacji — lustrzane odbicie enumu `VerificationScope`
+ * w `apps/api/prisma/schema.prisma`.
+ */
+export type AccessVerificationScope = 'MATRIX' | 'APPLICATION' | 'GRANT';
+
+/**
+ * Wpis w rejestrze przeglądów: „dnia X osoba Y potwierdziła, że zapisane
+ * dostępy są aktualne". Nazwisko weryfikującego i osoby z grantu to
+ * migawki z czasu wpisu — historia przeżywa odejście obu stron.
+ */
+export interface AccessVerification {
+  id: string;
+  scope: AccessVerificationScope;
+  verifiedOn: string;
+  note: string | null;
+  application: { id: string; name: string } | null;
+  personId: string | null;
+  personName: string | null;
+  actorName: string | null;
 }
 
 /** Filtr macierzy zbiorczej — nazwy pól odpowiadają query z API. */

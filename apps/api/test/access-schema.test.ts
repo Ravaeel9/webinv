@@ -53,6 +53,27 @@ describe('Schemat: persons i application_access', () => {
     }
   });
 
+  it('ApplicationAccess ma opcjonalny znacznik weryfikacji', () => {
+    const grant = model('ApplicationAccess');
+    // `verifiedOn` to data ostatniego przeglądu — null znaczy „nigdy
+    // nie zweryfikowano". Nowy grant nie może wchodzić zweryfikowany.
+    assert.match(grant, /verifiedOn\s+DateTime\?/);
+  });
+
+  it('AccessVerification rejestruje zakres, datę, aktora i migawkę nazwiska', () => {
+    const weryfikacja = model('AccessVerification');
+    assert.match(weryfikacja, /scope\s+VerificationScope/);
+    assert.match(weryfikacja, /verifiedOn\s+DateTime\s+@map\("verified_on"\)/);
+    assert.match(weryfikacja, /note\s+String\?/);
+    // Aktor jak w AuditLog: relacja SetNull + migawka nazwiska —
+    // historia przeglądów przeżywa konto weryfikującego i osobę.
+    assert.match(weryfikacja, /actorName\s+String\?/);
+    assert.match(weryfikacja, /personName\s+String\?/);
+    assert.match(weryfikacja, /applicationId\s+String\?/);
+    assert.match(weryfikacja, /personId\s+String\?/);
+    assert.match(schemat, /enum VerificationScope \{[\s\S]*?MATRIX[\s\S]*?APPLICATION[\s\S]*?GRANT[\s\S]*?\n\}/);
+  });
+
   it('enum AccessLevel ma dokładnie cztery poziomy', () => {
     const e = schemat.match(/enum AccessLevel \{[\s\S]*?\n\}/)?.[0] ?? '';
     for (const poziom of ['OWNER', 'ADMIN', 'USER', 'READ_ONLY']) {

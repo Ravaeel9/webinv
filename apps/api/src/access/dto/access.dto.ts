@@ -120,6 +120,44 @@ export class UpdateGrantDto {
 }
 
 /**
+ * Zakres weryfikacji — wartości enumu `VerificationScope` ze schematu.
+ *
+ * Lista powtórzona ręcznie (jak `ACCESS_LEVELS`), bo DTO żyje poza warstwą
+ * bazy i nie może zależeć od wygenerowanego klienta.
+ */
+export const VERIFICATION_SCOPES = ['MATRIX', 'APPLICATION', 'GRANT'] as const;
+
+export type VerificationScopeValue = (typeof VERIFICATION_SCOPES)[number];
+
+/**
+ * Nowy wpis weryfikacji dostępów.
+ *
+ * Zakres decyduje o tym, które pola są wymagane: MATRIX nie przyjmuje
+ * aplikacji ani osoby, APPLICATION wymaga aplikacji, GRANT — aplikacji
+ * i osoby. Rozstrzyga tego serwis (po walidacji kształtu), bo reguły
+ * „które pole do którego zakresu" trzeba testować bez bazy.
+ */
+export class CreateVerificationDto {
+  @IsIn(VERIFICATION_SCOPES, { message: 'Nieznany zakres weryfikacji.' })
+  scope!: VerificationScopeValue;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Podaj datę w formacie RRRR-MM-DD.' })
+  verifiedOn?: string;
+
+  @IsOptional() @IsString() @MaxLength(2000, { message: 'Notatka ma maksymalnie 2000 znaków.' })
+  note?: string;
+
+  // Identyfikatory przepuszczamy jako napisy — serwis rozstrzyga ich
+  // obecność względem zakresu i odrzuca nieistniejące cele z 404/400.
+  @IsOptional() @IsString()
+  applicationId?: string;
+
+  @IsOptional() @IsString()
+  personId?: string;
+}
+
+/**
  * Macierz zbiorcza i katalog osób przyjmują filtry w zapytaniu, a nie
  * w ciele — dlatego walidacja jest tu warunkowa. Pusty string znaczy
  * „brak filtra": przeglądarka wysyła puste pola z formularza.
@@ -152,4 +190,14 @@ export class MatrixQueryDto {
   @IsOptional()
   @IsIn(ACCESS_LEVELS, { message: 'Nieznany poziom dostępu.' })
   level?: AccessLevelValue;
+}
+
+/** Filtry historii weryfikacji — zawężenie do aplikacji albo zakresu. */
+export class VerificationQueryDto {
+  @IsOptional() @IsString() @MaxLength(64)
+  applicationId?: string;
+
+  @IsOptional()
+  @IsIn(VERIFICATION_SCOPES, { message: 'Nieznany zakres weryfikacji.' })
+  scope?: VerificationScopeValue;
 }

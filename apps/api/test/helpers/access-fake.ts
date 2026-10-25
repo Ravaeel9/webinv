@@ -13,6 +13,8 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AccessPort,
+  AccessVerificationRow,
+  AccessVerificationWithApplication,
   PersonRow,
   ApplicationAccessRow,
   AccessGrantWithPerson,
@@ -46,6 +48,7 @@ export type FakeDb = {
   osoby: PersonRow[];
   granty: ApplicationAccessRow[];
   aplikacje: ApplicationRefRow[];
+  weryfikacje: AccessVerificationRow[];
 };
 
 /**
@@ -91,6 +94,7 @@ function poleOrderBy(orderBy: unknown): [string, 'asc' | 'desc'] {
 }
 
 export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
+  const weryfikacje: AccessVerificationRow[] = [];
   const osoby: PersonRow[] = [];
   const granty: ApplicationAccessRow[] = [];
   const aplikacjeMap = new Map(aplikacje.map((a) => [a.id, a]));
@@ -276,6 +280,9 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
           level: 'USER',
           note: null,
           expiresOn: null,
+          // Nowy grant nie wchodzi zweryfikowany — znacznik stawia dopiero
+          // wpis weryfikacji obejmujący ten grant.
+          verifiedOn: null,
           createdAt: new Date('2026-01-01T00:00:00Z'),
           ...args.data,
         };
@@ -339,9 +346,56 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         return wynik.map((a) => ({ ...a }));
       },
     },
+    accessVerification: {
+      findMany: async (args: any = {}) => {
+        const where = args?.where ?? {};
+        let wynik = [...weryfikacje];
+        if (where.applicationId) {
+          wynik = wynik.filter((w) => w.applicationId === where.applicationId);
+        }
+        if (where.scope) wynik = wynik.filter((w) => w.scope === where.scope);
+        // Relacja aplikacji wchodzi wyłącznie na jawnym `include` — jak w
+        // prawdziwym Prisma. Atrapa, która doklejała ją zawsze, zamaskowała
+        // brak `include` w serwisie: na żywym API aplikacja wpisu pokazywała
+        // się jako `null`.
+        const zAplikacja = wynik.map((w) => ({
+          ...w,
+          application: args?.include?.application
+            ? (w.applicationId ? aplikacjeMap.get(w.applicationId) ?? null : null)
+            : undefined,
+        })) as AccessVerificationWithApplication[];
+        // Od najnowszej: `verifiedOn` malejąco, jak w raporcie przeglądów.
+        if (args?.orderBy) {
+          const warunki = Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy];
+          for (const warunek of warunki.slice().reverse()) {
+            const [pole, kierunek] = Object.entries(warunek as Record<string, string>)[0]!;
+            zAplikacja.sort((a, b) => {
+              const odczyt = (w: AccessVerificationWithApplication): string => {
+                const wartosc = (w as Record<string, unknown>)[pole];
+                // Daty porównujemy po ISO — napisowa postać `Date`
+                // sortuje po nazwach dni tygodnia, nie po kalendarzu.
+                return wartosc instanceof Date ? wartosc.toISOString() : String(wartosc ?? '');
+              };
+              const porownanie = odczyt(a).localeCompare(odczyt(b));
+              return kierunek === 'desc' ? -porownanie : porownanie;
+            });
+          }
+        }
+        return zAplikacja;
+      },
+      create: async (args: any) => {
+        const wpis: AccessVerificationRow = {
+          id: randomUUID(),
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          ...args.data,
+        };
+        weryfikacje.push(wpis);
+        return wpis;
+      },
+    },
   } as unknown as AccessPort;
 
-  return { port, osoby, granty, aplikacje };
+  return { port, osoby, granty, aplikacje: [...aplikacjeMap.values()], weryfikacje };
 }
 
 /** Sortowanie po jednej nazwie pola; wystarczy dla testów. */

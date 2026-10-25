@@ -107,6 +107,7 @@ model User {
 
   sessions  Session[]
   auditLogs AuditLog[]
+  accessVerifications AccessVerification[] @relation("AccessVerifications")
 
   @@map("users")
 }
@@ -222,6 +223,8 @@ model Application {
   environments ApplicationEnvironment[]
   // Macierz uprawnień: kto ma dostęp do tej aplikacji
   accessGrants ApplicationAccess[] @relation("AppAccess")
+  // Przeglądy dostępów: historia weryfikacji tej aplikacji
+  verifications AccessVerification[] @relation("AppVerifications")
   // Adresy IP, pod którymi aplikacja odpowiada
   ipAddresses  ApplicationIpAddress[]
 
@@ -289,6 +292,7 @@ model Person {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   access ApplicationAccess[]
+  verifications AccessVerification[]
   ownedApps Application[] @relation("AppOwner")
   adminApps Application[] @relation("AppAdmins")
 
@@ -304,6 +308,12 @@ model ApplicationAccess {
   personId      String      @map("person_id") @db.Uuid
   level         AccessLevel @default(USER)
   grantedOn     DateTime    @default(now()) @map("granted_on") @db.Date
+  // Data ostatniego przeglądu tego przypisania — stawia ją wpis
+  // weryfikacji obejmujący ten grant (całą macierz, aplikację albo
+  // pojedynczy wiersz). Null znaczy „nigdy nie zweryfikowano"; zmiana
+  // poziomu grantu kasuje znacznik, bo potwierdzenie dotyczyło dawnego
+  // stanu dostępu.
+  verifiedOn DateTime? @map("verified_on") @db.Date
   // Dostęp tymczasowy. Data wygasania nie kasuje wiersza — historia
   // nadania zostaje, a wiersz oznacza w macierzy jako wygasły.
   expiresOn DateTime? @map("expires_on") @db.Date
@@ -321,6 +331,51 @@ model ApplicationAccess {
   @@index([personId])
   @@index([expiresOn])
   @@map("application_access")
+}
+
+// ─── Weryfikacje dostępów (przeglądy macierzy) ─────────────────
+// Jeden wpis = jedno potwierdzenie: „dnia X osoba Y sprawdziła, że
+// zapisane dostępy są aktualne". Zakres bywa trójstopniowy — cała
+// macierz, jedna aplikacja albo pojedynczy wiersz — dlatego aplikacja
+// i osoba są opcjonalne. Obok identyfikatorów trzymamy migawki nazwisk:
+// przegląd sprzed roku ma pozostać czytelny, gdy osoba odejdzie
+// (SetNull przy `person`), a konto weryfikującego zostanie skasowane.
+enum VerificationScope {
+  MATRIX      // cała macierz — wszystkie aplikacje z macierzą
+  APPLICATION // jedna aplikacja
+  GRANT       // jeden wiersz macierzy (osoba + aplikacja)
+}
+
+model AccessVerification {
+  id         String            @id @default(uuid()) @db.Uuid
+  scope      VerificationScope
+  // Data przeglądu, nie moment zapisu wpisu — przegląd bywa rozliczany
+  // wstecz, a forma `@db.Date` odpowiada datom nadania w macierzy.
+  verifiedOn DateTime          @map("verified_on") @db.Date
+  note       String?           @db.Text
+
+  // Zakres: `applicationId` jest null tylko dla MATRIX; `personId` tylko
+  // dla GRANT. Kaskada przy aplikacji — kasowanie aplikacji zabiera jej
+  // przeglądy, tak samo zabiera granty.
+  applicationId String?      @map("application_id") @db.Uuid
+  application   Application? @relation("AppVerifications", fields: [applicationId], references: [id], onDelete: Cascade)
+  personId    String?  @map("person_id") @db.Uuid
+  person      Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+  // Migawka nazwiska osoby z grantu — po usunięciu osoby (SetNull) wpis
+  // wciąż mówi, kogo wtedy dotyczył.
+  personName  String?  @map("person_name") @db.VarChar(200)
+
+  // Kto weryfikował — zawsze zalogowany użytkownik panelu, kopiowane
+  // z sesji jak w `AuditLog`.
+  actorId   String? @map("actor_id") @db.Uuid
+  actor     User?   @relation("AccessVerifications", fields: [actorId], references: [id], onDelete: SetNull)
+  actorName String? @map("actor_name") @db.VarChar(200)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([applicationId])
+  @@index([verifiedOn])
+  @@map("access_verifications")
 }
 
 // ─── Podsieci i adresy IP ──────────────────────────────────────

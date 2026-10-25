@@ -368,6 +368,7 @@ describe('AccessService — macierz uprawnień', () => {
       expiresOn: null,
       note: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
+      verifiedOn: null,
     });
 
     await assert.rejects(
@@ -405,6 +406,7 @@ describe('AccessService — macierz uprawnień', () => {
       expiresOn: null,
       note: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
+      verifiedOn: null,
     });
 
     await serwis.revokeGrant(aplikacja.id, osoba.id, actor);
@@ -442,6 +444,7 @@ describe('AccessService — macierz uprawnień', () => {
       expiresOn: null,
       note: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
+      verifiedOn: null,
     });
 
     await serwis.grantAccess(

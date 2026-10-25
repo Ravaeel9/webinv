@@ -142,6 +142,7 @@ function grantWBazie(
     expiresOn: dane.expiresOn ? new Date(dane.expiresOn) : null,
     note: dane.note ?? null,
     createdAt: new Date('2026-01-01T00:00:00Z'),
+    verifiedOn: null,
   };
   db.granty.push(grant);
 }

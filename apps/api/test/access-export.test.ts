@@ -268,6 +268,7 @@ describe('AccessService — eksport raportu macierzy', () => {
       expiresOn: null,
       note: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
+      verifiedOn: null,
     });
 
     const { csv } = await serwis.exportMatrixCsv();
@@ -302,6 +303,7 @@ describe('AccessService — eksport raportu macierzy', () => {
       expiresOn: null,
       note: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
+      verifiedOn: null,
     });
 
     const { csv } = await serwis.exportMatrixCsv();
@@ -389,16 +391,21 @@ describe('AccessService — eksport raportu macierzy', () => {
     const db = fakeDb([email, zolw]);
     const serwis = new AccessService(db.port, fakeAudit() as never);
 
-    assert.equal((await serwis.exportMatrixCsv()).nazwaPliku, `macierz-uprawnien-${DZISIAJ}.csv`);
+    // Data w nazwie pliku to data **dziś** (wzorzec `nazwaPlikuRaportu`),
+    // więc test liczy ją z zegara — stała `DZISIAJ` wyżej jest stałą
+    // raportu budowanego z datą podaną z zewnątrz i umierała z przesunięciem
+    // daty systemowej.
+    const dzis = new Date().toISOString().slice(0, 10);
+    assert.equal((await serwis.exportMatrixCsv()).nazwaPliku, `macierz-uprawnien-${dzis}.csv`);
     // Hyfen jest częścią sluga (standard: spacje i symbole → '-', gotowe
     // litery zostają) — 'System E-mail' → 'system-e-mail'.
     assert.equal(
       (await serwis.exportMatrixCsv(email.id)).nazwaPliku,
-      `raport-uprawnien-system-e-mail-${DZISIAJ}.csv`,
+      `raport-uprawnien-system-e-mail-${dzis}.csv`,
     );
     assert.equal(
       (await serwis.exportMatrixCsv(zolw.id)).nazwaPliku,
-      `raport-uprawnien-zolw-3d-${DZISIAJ}.csv`,
+      `raport-uprawnien-zolw-3d-${dzis}.csv`,
     );
   });
 });

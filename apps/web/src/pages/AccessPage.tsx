@@ -15,6 +15,7 @@ import { formatDate } from '../lib/format';
 import { ImportPersonsModal } from '../components/access/ImportPersonsModal';
 import { ImportMatrixModal } from '../components/access/ImportMatrixModal';
 import { NewPersonModal } from '../components/access/NewPersonModal';
+import { AccessVerificationsSection } from '../components/access/AccessVerificationsSection';
 import {
   ACCESS_LEVEL_LABELS,
   type AccessLevel,
@@ -301,6 +302,7 @@ function MatrixTab() {
                 <Th>Poziom</Th>
                 <Th>Nadano</Th>
                 <Th>Wygasa</Th>
+                <Th>Zweryfikowano</Th>
               </tr>
             </Thead>
             <Tbody>
@@ -333,12 +335,22 @@ function MatrixTab() {
                   <Td className="whitespace-nowrap text-fg-muted">
                     {wiersz.expiresOn ? formatDate(wiersz.expiresOn) : 'bezterminowo'}
                   </Td>
+                  <Td className="whitespace-nowrap text-fg-muted">
+                    {/* „—" zamiast pustej komórki: brak przeglądu ma być
+                        widoczny, nie przypominać niedoładowanej strony. */}
+                    {wiersz.verifiedOn ? formatDate(wiersz.verifiedOn) : '—'}
+                  </Td>
                 </tr>
               ))}
             </Tbody>
           </Table>
         </div>
       )}
+
+      {/* Rejestr przeglądów pod macierzą: weryfikacja jest tym, o co pytają
+          audytorzy („kiedy dostępy były przeglądane i przez kogo"), więc
+          stoi przy macierzy, nie w osobnym menu. */}
+      <AccessVerificationsSection />
     </>
   );
 }

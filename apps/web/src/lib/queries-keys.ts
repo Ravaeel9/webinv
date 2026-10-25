@@ -43,6 +43,10 @@ export const qk = {
   person: (id: string) => ['access', 'person', id] as const,
   applicationAccess: (appId: string) => ['access', 'application', appId] as const,
   accessMatrix: ['access', 'matrix'] as const,
+  // `null` w kluczu dla całej macierzy: rejestr przeglądów i rejestr jednej
+  // aplikacji są odrębnymi wpisami cache, ale pod wspólnym prefiksem `access`.
+  accessVerifications: (appId?: string) =>
+    ['access', 'verifications', appId ?? null] as const,
   personsImportPreview: ['access', 'import-preview'] as const,
   // Integracja GLPI: ustawienia + import (podgląd/zapis).
   glpiSettings: ['glpi', 'settings'] as const,

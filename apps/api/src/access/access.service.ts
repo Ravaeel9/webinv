@@ -14,6 +14,9 @@ import {
   type AccessGrantWithRelations,
   type AccessLevelName,
   type AccessPort,
+  type AccessVerificationDto,
+  type AccessVerificationRow,
+  type VerificationScopeName,
   type ApplicationAccessRow,
   type ApplicationRefRow,
   type GrantWhere,
@@ -334,6 +337,7 @@ export class AccessService {
       level: grant.level,
       grantedOn: this.data(grant.grantedOn),
       expiresOn: grant.expiresOn ? this.data(grant.expiresOn) : null,
+      verifiedOn: grant.verifiedOn ? this.data(grant.verifiedOn) : null,
       note: grant.note,
       person,
     };
@@ -476,6 +480,10 @@ export class AccessService {
         dto.expiresOn === null ? null : this.walidujWygasanie(dto.expiresOn, false);
     }
     if (dto.note !== undefined) data.note = dto.note === null ? null : this.walidujNotatke(dto.note);
+    // Zmiana poziomu unieważnia potwierdzenie: weryfikacja dotyczyła
+    // dawnego stanu dostępu, a nie tego, który dopiero powstaje. Notatka
+    // i data wygasania takiej siły nie mają — to opisy, nie zmiana uprawnienia.
+    if (dto.level !== undefined && dto.level !== przed.level) data.verifiedOn = null;
 
     const grant = await this.prisma.applicationAccess.update({
       where: { applicationId_personId: { applicationId, personId } },
@@ -586,8 +594,195 @@ export class AccessService {
       // tylko zaciemnia obraz.
       grantedOn: this.data(g.grantedOn),
       expiresOn: g.expiresOn ? this.data(g.expiresOn) : null,
+      verifiedOn: g.verifiedOn ? this.data(g.verifiedOn) : null,
       note: g.note,
     }));
+  }
+
+  // ─── Weryfikacje dostępów ────────────────────────────────────
+
+  /**
+   * Rejestr przeglądów macierzy: wpis „dnia X osoba Y potwierdziła,
+   * że zapisane dostępy są aktualne".
+   *
+   * Zakres jest trójstopniowy i decyduje, które pola dto mają sens:
+   *
+   *  - `MATRIX` — cała macierz; `applicationId`/`personId` nie mogą
+   *    wystąpić (sprzeczny request to 400, nie ciche zignorowanie pola),
+   *  - `APPLICATION` — jedna aplikacja, wymagana,
+   *  - `GRANT` — aplikacja + osoba; grant musi istnieć, bo weryfikacja
+   *    nieistniejącego przypisania nic nie potwierdza.
+   *
+   * Wpis i stamp grantów idą jednym przepływem: wpis bez stampu zostawiłby
+   * historię, z którą macierz się rozjechała (wiersze „—" mimo przeglądu).
+   */
+  async createVerification(
+    dto: {
+      scope: VerificationScopeName;
+      verifiedOn?: string;
+      note?: string;
+      applicationId?: string;
+      personId?: string;
+    },
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<AccessVerificationDto> {
+    // Data przeglądu jest opcjonalna (domyślnie dziś) i nie może być
+    // z przyszłości — przegląd, który się jeszcze nie odbył, to wpis
+    // zaśmiecający historię.
+    const verifiedOn = this.walidujDateWeryfikacji(dto.verifiedOn);
+    const note = this.walidujNotatke(dto.note);
+
+    if (dto.scope === 'MATRIX' && dto.applicationId) {
+      throw new BadRequestException(
+        'Weryfikacja całej macierzy nie przyjmuje aplikacji — zawęź zakres do APPLICATION.',
+      );
+    }
+
+    let aplikacja: ApplicationRefRow | null = null;
+    if (dto.scope === 'APPLICATION' || dto.scope === 'GRANT') {
+      if (!dto.applicationId) {
+        throw new BadRequestException('Podaj aplikację objętą weryfikacją.');
+      }
+      aplikacja = await this.requireApplicationWithMatrix(dto.applicationId);
+    }
+
+    let osoba: PersonRow | null = null;
+    if (dto.scope === 'GRANT') {
+      if (!dto.personId) {
+        throw new BadRequestException('Podaj osobę, której dostęp weryfikujesz.');
+      }
+      osoba = await this.getPerson(dto.personId);
+      const grant = await this.prisma.applicationAccess.findUnique({
+        where: {
+          applicationId_personId: { applicationId: aplikacja!.id, personId: osoba.id },
+        },
+      });
+      if (!grant) throw new NotFoundException('To przypisanie nie istnieje.');
+    }
+
+    const wpis = await this.prisma.accessVerification.create({
+      data: {
+        scope: dto.scope,
+        verifiedOn,
+        note,
+        applicationId: aplikacja?.id ?? null,
+        personId: osoba?.id ?? null,
+        personName: osoba ? `${osoba.firstName} ${osoba.lastName}` : null,
+        actorId: actor.id,
+        // Nazwisko z sesji, nie login: weryfikującego pokazuje się
+        // właścicielom aplikacji, którzy logina nie znają.
+        actorName: actor.fullName,
+      },
+    });
+
+    await this.stampujGranty(dto.scope, aplikacja?.id ?? null, osoba?.id ?? null, verifiedOn);
+
+    await this.audit.record({
+      action: 'access.verified',
+      entity: 'AccessVerification',
+      entityId: wpis.id,
+      actorId: actor.id,
+      actorName: actor.username,
+      changes: {
+        scope: { from: null, to: dto.scope },
+        application: { from: null, to: aplikacja?.name ?? null },
+        person: { from: null, to: osoba ? this.opisOsoby(osoba) : null },
+        verifiedOn: { from: null, to: this.data(verifiedOn) },
+      },
+      ip,
+    });
+
+    return this.formatWeryfikacja(wpis, aplikacja);
+  }
+
+  /**
+   * Historia weryfikacji — od najnowszej. Filtr aplikacji służy sekcji na
+   * karcie aplikacji, brak filtrów — rejestrowi całej macierzy.
+   */
+  async listVerifications(filters: {
+    applicationId?: string;
+    scope?: VerificationScopeName;
+  }): Promise<{ wpisy: AccessVerificationDto[] }> {
+    const wpisy = await this.prisma.accessVerification.findMany({
+      where: {
+        ...(filters.applicationId ? { applicationId: filters.applicationId } : {}),
+        ...(filters.scope ? { scope: filters.scope } : {}),
+      },
+      orderBy: [{ verifiedOn: 'desc' }],
+      // Nazwa aplikacji w odpowiedzi: sekcja rejestru ma pokazać „co objęto"
+      // bez drugiego zapytania. Bez `include` relacja w Prisma wychodzi
+      // jako `undefined` i wpis wyglądałby jak przegląd całej macierzy.
+      include: { application: true },
+    });
+    return { wpisy: wpisy.map((w) => this.formatWeryfikacja(w, w.application)) };
+  }
+
+  /**
+   * Stawia znacznik `verifiedOn` grantom w zasięgu wpisu. Pętla aktualizacji
+   * zamiast `updateMany`, bo port macierzy nie eksponuje updateMany —
+   * stampowanie dotyczy raportu jednorazowego, a granty w zasięgu liczy się
+   * w tysiącach najwyżej.
+   */
+  private async stampujGranty(
+    scope: VerificationScopeName,
+    applicationId: string | null,
+    personId: string | null,
+    verifiedOn: Date,
+  ): Promise<void> {
+    const where: GrantWhere = {};
+    if (scope === 'APPLICATION') where.applicationId = applicationId!;
+    if (scope === 'GRANT') {
+      where.applicationId = applicationId!;
+      where.personId = personId!;
+    }
+    if (scope === 'MATRIX') {
+      // Historyczne granty aplikacji GENERAL_USE nie wracają do macierzy
+      // razem z resztą — ten sam odsiew, którego używa widok macierzy.
+      where.application = { is: { deliveryType: { not: 'GENERAL_USE' } } };
+    }
+
+    const granty = (await this.prisma.applicationAccess.findMany({ where })) as ApplicationAccessRow[];
+    for (const grant of granty) {
+      await this.prisma.applicationAccess.update({
+        where: {
+          applicationId_personId: { applicationId: grant.applicationId, personId: grant.personId },
+        },
+        data: { verifiedOn },
+      });
+    }
+  }
+
+  /** Data przeglądu: opcjonalna (domyślnie dziś), nigdy z przyszłości. */
+  private walidujDateWeryfikacji(wartosc: string | undefined): Date {
+    if (wartosc === undefined || wartosc === '') return new Date();
+    const data = new Date(wartosc);
+    if (Number.isNaN(data.getTime())) {
+      throw new BadRequestException(`„${wartosc}" nie jest datą.`);
+    }
+    // Porównanie po dacie, nie po znaczniku czasu — jak w
+    // `walidujWygasanie`, bo `@db.Date` nie zna godzin.
+    if (this.data(data) > this.data(new Date())) {
+      throw new BadRequestException('Data weryfikacji nie może być w przyszłości.');
+    }
+    return data;
+  }
+
+  /** Kształt wpisu w odpowiedzi API — daty jako `YYYY-MM-DD`. */
+  private formatWeryfikacja(
+    wpis: AccessVerificationRow,
+    aplikacja: ApplicationRefRow | null,
+  ): AccessVerificationDto {
+    return {
+      id: wpis.id,
+      scope: wpis.scope,
+      verifiedOn: this.data(wpis.verifiedOn),
+      note: wpis.note,
+      application: aplikacja ? { id: aplikacja.id, name: aplikacja.name } : null,
+      personId: wpis.personId,
+      personName: wpis.personName,
+      actorName: wpis.actorName,
+    };
   }
 
   // ─── Raport macierzy (eksport CSV) ──────────────────────────
@@ -1146,7 +1341,15 @@ export class AccessService {
       } else if (diff.length > 0) {
         await this.prisma.applicationAccess.update({
           where: { applicationId_personId: { applicationId: aplikacjaDocelowa.id, personId: osobaZap.id } },
-          data: { level: poziom, expiresOn, note: wiersz.note },
+          data: {
+            level: poziom,
+            expiresOn,
+            note: wiersz.note,
+            // Plik żąda zmiany grantu — jeżeli rusza poziom, to znaczy, że
+            // zweryfikowany stan nie istnieje i znacznik musi spaść. Notatka
+            // i wygasanie opisują grant, więc ich zmiana stampu nie rusza.
+            ...(diff.some((z) => z.pole === 'poziom') ? { verifiedOn: null } : {}),
+          },
         });
         updatedGrants++;
       } else {

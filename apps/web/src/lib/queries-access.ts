@@ -9,6 +9,8 @@ import {
   type AccessLevel,
   type AccessMatrixFilters,
   type AccessMatrixRow,
+  type AccessVerification,
+  type AccessVerificationScope,
   type ApplicationGrant,
   type HeaderMapping,
   type MatrixImportPreview,
@@ -70,6 +72,40 @@ export function useAccessMatrix(filters: AccessMatrixFilters = {}) {
         `/access/matrix${buildQuery({ ...filters })}`,
       ),
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Historia weryfikacji dostępów — rejestr przeglądów. Bez `applicationId`
+ * pokazuje przeglądy całej macierzy (i wszystkie), z identyfikatorem —
+ * tylko przeglądy jednej aplikacji.
+ */
+export function useVerifications(applicationId?: string) {
+  return useQuery({
+    queryKey: qk.accessVerifications(applicationId),
+    queryFn: () =>
+      api.get<{ wpisy: AccessVerification[] }>(
+        `/access/verifications${buildQuery({ applicationId })}`,
+      ),
+    staleTime: 30_000,
+  });
+}
+
+/** Nowy wpis weryfikacji — serwer sam stampuje granty w zasięgu. */
+export function useCreateVerification() {
+  const invalidate = useAccessInvalidate();
+  return useMutation({
+    mutationFn: (body: {
+      scope: AccessVerificationScope;
+      verifiedOn?: string;
+      note?: string;
+      applicationId?: string;
+      personId?: string;
+    }) =>
+      api.post<{ verification: AccessVerification }>('/access/verifications', body),
+    // Stamp zmienia wiersze macierzy i rejestr naraz — unieważniamy cały
+    // prefiks `access`, tak jak pozostałe zapisy macierzy.
+    onSuccess: () => invalidate(),
   });
 }
 
