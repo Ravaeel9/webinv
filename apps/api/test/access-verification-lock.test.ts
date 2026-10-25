@@ -50,6 +50,7 @@ function wpis(
   scope: VerificationScopeName,
   createdAt: Date,
   applicationId: string | null = null,
+  personId: string | null = null,
 ): void {
   weryfikacje.push({
     id: randomUUID(),
@@ -57,7 +58,7 @@ function wpis(
     verifiedOn: new Date('2026-10-25T00:00:00Z'),
     note: null,
     applicationId,
-    personId: null,
+    personId,
     personName: null,
     actorId: actor.id,
     actorName: actor.fullName,
@@ -106,23 +107,91 @@ describe('AccessService — blokada 24 h na weryfikacje', () => {
     );
   });
 
-  it('wpis GRANT ani nie blokuje weryfikacji aplikacji, ani nie jest blokowany', async () => {
+  it('wpis GRANT nie blokuje weryfikacji aplikacji (poziom wiersza nie jest przeglądem)', async () => {
     const { serwis, weryfikacje, aplikacja } = baza();
-    wpis(weryfikacje, 'GRANT', przedChwila(), aplikacja.id);
+    await serwis.grantAccess(aplikacja.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'X' }, actor);
+    const osobaid = (await serwis.listApplicationAccess(aplikacja.id))[0]!.personId;
+    wpis(weryfikacje, 'GRANT', przedChwila(), aplikacja.id, osobaid);
 
     // Weryfikacja aplikacji po drobnym wpisie — dopuszczalna.
     await serwis.createVerification({ scope: 'APPLICATION', applicationId: aplikacja.id }, actor);
+    assert.equal(weryfikacje.length, 2, 'potwierdzenie wiersza nie zwalnia z przeglądu aplikacji');
+  });
 
-    // Weryfikacja grantu po wpisach APPLICATION i MATRIX — bez blokady.
-    wpis(weryfikacje, 'APPLICATION', przedChwila(), aplikacja.id);
-    wpis(weryfikacje, 'MATRIX', przedChwila());
+  it('weryfikacja wiersza drugi raz w ciągu 24 h jest odrzucana', async () => {
+    const { serwis, weryfikacje, aplikacja } = baza();
     await serwis.grantAccess(aplikacja.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'X' }, actor);
-    const grant = weryfikacje.length; // licznik tylko do porównania po zapisie
+    const osobaid = (await serwis.listApplicationAccess(aplikacja.id))[0]!.personId;
+    wpis(weryfikacje, 'GRANT', przedChwila(), aplikacja.id, osobaid);
+
+    await assert.rejects(
+      () =>
+        serwis.createVerification(
+          { scope: 'GRANT', applicationId: aplikacja.id, personId: osobaid },
+          actor,
+        ),
+      ConflictException,
+      'te potwierdzenie już odnotowano w tym oknie',
+    );
+    assert.equal(weryfikacje.length, 1, 'odrzucony wpis nie zostaje w rejestrze');
+  });
+
+  it('weryfikacja wiersza jest zablokowana, gdy bardziej obszerny przegląd padł w ciągu 24 h', async () => {
+    const { serwis, weryfikacje, aplikacja } = baza();
+    await serwis.grantAccess(aplikacja.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'X' }, actor);
+    const osobaid = (await serwis.listApplicationAccess(aplikacja.id))[0]!.personId;
+
+    // APPLICATION tej aplikacji obejmuje ten wiersz.
+    wpis(weryfikacje, 'APPLICATION', przedChwila(), aplikacja.id);
+    await assert.rejects(
+      () => serwis.createVerification({ scope: 'GRANT', applicationId: aplikacja.id, personId: osobaid }, actor),
+      ConflictException,
+    );
+
+    // MATRIX obejmuje wszystko — tak samo.
+    const poApFsowaniu = weryfikacje.length;
+    wpis(weryfikacje, 'MATRIX', przedChwila());
+    await assert.rejects(
+      () => serwis.createVerification({ scope: 'GRANT', applicationId: aplikacja.id, personId: osobaid }, actor),
+      ConflictException,
+    );
+    assert.equal(weryfikacje.length, poApFsowaniu + 1, 'odrzucone wpisy nie lądują w rejestrze');
+  });
+
+  it('weryfikacja innego wiersza tej samej aplikacji pozostaje dopuszczalna', async () => {
+    const { serwis, weryfikacje, aplikacja } = baza();
+    await serwis.grantAccess(aplikacja.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'X' }, actor);
+    await serwis.grantAccess(aplikacja.id, { email: 'b@firma.pl', firstName: 'B', lastName: 'Y' }, actor);
+    const grantyAplikacji = await serwis.listApplicationAccess(aplikacja.id);
+    const [pierwsza, ,] = grantyAplikacji;
+    const [, druga] = grantyAplikacji;
+    wpis(weryfikacje, 'GRANT', przedChwila(), aplikacja.id, pierwsza!.personId);
+
     await serwis.createVerification(
-      { scope: 'GRANT', applicationId: aplikacja.id, personId: (await serwis.listApplicationAccess(aplikacja.id))[0]!.personId },
+      { scope: 'GRANT', applicationId: aplikacja.id, personId: druga!.personId },
       actor,
     );
-    assert.equal(weryfikacje.length, grant + 1, 'wpis GRANT przeszedł mimo wpisów APPLICATION i MATRIX');
+    assert.equal(weryfikacje.length, 2, 'blokada dotyczy wiersza, nie aplikacji');
+  });
+
+  it('komunikat blokady GRANT wskazuje czas odblokowania', async () => {
+    const { serwis, weryfikacje, aplikacja } = baza();
+    await serwis.grantAccess(aplikacja.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'X' }, actor);
+    const osobaid = (await serwis.listApplicationAccess(aplikacja.id))[0]!.personId;
+    const created = przedChwila();
+    wpis(weryfikacje, 'APPLICATION', created, aplikacja.id);
+
+    await assert.rejects(
+      () => serwis.createVerification({ scope: 'GRANT', applicationId: aplikacja.id, personId: osobaid }, actor),
+      (blad: unknown) => {
+        assert.ok(blad instanceof ConflictException);
+        assert.ok(
+          (blad as Error).message.includes(czasNastepnej(created)),
+          `komunikat ma wskazywać czas odblokowania (${czasNastepnej(created)})`,
+        );
+        return true;
+      },
+    );
   });
 
   it('weryfikacja macierzy po weryfikacji jednej aplikacji jest dopuszczalna', async () => {

@@ -325,6 +325,13 @@ function GrantRow({
       </Td>
       {canWrite && (
         <Td className="text-right">
+          {/* Komunikat blokady 24 h: API odrzuca potwierdzenie wiersza,
+              gdy swego rodzaju przegląd obejmujący ten dostęp padł w tym
+              oknie — odrzucenie musi być widoczne w miejscu kliknięcia,
+              cicha porażka zachęcałaby do dalszego klikania. */}
+          {weryfikuj.error instanceof ApiError && (
+            <ErrorMessage error={weryfikuj.error} className="mt-2 mb-1 text-left" />
+          )}
           {editing ? (
             <span className="flex items-center justify-end gap-2">
               <TextInput
