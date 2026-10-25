@@ -187,10 +187,12 @@ else
     sleep 1
   done
 
-  if ! docker compose exec -T web sh -c \
-      "grep -rq '$NEW' /usr/share/nginx/html/assets/ 2>/dev/null"; then
+  # Weryfikacja idzie przez scripts/verify-version.sh: wersję szukamy w
+  # chunku aplikacji (plakietka), nie w całym assets — zbieżny numer
+  # zależności w vendor-*.js potrafił zamaskować stary bundl (wydanie 1.7.0).
+  if ! scripts/verify-version.sh "$NEW"; then
     docker compose logs --tail=30 web
-    die "wersja $NEW nie znalazła się w bundlu — sprawdź ARG VITE_APP_VERSION"
+    die "plakietka $NEW nie znalazła się w chunku aplikacji — sprawdź ARG VITE_APP_VERSION"
   fi
 
   echo "  wersja $NEW jest w obrazie"
