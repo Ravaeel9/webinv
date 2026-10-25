@@ -14,6 +14,7 @@
  */
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -66,7 +67,7 @@ describe('verify-version.sh — szuka wersji w chunku aplikacji, nie w vendorze'
   });
 
   it('release.sh woła weryfikację tym skryptem (okablowanie nie zniknie)', () => {
-    const zrodlo = require('node:fs').readFileSync(join(REPO_ROOT, 'scripts', 'release.sh'), 'utf8');
+    const zrodlo = readFileSync(join(REPO_ROOT, 'scripts', 'release.sh'), 'utf8');
     assert.match(zrodlo, /verify-version\.sh/, 'release.sh ma wywoływać scripts/verify-version.sh');
   });
 });
