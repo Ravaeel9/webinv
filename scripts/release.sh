@@ -35,6 +35,9 @@ for arg in "$@"; do
     # takie wydanie dostałoby numer patcha, a czytelnik tagów nie
     # odróżniłby go od poprawki w tekście.
     --minor) BUMP=minor ;;
+    # Skok major — łamanie zgodności zależności lub interfejsu (np.
+    # aktualizacja frameworka o major, jak NestJS 12 + Prisma 7).
+    --major) BUMP=major ;;
     # Pomoc wypisuje nagłówek pliku — blok komentarza aż do pierwszej
     # linii, która nie zaczyna się od `#`. Zakres `sed` rozjechałby się
     # przy każdej dopisanej linijce komentarza.

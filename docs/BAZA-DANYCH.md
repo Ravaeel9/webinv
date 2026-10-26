@@ -1,6 +1,6 @@
 # Baza danych
 
-PostgreSQL 17 + Prisma 6. Źródłem prawdy jest
+PostgreSQL 18 + Prisma 7. Źródłem prawdy jest
 [`apps/api/prisma/schema.prisma`](../apps/api/prisma/schema.prisma); ten dokument
 opisuje modele, wartości domyślne i decyzje, których sam schemat nie wyjaśnia.
 
