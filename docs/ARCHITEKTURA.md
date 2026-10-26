@@ -426,7 +426,7 @@ aplikację po wdrożeniu).
 | Brak roli „gość” w bazie | gość nie ma sesji, więc nie ma użytkownika | brak śladu, kto oglądał publiczny widok (celowo — to nie jest wymagane) |
 | Import GLPI tworzy tylko nowe rekordy | rejestr ma odwzorowywać stan GLPI, nie zarządzać nim; zapis nie może nadpisać tego, co człowiek dopisał ręcznie | zmiany w GLPI wymagają ponownego importu albo ręcznej aktualizacji wpisów |
 | Sekrety GLPI szyfrowane kluczem z `SESSION_SECRET` | konfiguracja trafia do bazy razem z resztą ustawień, a sekrety nie mogą leżeć jawnie | obrót `SESSION_SECRET` unieważnia zapisane sekrety — trzeba je wpisać ponownie |
-| `overrides` (fastify, deepmerge-ts) w głównym `package.json` | naprawa podatności bez skoku major (NestJS/Prisma); `@nestjs/platform-fastify` sam dokleja starszy fastify | po podbitech major NestJS/Prisma override'y można usunąć (`fastify: 5.12.7`, `deepmerge-ts: ^8.0.0`) |
+| Podbicie do NestJS 12 (11.2026) i zdjęcie `overrides` | `@nestjs/platform-fastify@12` sam przypina `fastify@5.12.7` — ręczny override z czasów NestJS 11 przestał być potrzebny | deepmerge-ts przychodzi z `@prisma/config` (7.x) — wpisu w `overrides` nie odtwarzać |
 
 ## 11. Macierz uprawnień
 
