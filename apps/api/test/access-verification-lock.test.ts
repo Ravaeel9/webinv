@@ -15,9 +15,11 @@
  *  - **MATRIX obejmuje aplikacje**, więc wpis całej macierzy blokuje
  *    weryfikację aplikacji; odwrotnie nie — weryfikacja jednej aplikacji
  *    nie zwalnia z przeglądu reszty.
- *  - **GRANT nie bierze udziału**: weryfikacja pojedynczego wiersza jest
- *    drobną korektą, nie przeglądem — ani nie blokuje, ani nie jest
- *    blokowana.
+ *  - **GRANT działa w obie strony, ale wąsko**: weryfikacja wiersza
+ *    blokuje powtórzenie tego samego wiersza i sama jest blokowana
+ *    przez przegląd aplikacji albo macierzy z ostatnich 24 h;
+ *    potwierdzenie wiersza nie jest przeglądem, więc nie zwalnia
+ *    z przeglądu reszty.
  */
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';

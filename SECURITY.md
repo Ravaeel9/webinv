@@ -66,12 +66,31 @@ z wersjami, opisami i linkami, bez pól poufnych.
 
 - Globalny `ValidationPipe` z `whitelist` + `forbidNonWhitelisted`: nieznane pole
   w ładunku jest błędem 400, a nie cichym odrzuceniem.
+- Identyfikatory (`:id`, `applicationId`, `personId`) przechodzą przez
+  `@IsUUID()` / `ParseUUIDPipe` — zepsute UUID daje czytelny 400, a nie
+  nieobsłużony 500 od PostgreSQL przy `findUnique` na kolumnie `@db.Uuid`.
 - Nazwa kolumny sortowania przechodzi przez **białą listę** (`SORTABLE`,
   `GUEST_SORTABLE`) — nigdy nie trafia do `ORDER BY` z klienta.
 - Zapytania budowane przez Prisma (parametryzowane); nie ma sklejania SQL
   w kodzie aplikacji.
 - Zapisy znoszące dane potwierdza UI, ale **to nie ochrona serwera** — dostęp
   chroni `app:write`/`user:write`.
+
+### Rejestr przeglądów dostępów
+
+Integralność rejestru weryfikacji (`access_verifications`) jest twardnieniem
+audytu, nie wygodą:
+
+- **Weryfikujący zawsze z sesji** — DTO nie ma pola aktora, więc nie da się
+  potwierdzić przeglądu cudzym imieniem; `whitelist` i tak odrzuciłby takie
+  pole, ale serwis nie przyjmuje go w ogóle.
+- **Blokada 24 h w transakcji serializowalnej** (z ponawianiem P2034) — dwa
+  równoległe żądania nie mogą oba przejść blokady, a zapis wpisu i stamp
+  grantów są atomowe: awaria nie zostawia rejestru rozjechanego z macierzą.
+- **Granica backdatingu 180 dni** — nie da się po fakcie „udokumentować"
+  przeglądu dowolnie starą datą; data z przyszłości odrzucana z osobna.
+- Atrapa testowa (`access-fake.ts`) celowo odrzuca złe UUID i złe kształty
+  zapytań jak żywa baza — testy nie maskują różnicy fake-vs-produkcja.
 
 ### Nagłówki i transport
 

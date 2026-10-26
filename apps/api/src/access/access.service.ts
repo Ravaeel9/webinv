@@ -47,6 +47,21 @@ const EMAIL_WZOR = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const POZIOMY_ZAPISU: readonly string[] = ACCESS_LEVELS;
 
 /**
+ * Ile dni wstecz wolno odnotować przegląd. Rejestr jest dowodem
+ * półrocznego przeglądu, więc rozliczanie wstecz jest legalne — ale
+ * nieograniczona data wstecz pozwalałaby po fakcie „udokumentować"
+ * przegląd, który nigdy się nie odbył. Pół roku pokrywa cykl przeglądowy
+ * i zostaje czytelnym odrzuceniem, nie cichą akceptacją.
+ */
+const ZASIEG_WSTECZ_DNI = 180;
+
+/** Ile prób ma serializowalna transakcja przy wycofaniu P2034. */
+const PROBY_TRANSAKCJI = 3;
+
+/** Górna granica odpowiedzi rejestru — tabela rośnie latami. */
+const WIERSZE_REJESTRU = 1000;
+
+/**
  * Katalog osób i macierz uprawnień do aplikacji.
  *
  * Osobny serwis, a nie rozszerzenie `UsersService`, bo osoby z ewidencji
@@ -633,9 +648,14 @@ export class AccessService {
     const verifiedOn = this.walidujDateWeryfikacji(dto.verifiedOn);
     const note = this.walidujNotatke(dto.note);
 
-    if (dto.scope === 'MATRIX' && dto.applicationId) {
+    if (dto.scope === 'MATRIX' && (dto.applicationId || dto.personId)) {
       throw new BadRequestException(
-        'Weryfikacja całej macierzy nie przyjmuje aplikacji — zawęź zakres do APPLICATION.',
+        'Weryfikacja całej macierzy nie przyjmuje aplikacji ani osoby — zawęź zakres do APPLICATION albo GRANT.',
+      );
+    }
+    if (dto.scope === 'APPLICATION' && dto.personId) {
+      throw new BadRequestException(
+        'Weryfikacja aplikacji nie przyjmuje osoby — zawęź zakres do GRANT.',
       );
     }
 
@@ -661,28 +681,32 @@ export class AccessService {
       if (!grant) throw new NotFoundException('To przypisanie nie istnieje.');
     }
 
-    // Blokada 24 h: weryfikacja dowolnego zakresu jest przeglądem
-    // obejmującym swój wiersz — powtórka tego samego dnia nie dowodzi
-    // drugiego przeglądu. Liczymy od `createdAt` (moment zapisu), nie
-    // od `verifiedOn`: cofnięcie daty w formularzu nie otwiera blokady.
-    await this.walidujOdstepWeryfikacji(dto.scope, aplikacja?.id ?? null, osoba?.id ?? null);
+    // Blokada 24 h, zapis wpisu i stamp grantów idą jedną serializowalną
+    // transakcją: check-then-act na odczycie Read Committed przepuszczałby
+    // dwa równoległe POST-y (double-click, dwie zakładki), a wpis bez
+    // stampu — albo stamp bez wpisu — zostawiłby rejestr rozjechany
+    // z macierzą. Konflikt serializacji (P2034) próbujemy ponownie.
+    const wpis = await this.wTransakcjiSerializowalnej(async (tx) => {
+      await this.walidujOdstepWeryfikacji(dto.scope, aplikacja?.id ?? null, osoba?.id ?? null, tx);
 
-    const wpis = await this.prisma.accessVerification.create({
-      data: {
-        scope: dto.scope,
-        verifiedOn,
-        note,
-        applicationId: aplikacja?.id ?? null,
-        personId: osoba?.id ?? null,
-        personName: osoba ? `${osoba.firstName} ${osoba.lastName}` : null,
-        actorId: actor.id,
-        // Nazwisko z sesji, nie login: weryfikującego pokazuje się
-        // właścicielom aplikacji, którzy logina nie znają.
-        actorName: actor.fullName,
-      },
+      const nowy = await tx.accessVerification.create({
+        data: {
+          scope: dto.scope,
+          verifiedOn,
+          note,
+          applicationId: aplikacja?.id ?? null,
+          personId: osoba?.id ?? null,
+          personName: osoba ? `${osoba.firstName} ${osoba.lastName}` : null,
+          actorId: actor.id,
+          // Nazwisko z sesji, nie login: weryfikującego pokazuje się
+          // właścicielom aplikacji, którzy logina nie znają.
+          actorName: actor.fullName,
+        },
+      });
+
+      await this.stampujGranty(dto.scope, aplikacja?.id ?? null, osoba?.id ?? null, verifiedOn, tx);
+      return nowy;
     });
-
-    await this.stampujGranty(dto.scope, aplikacja?.id ?? null, osoba?.id ?? null, verifiedOn);
 
     await this.audit.record({
       action: 'access.verified',
@@ -716,6 +740,10 @@ export class AccessService {
         ...(filters.scope ? { scope: filters.scope } : {}),
       },
       orderBy: [{ verifiedOn: 'desc' }],
+      // Górna granica odpowiedzi: rejestr przyrasta z każdym przeglądem,
+      // a odpowiedź bez limitu jest niezabezpieczona na objętość. 1000
+      // wpisów to ~3 lata codziennych przeglądów — nadmiarowa porcja.
+      take: WIERSZE_REJESTRU,
       // Nazwa aplikacji w odpowiedzi: sekcja rejestru ma pokazać „co objęto"
       // bez drugiego zapytania. Bez `include` relacja w Prisma wychodzi
       // jako `undefined` i wpis wyglądałby jak przegląd całej macierzy.
@@ -728,13 +756,15 @@ export class AccessService {
    * Stawia znacznik `verifiedOn` grantom w zasięgu wpisu. Pętla aktualizacji
    * zamiast `updateMany`, bo port macierzy nie eksponuje updateMany —
    * stampowanie dotyczy raportu jednorazowego, a granty w zasięgu liczy się
-   * w tysiącach najwyżej.
+   * w tysiącach najwyżej. Działa na klient transakcyjny `db`, żeby stamp
+   * nie przetrwał wycofania transakcji wpisu.
    */
   private async stampujGranty(
     scope: VerificationScopeName,
     applicationId: string | null,
     personId: string | null,
     verifiedOn: Date,
+    db: AccessPort = this.prisma,
   ): Promise<void> {
     const where: GrantWhere = {};
     if (scope === 'APPLICATION') where.applicationId = applicationId!;
@@ -748,9 +778,9 @@ export class AccessService {
       where.application = { is: { deliveryType: { not: 'GENERAL_USE' } } };
     }
 
-    const granty = (await this.prisma.applicationAccess.findMany({ where })) as ApplicationAccessRow[];
+    const granty = (await db.applicationAccess.findMany({ where })) as ApplicationAccessRow[];
     for (const grant of granty) {
-      await this.prisma.applicationAccess.update({
+      await db.applicationAccess.update({
         where: {
           applicationId_personId: { applicationId: grant.applicationId, personId: grant.personId },
         },
@@ -774,15 +804,23 @@ export class AccessService {
    *  - weryfikacja wiersza (GRANT) blokuje tylko powtórzenie tego
    *    samego wiersza (osoba + aplikacja); potwierdzenie wiersza nie
    *    jest przeglądem, więc nie blokuje weryfikacji aplikacji.
+   *
+   * Odczyt idzie na klient transakcyjny `db` — sprawdzenie blokady
+   * i zapis wpisu muszą widzieć ten sam stan bazy (patrz transakcja
+   * serializowalna w `createVerification`).
    */
   private async walidujOdstepWeryfikacji(
     scope: VerificationScopeName,
     applicationId: string | null,
     personId: string | null,
+    db: AccessPort = this.prisma,
   ): Promise<void> {
     const granica = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const wpisy = await this.prisma.accessVerification.findMany({
+    const wpisy = await db.accessVerification.findMany({
       where: { createdAt: { gt: granica } },
+      // Od najnowszego: komunikat wskazuje moment odblokowania po
+      // **ostatnim** wpisie w oknie, nie dowolnym trafionym.
+      orderBy: [{ createdAt: 'desc' }],
     });
 
     const lokalny = (w: AccessVerificationRow): boolean =>
@@ -810,8 +848,28 @@ export class AccessService {
           : 'Weryfikacja tego dostępu';
     throw new ConflictException(
       `${co} została już odnotowana w ciągu ostatnich 24 godzin — ` +
-        `kolejna możliwa od ${godzina} (czas serwera).`,
+        `kolejna możliwa od ${godzina} UTC.`,
     );
+  }
+
+  /**
+   * Transakcja serializowalna z ponawianiem — blokada 24 h jest kontrolą
+   * zgodności, więc dwa równoległe żądania nie mogą oba przejść. Poziom
+   * `Serializable` każe PostgreSQL wykryć wyścig odczyt-zapis i wycofać
+   * jedno z żądań (Prisma: kod P2034); klient próbuje jeszcze raz, bo
+   * ponowienie w normalnych warunkach już blokadę widzi.
+   */
+  private async wTransakcjiSerializowalnej<T>(
+    operacja: (tx: AccessPort) => Promise<T>,
+  ): Promise<T> {
+    for (let proba = 1; ; proba++) {
+      try {
+        return await this.prisma.$transaction(operacja, { isolationLevel: 'Serializable' });
+      } catch (wyjatek) {
+        if ((wyjatek as { code?: string }).code === 'P2034' && proba < PROBY_TRANSAKCJI) continue;
+        throw wyjatek;
+      }
+    }
   }
 
   /** Data przeglądu: opcjonalna (domyślnie dziś), nigdy z przyszłości. */
@@ -825,6 +883,15 @@ export class AccessService {
     // `walidujWygasanie`, bo `@db.Date` nie zna godzin.
     if (this.data(data) > this.data(new Date())) {
       throw new BadRequestException('Data weryfikacji nie może być w przyszłości.');
+    }
+    // Dolna granica wstecz: rejestr dokumentuje półroczny przegląd, a
+    // nieograniczona data pozwalałaby po fakcie „udokumentować" przegląd,
+    // który nigdy się nie odbył. Granica to data, nie znacznik czasu.
+    const granica = new Date(Date.now() - ZASIEG_WSTECZ_DNI * 24 * 60 * 60 * 1000);
+    if (this.data(data) < this.data(granica)) {
+      throw new BadRequestException(
+        `Data weryfikacji nie może sięgać dalej niż ${ZASIEG_WSTECZ_DNI} dni wstecz.`,
+      );
     }
     return data;
   }

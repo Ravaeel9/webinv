@@ -350,7 +350,7 @@ function MatrixTab() {
       {/* Rejestr przeglądów pod macierzą: weryfikacja jest tym, o co pytają
           audytorzy („kiedy dostępy były przeglądane i przez kogo"), więc
           stoi przy macierzy, nie w osobnym menu. */}
-      <AccessVerificationsSection />
+      <AccessVerificationsSection className="mt-4" />
     </>
   );
 }

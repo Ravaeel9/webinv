@@ -34,8 +34,11 @@ const ZAKRES_LABELS: Record<AccessVerificationScope, string> = {
  */
 export function AccessVerificationsSection({
   applicationId,
+  className,
 }: {
   applicationId?: string;
+  /** Odstęp od poprzedniej sekcji — ustawia call-site, nie komponent. */
+  className?: string;
 }) {
   const { can } = useAuth();
   const edytowac = can('access:write');
@@ -48,7 +51,7 @@ export function AccessVerificationsSection({
   const scope: 'MATRIX' | 'APPLICATION' = applicationId ? 'APPLICATION' : 'MATRIX';
 
   return (
-    <section className="card mt-4">
+    <section className={`card-section ${className ?? ''}`}>
       <div className="card-section-header">
         <span className="section-icon tone-info">
           <IconShield />
@@ -199,7 +202,14 @@ function WeryfikacjaModal({
   );
 }
 
-/** Dzisiejsza data w formacie `RRRR-MM-DD` — porównanie jest tekstowe. */
+/**
+ * Dzisiejsza data w formacie `RRRR-MM-DD` — porównanie jest tekstowe.
+ * Po strefie lokalnej, nie UTC: `toISOString()` po północy w UTC+X
+ * zwracał wczorajszą datę i formularz startował cofnięty o dzień.
+ */
 function dzis(): string {
-  return new Date().toISOString().slice(0, 10);
+  const teraz = new Date();
+  const miesiac = String(teraz.getMonth() + 1).padStart(2, '0');
+  const dzien = String(teraz.getDate()).padStart(2, '0');
+  return `${teraz.getFullYear()}-${miesiac}-${dzien}`;
 }

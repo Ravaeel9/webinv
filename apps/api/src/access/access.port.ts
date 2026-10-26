@@ -206,6 +206,16 @@ export interface AccessPort {
   applicationAccess: GrantDelegate;
   application: ApplicationDelegate;
   accessVerification: VerificationDelegate;
+  /**
+   * Transakcja w formie wywołania zwrotnego — jak w `IpamPort` i
+   * `SettingsPort`. Zapis weryfikacji, blokada 24 h i stamp grantów muszą
+   * stanowić jeden atomarny krok: odczyt blokady i zapis wpisu w środku
+   * transakcji dostają `tx` (klient transakcyjny), nie goły port.
+   */
+  $transaction<T>(
+    operacja: (tx: AccessPort) => Promise<T>,
+    opcje?: { isolationLevel?: 'Serializable' },
+  ): Promise<T>;
 }
 
 // ─── Weryfikacje dostępów ────────────────────────────────────────
@@ -256,6 +266,8 @@ export interface VerificationDelegate {
       createdAt?: { gt?: Date };
     };
     orderBy?: Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
+    /** Górna granica odpowiedzi — rejestr rośnie latami, odpowiedź nie może. */
+    take?: number;
     /** Relacja aplikacji wchodzi tylko na jawnym `include` — jak w Prisma. */
     include?: { application: true };
   }): Promise<AccessVerificationWithApplication[]>;

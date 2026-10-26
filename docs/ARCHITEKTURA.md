@@ -463,6 +463,35 @@ Podgląd klasyfikuje wiersze (`NEW` / `UPDATE` / `ERROR`), a zapis waliduje je
 ponownie — między krokami jest przerwa w pracy, w której dane mogą się
 zmienić.
 
+### Weryfikacje dostępów — dowód przeglądu
+
+Obok macierzy żyje rejestr przeglądów (`access_verifications`): „dnia X osoba
+Y potwierdziła, że dostępy są aktualne". Trzy decyzje, które tu pilnują
+integrytetu dowodu:
+
+- **Weryfikujący zawsze z sesji.** Payload nie ma pola aktora — potwierdzenie
+  cudzym imieniem nie byłoby dowodem. Obok identyfikatorów wpis trzyma
+  migawki nazwisk (osoby i weryfikującego), więc historia przeżywa
+  usunięcie osoby (`SetNull`) i konta (`SetNull`).
+- **Blokada 24 h jako transakcja serializowalna.** Sprawdzenie blokady, zapis
+  wpisu i stamp grantów (`verifiedOn`) idą jednym `$transaction` z poziomem
+  `Serializable` i ponawianiem przy konflikcie P2034 — check-then-act na
+  odczycie Read Committed przepuszczałby dwa równoległe POST-y (double-click,
+  dwie zakładki), a awaria w trakcie stampu zostawiłaby rejestr rozjechany
+  z macierzą. Właśnie dlatego `AccessPort` ma `$transaction` z klientem `tx`,
+  a nie tylko „callback dla porządku".
+- **Blokada liczy od `createdAt`, nie od `verifiedOn`.** Cofnięcie daty
+  w formularzu nie otwiera okna; sama data ma zresztą dolną granicę
+  180 dni, żeby nie dało się „udokumentować" przeglądu po fakcie.
+  Parowanie zasięgów: szerszy przegląd obejmuje węższy (MATRIX blokuje
+  APPLICATION i GRANT, APPLICATION blokuje GRANT swojej aplikacji;
+  potwierdzenie wiersza nie jest przeglądem reszty).
+
+Konwencja walidacji jest tu rozciągnięta na port: atrapa testowa
+(`test/helpers/access-fake.ts`) jest **niepobłażliwa** jak baza — rzuca na
+złym UUID w `findUnique` i pilnuje złożonych kluczy, żeby testy nie dawały
+zielonego światła kodowi, który na żywym PostgreSQL zwracałby 500.
+
 ## 12. Granice systemu
 
 Czego tu **nie ma** świadomie (szczegóły i rekomendacje:

@@ -260,7 +260,6 @@ function GrantRow({
     setEditing(false);
   };
 
-  /** Potwierdzenie jednego wiersza: „ten dostęp jest aktualny". */
   /** Potwierdzenie wiersza; blokada 24 h wraca jako toast (popup) —
    *  nie jako inline w komórce, bo użytkownik nie czyta tabeli w kolankę,
    *  a cicha porażka zachęcałaby do dalszego klikania. */

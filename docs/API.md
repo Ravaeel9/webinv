@@ -361,6 +361,9 @@ Zdarzenia występujące w systemie:
 | `address.created` / `address.updated` / `address.deleted` | `IpAddress` | zapis katalogu adresów |
 | `user.created` / `user.updated` / `user.deleted` | `User` | zarządzanie kontami |
 | `user.sessions_revoked` | `User` | unieważnienie sesji po zmianie roli lub wyłączeniu |
+| `person.created` / `person.deleted` / `person.imported` | `Person` | katalog osób macierzy (ręcznie, CSV, GLPI) |
+| `access.granted` / `access.updated` / `access.revoked` / `access.imported` | `ApplicationAccess` | zapis macierzy uprawnień (ręcznie, CSV, GLPI) |
+| `access.verified` | `AccessVerification` | odnotowanie przeglądu dostępów |
 
 ## Macierz uprawnień `/api/access`
 
@@ -379,6 +382,8 @@ Wszystkie trasy wymagają sesji i uprawnienia `access:read` albo
 | PATCH | `/api/access/applications/:id/:personId` | `access:write` | zmiana poziomu, daty wygaśnięcia, notatki |
 | DELETE | `/api/access/applications/:id/:personId` | `access:write` | odebranie dostępu (osoba zostaje) |
 | GET | `/api/access/matrix` | `access:read` | macierz zbiorcza (raport) |
+| GET | `/api/access/verifications` | `access:read` | historia przeglądów dostępów (`applicationId`, `scope` jako filtry) |
+| POST | `/api/access/verifications` | `access:write` | odnotowanie przeglądu dostępów (patrz [Weryfikacje dostępów](#weryfikacje-dostępów)) |
 | GET | `/api/access/persons` | `access:read` | katalog osób |
 | GET | `/api/access/persons/:id` | `access:read` | osoba i jej przypisania |
 | POST | `/api/access/persons` | `access:write` | nowa osoba w katalogu |
@@ -444,6 +449,49 @@ w pliku zachowuje dostęp — plik nie odbiera uprawnień. Nieznana osoba
 jest tworzona z imienia i nazwiska z pliku; grant dla osoby nieaktywnej
 wymaga najpierw aktywacji jej w katalogu. Kolumny pochodne eksportu
 (`Status grantu`, `Nadane`, metadane aplikacji) są ignorowane.
+
+### Weryfikacje dostępów
+
+Rejestr przeglądów macierzy: „dnia X osoba Y potwierdziła, że zapisane
+dostępy są aktualne". To dowód półrocznego przeglądu — odpowiedź na audytorskie
+„kiedy dostępy były ostatnio przeglądane i przez kogo". Wpis **stampuje**
+kolumnę `verifiedOn` grantom w swoim zasięgu; zmiana poziomu grantu i nowy
+grant unieważniają znacznik.
+
+| Metoda | Ścieżka | Uprawnienie | Zastosowanie |
+|---|---|---|---|
+| GET | `/api/access/verifications` | `access:read` | historia od najnowszej; filtry `applicationId`, `scope` (`MATRIX`/`APPLICATION`/`GRANT`); limit 1000 wpisów |
+| POST | `/api/access/verifications` | `access:write` | nowy wpis + stamp grantów w zasięgu |
+
+```json
+POST /api/access/verifications
+{
+  "scope": "APPLICATION",
+  "applicationId": "<uuid aplikacji>",
+  "verifiedOn": "2026-10-26",
+  "note": "Przegląd półroczny — potwierdzone z właścicielem"
+}
+```
+
+Zakres decyduje o wymaganych polach: `MATRIX` — cała macierz (bez
+identyfikatorów), `APPLICATION` — jedna aplikacja, `GRANT` — aplikacja
+i osoba (`personId`). Nadmiarowy identyfikator względem zakresu to `400`,
+nie ciche zignorowanie. Weryfikującym zostaje **zalogowany użytkownik z
+sesji** — payload nie ma pola aktora, bo potwierdzenie cudzym imieniem nie
+byłoby dowodem.
+
+Reguły odrzuceń:
+
+- nieznany zakres, złe UUID, data z przyszłości, notatka > 2000 znaków → `400`;
+- data starsza niż **180 dni** → `400` (rejestr dokumentuje bieżący przegląd,
+  nie „dokumentuje po fakcie" dowolnie starą datę);
+- nieistniejąca aplikacja / osoba / grant → `404`;
+- druga weryfikacja tego samego zasięgu w ciągu **24 godzin** → `409` z godziną
+  odblokowania. Szerszy przegląd obejmuje węższy: wpis całej macierzy blokuje
+  weryfikację aplikacji i każdego wiersza, wpis aplikacji — jej wierszy;
+  potwierdzenie wiersza blokuje tylko powtórzenie tego wiersza. Licznik
+  biegnie od momentu zapisu (`createdAt`), nie od deklarowanej daty przeglądu —
+  cofnięcie daty nie otwiera blokady.
 
 ## Ustawienia `/api/settings`
 

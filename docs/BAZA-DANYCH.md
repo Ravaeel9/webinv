@@ -246,6 +246,7 @@ Jedno przypisanie: ta osoba ma dostęp do tej aplikacji na tym poziomie.
 | `level` | `AccessLevel` | `OWNER`, `ADMIN`, `USER`, `READ_ONLY`; domyślnie `USER` |
 | `granted_on` | `date` | data nadania, domyślnie dziś |
 | `expires_on` | `date?` | wygasanie; **nie kasuje wiersza** — dostęp wygasły zostaje widoczny z ostrzeżeniem |
+| `verified_on` | `date?` | data ostatniego przeglądu grantu; stawia ją wpis weryfikacji obejmujący grant, kasuje zmiana poziomu i nowy grant |
 | `note` | `text?` | np. „dostęp tymczasowy do końca projektu" |
 | `created_at` | `timestamptz` | |
 
@@ -253,6 +254,33 @@ Klucz główny złożony `(application_id, person_id)` — ta sama osoba nie mo�
 wejść do tej samej aplikacji dwa razy. Indeksy: `person_id` (katalog osób →
 przypisania), `expires_on` (wygasłe).
 
+### `access_verifications`
+
+Rejestr przeglądów dostępów: jeden wpis = jedno potwierdzenie „dnia X osoba Y
+sprawdziła, że zapisane dostępy są aktualne". Zakres jest trójstopniowy
+(cała macierz / jedna aplikacja / pojedynczy wiersz), dlatego `application_id`
+i `person_id` są nullable.
+
+| Pole | Typ | Uwagi |
+|---|---|---|
+| `scope` | `VerificationScope` | `MATRIX`, `APPLICATION`, `GRANT` |
+| `verified_on` | `date` | data **przeglądu**, nie zapisu wpisu — przegląd bywa rozliczany wstecz (do 180 dni) |
+| `note` | `text?` | maks. 2000 znaków, pilnuje DTO |
+| `application_id` | `uuid?` | FK → `applications`, `Cascade` — kasowanie aplikacji zabiera jej przeglądy, tak samo granty |
+| `person_id` | `uuid?` | FK → `persons`, `SetNull` |
+| `person_name` | `varchar(255)?` | migawka nazwiska — po usunięciu osoby (SetNull) wpis wciąż mówi, kogo dotyczył; 255, bo DTO dopuszcza imię i nazwisko po 100 znaków każde |
+| `actor_id` | `uuid?` | FK → `users`, `SetNull` — zawsze zalogowany użytkownik panelu, kopiowany z sesji (payload nie ma pola aktora) |
+| `actor_name` | `varchar(200)?` | kopia nazwy weryfikującego — historia przeżywa usunięcie konta |
+| `created_at` | `timestamptz` | punkt odniesienia blokady 24 h między przeglądami — moment zapisu, nie deklarowana data |
+
+Indeksy: `application_id` (historia aplikacji), `verified_on` (lista od
+najnowszej), `created_at` (blokada 24 h — sprawdzenie przy każdym zapisie,
+pełny skan byłby odczuwalny przy rosnącym rejestrze).
+
+Zapis wpisu, sprawdzenie blokady 24 h i stamp grantów idą jedną transakcją
+serializowalną — dwa równoległe żądania nie mogą oba przejść blokady, a wpis
+bez stampu (albo stamp bez wpisu) nie zostawi rozjazdu rejestru z macierzą.
+Szczegóły: [ARCHITEKTURA.md](ARCHITEKTURA.md#11-macierz-uprawnień).
 
 ### `audit_logs`
 
@@ -260,7 +288,7 @@ przypisania), `expires_on` (wygasłe).
 |---|---|---|
 | `id` | `uuid` | |
 | `action` | `varchar(40)` | np. `app.updated` |
-| `entity` | `varchar(60)` | `User`, `Session`, `Application`, `Subnet`, `IpAddress`, `Person`, `ApplicationAccess` |
+| `entity` | `varchar(60)` | `User`, `Session`, `Application`, `Subnet`, `IpAddress`, `Person`, `ApplicationAccess`, `AccessVerification` |
 | `entity_id` | `uuid?` | rekord, którego dotyczy zdarzenie |
 | `actor_id` | `uuid?` | FK → `users`, `SetNull` (historia przeżywa usunięcie konta) |
 | `actor_name` | `varchar(200)?` | kopia nazwy — czytelna nawet po usunięciu konta |
@@ -299,6 +327,7 @@ zwracają jawnie zapisanych wartości — GET pokazuje flagi `has*`. Obrót
 | `SupportOwnerType` | `INTERNAL`, `VENDOR` | kto prowadzi wsparcie |
 | `SupportChannel` | `EMAIL`, `PHONE`, `PORTAL`, `CHAT`, `ON_SITE` | główny kanał zgłoszeń |
 | `AccessLevel` | `OWNER`, `ADMIN`, `USER`, `READ_ONLY` | poziom dostępu osoby do aplikacji — inny niż `Role`, który opisuje prawa w panelu |
+| `VerificationScope` | `MATRIX`, `APPLICATION`, `GRANT` | zasięg przeglądu dostępów: cała macierz, jedna aplikacja, pojedynczy wiersz |
 | `IpStatus` | `FREE`, `IN_USE`, `DEPRECATED` | status adresu w katalogu: wolny (lub zarezerwowany bez aplikacji), zajęty, wycofywany — dlaczego na adresie, patrz `ip_addresses` |
 
 ## Rozszerzenia

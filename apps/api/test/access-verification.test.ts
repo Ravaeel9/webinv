@@ -127,14 +127,14 @@ describe('AccessService — weryfikacja dostępów', () => {
     await serwis.grantAccess(kadry.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'Kadry' }, actor);
 
     await serwis.createVerification(
-      { scope: 'APPLICATION', applicationId: kadry.id, verifiedOn: '2026-01-10' },
+      { scope: 'APPLICATION', applicationId: kadry.id, verifiedOn: dzisWstecz(30) },
       actor,
     );
-    await serwis.createVerification({ scope: 'MATRIX', verifiedOn: '2026-06-01' }, actor);
+    await serwis.createVerification({ scope: 'MATRIX', verifiedOn: dzisWstecz(5) }, actor);
 
     const { wpisy: historia } = await serwis.listVerifications({ applicationId: kadry.id });
     assert.equal(historia.length, 1, 'filtr aplikacji odsiewa weryfikację całej macierzy');
-    assert.equal(historia[0]!.verifiedOn, '2026-01-10');
+    assert.equal(historia[0]!.verifiedOn, dzisWstecz(30));
     assert.equal(historia[0]!.actorName, 'Anna Administrator');
     assert.deepEqual(
       historia[0]!.application,
@@ -144,7 +144,7 @@ describe('AccessService — weryfikacja dostępów', () => {
 
     const cala = await serwis.listVerifications({});
     assert.equal(cala.wpisy.length, 2);
-    assert.equal(cala.wpisy[0]!.verifiedOn, '2026-06-01', 'najnowsza weryfikacja pierwsza');
+    assert.equal(cala.wpisy[0]!.verifiedOn, dzisWstecz(5), 'najnowsza weryfikacja pierwsza');
   });
 
   it('zmiana poziomu grantu unieważnia weryfikację, zmiana notatki nie', async () => {
@@ -197,14 +197,17 @@ describe('AccessService — weryfikacja dostępów', () => {
       BadRequestException,
       'data weryfikacji nie może być z przyszłości',
     );
+    // Nieistniejący cel z **poprawnym** UUID: 404. UUID zepsuty formatem
+    // odrzuca DTO (400) — atrapa celowo wywala się na złym UUID, tak jak
+    // PostgreSQL na kolumnie `@db.Uuid`, więc tu muszą być prawdziwe UUID.
     await assert.rejects(
-      () => serwis.createVerification({ scope: 'APPLICATION', applicationId: 'brak' }, actor),
+      () => serwis.createVerification({ scope: 'APPLICATION', applicationId: randomUUID() }, actor),
       NotFoundException,
     );
     await assert.rejects(
       () =>
         serwis.createVerification(
-          { scope: 'GRANT', applicationId: kadry.id, personId: 'brak' },
+          { scope: 'GRANT', applicationId: kadry.id, personId: randomUUID() },
           actor,
         ),
       NotFoundException,
@@ -217,6 +220,51 @@ describe('AccessService — weryfikacja dostępów', () => {
     );
   });
 
+  it('nadmiarowe identyfikatory względem zakresu są odrzucane, nie ignorowane', async () => {
+    const { port, kadry } = baza();
+    const serwis = new AccessService(port, fakeAudit() as never);
+    const osoba = randomUUID();
+
+    // MATRIX obejmuje wszystko — aplikacja i osoba nie mają tu sensu.
+    await assert.rejects(
+      () => serwis.createVerification({ scope: 'MATRIX', personId: osoba }, actor),
+      BadRequestException,
+      'MATRIX nie przyjmuje osoby',
+    );
+    // APPLICATION obejmuje aplikację — osoba to już węższy zakres GRANT.
+    await assert.rejects(
+      () =>
+        serwis.createVerification(
+          { scope: 'APPLICATION', applicationId: kadry.id, personId: osoba },
+          actor,
+        ),
+      BadRequestException,
+      'APPLICATION nie przyjmuje osoby',
+    );
+  });
+
+  it('data weryfikacji starsza niż 180 dni jest odrzucana', async () => {
+    const { port, kadry } = baza();
+    const serwis = new AccessService(port, fakeAudit() as never);
+    await serwis.grantAccess(kadry.id, { email: 'a@firma.pl', firstName: 'A', lastName: 'Kadry' }, actor);
+
+    await assert.rejects(
+      () =>
+        serwis.createVerification(
+          { scope: 'APPLICATION', applicationId: kadry.id, verifiedOn: dzisWstecz(181) },
+          actor,
+        ),
+      BadRequestException,
+      'nieograniczony backdating pozwalałby udokumentować przegląd po fakcie',
+    );
+    // Szedłścia tuż przed granicą przechodzi.
+    const wpis = await serwis.createVerification(
+      { scope: 'APPLICATION', applicationId: kadry.id, verifiedOn: dzisWstecz(179) },
+      actor,
+    );
+    assert.equal(wpis.verifiedOn, dzisWstecz(179));
+  });
+
   it('macierz i granty zwracają datę weryfikacji jako tekst albo null', async () => {
     const { port, granty, kadry } = baza();
     const serwis = new AccessService(port, fakeAudit() as never);
@@ -226,14 +274,14 @@ describe('AccessService — weryfikacja dostępów', () => {
     assert.equal(przed[0]!.verifiedOn, null, 'bez przeglądu — null');
 
     await serwis.createVerification(
-      { scope: 'APPLICATION', applicationId: kadry.id, verifiedOn: '2026-05-01' },
+      { scope: 'APPLICATION', applicationId: kadry.id, verifiedOn: dzisWstecz(20) },
       actor,
     );
     const po = await serwis.listApplicationAccess(kadry.id);
-    assert.equal(po[0]!.verifiedOn, '2026-05-01');
+    assert.equal(po[0]!.verifiedOn, dzisWstecz(20));
 
     const macierz = await serwis.matrix({ applicationId: kadry.id });
-    assert.equal(macierz[0]!.verifiedOn, '2026-05-01');
+    assert.equal(macierz[0]!.verifiedOn, dzisWstecz(20));
   });
 
   it('GENERAL_USE nie przyjmuje weryfikacji', async () => {
@@ -248,4 +296,9 @@ describe('AccessService — weryfikacja dostępów', () => {
 
 function dzis(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Data `dni` dni wstecz w formacie `RRRR-MM-DD` — w granicy 180 dni. */
+function dzisWstecz(dni: number): string {
+  return new Date(Date.now() - dni * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }

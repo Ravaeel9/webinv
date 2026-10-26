@@ -100,6 +100,23 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
   const aplikacjeMap = new Map(aplikacje.map((a) => [a.id, a]));
 
   /**
+   * Kolumny `@db.Uuid` odrzucają wartości spoza formatu UUID — atrapa
+   * musi to samo, bo serwis podający goły napis z DTO do `findUnique`
+   * dostaje na żywej bazie 500, a atrapa akceptująca wszystko ukrywałaby
+   * brak walidacji DTO (drugi taki przypadek po `orderBy`-napisie).
+   */
+  function sprawdzUuid(wartosc: unknown, skad: string): void {
+    const wzor =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof wartosc !== 'string' || !wzor.test(wartosc)) {
+      throw new Error(
+        `atrapa (${skad}): "${wartosc}" nie jest UUID — PostgreSQL rzuciłby ` +
+          `'invalid input syntax for type uuid', serwis zwróciłby 500`,
+      );
+    }
+  }
+
+  /**
    * Sortowanie grantów wg `orderBy` macierzy (`application.name`, potem
    * `person.lastName`). Bez tego raport nie mógłby sprawdzić kolejności
    * wierszy: prawdziwa baza sortuje przy odczycie, więc atrapa musi odwzorować
@@ -192,8 +209,10 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
           ) ?? null
         );
       },
-      findUnique: async (args: any) =>
-        osoby.find((p) => p.id === args?.where?.id) ?? null,
+      findUnique: async (args: any) => {
+        if (args?.where?.id !== undefined) sprawdzUuid(args.where.id, 'person.findUnique');
+        return osoby.find((p) => p.id === args?.where?.id) ?? null;
+      },
       create: async (args: any) => {
         const osoba: PersonRow = {
           id: randomUUID(),
@@ -233,6 +252,7 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         const where = args?.where ?? {};
         let wynik = [...granty];
         if (where.applicationId) {
+          sprawdzUuid(where.applicationId, 'applicationAccess.findMany');
           wynik = wynik.filter((g) => g.applicationId === where.applicationId);
         }
         if (where.personId) wynik = wynik.filter((g) => g.personId === where.personId);
@@ -316,6 +336,7 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
     },
     application: {
       findUnique: async (args: any) => {
+        if (args?.where?.id !== undefined) sprawdzUuid(args.where.id, 'application.findUnique');
         // Nazwa aplikacji jest unikalna (`@db.Citext`) — import macierzy
         // rozpoznaje aplikacje z pliku właśnie po niej. Atrapa porównuje
         // bez wielkości liter, dokładnie jak citext w bazie.
@@ -351,6 +372,7 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
         const where = args?.where ?? {};
         let wynik = [...weryfikacje];
         if (where.applicationId) {
+          sprawdzUuid(where.applicationId, 'accessVerification.findMany');
           wynik = wynik.filter((w) => w.applicationId === where.applicationId);
         }
         if (where.scope) wynik = wynik.filter((w) => w.scope === where.scope);
@@ -384,7 +406,8 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
             });
           }
         }
-        return zAplikacja;
+        // Limit odpowiedzi działa po sortowaniu — jak w prawdziwej bazie.
+        return args?.take ? zAplikacja.slice(0, args.take) : zAplikacja;
       },
       create: async (args: any) => {
         const wpis: AccessVerificationRow = {
@@ -401,6 +424,14 @@ export function fakeDb(aplikacje: ApplicationRefRow[] = []): FakeDb {
       },
     },
   } as unknown as AccessPort;
+
+  // Transakcja: pojedyncowy proces testowy nie symuluje współbieżności
+  // ani poziomów izolacji, więc callback dostaje ten sam port — pilnuje
+  // za to kształtu wywołania (operacja przyjmuje `tx`, opcje są dozwolone).
+  (port as { $transaction: unknown }).$transaction = async <T>(
+    operacja: (tx: AccessPort) => Promise<T>,
+    _opcje?: { isolationLevel?: 'Serializable' },
+  ): Promise<T> => operacja(port);
 
   return { port, osoby, granty, aplikacje: [...aplikacjeMap.values()], weryfikacje };
 }

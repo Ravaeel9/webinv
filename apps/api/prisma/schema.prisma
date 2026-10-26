@@ -362,8 +362,9 @@ model AccessVerification {
   personId    String?  @map("person_id") @db.Uuid
   person      Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
   // Migawka nazwiska osoby z grantu — po usunięciu osoby (SetNull) wpis
-  // wciąż mówi, kogo wtedy dotyczył.
-  personName  String?  @map("person_name") @db.VarChar(200)
+  // wciąż mówi, kogo wtedy dotyczył. 255, bo DTO dopuszcza imię i
+  // nazwisko po 100 znaków — razem ze spacją 201, ponad dawne 200.
+  personName  String?  @map("person_name") @db.VarChar(255)
 
   // Kto weryfikował — zawsze zalogowany użytkownik panelu, kopiowane
   // z sesji jak w `AuditLog`.
@@ -375,6 +376,9 @@ model AccessVerification {
 
   @@index([applicationId])
   @@index([verifiedOn])
+  // Blokada 24 h i okno historii filtrują po `createdAt` — bez indeksu
+  // każde sprawdzenie blokady to pełny skan tabeli.
+  @@index([createdAt])
   @@map("access_verifications")
 }
 

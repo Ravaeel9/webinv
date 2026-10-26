@@ -5,6 +5,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -148,12 +149,14 @@ export class CreateVerificationDto {
   @IsOptional() @IsString() @MaxLength(2000, { message: 'Notatka ma maksymalnie 2000 znaków.' })
   note?: string;
 
-  // Identyfikatory przepuszczamy jako napisy — serwis rozstrzyga ich
-  // obecność względem zakresu i odrzuca nieistniejące cele z 404/400.
-  @IsOptional() @IsString()
+  // Identyfikatory jako UUID: serwis rozstrzyga ich obecność względem
+  // zakresu i odrzuca nieistniejące cele z 404/400, ale format pilnuje
+  // DTO — zły UUID poszedłby wprost do `findUnique` na kolumnie `@db.Uuid`
+  // i skończył jako nieobsłużony 500 od PostgreSQL, nie czytelny błąd.
+  @IsOptional() @IsUUID('all', { message: 'applicationId ma być poprawnym identyfikatorem (UUID).' })
   applicationId?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @IsUUID('all', { message: 'personId ma być poprawnym identyfikatorem (UUID).' })
   personId?: string;
 }
 
@@ -178,10 +181,10 @@ export class PersonQueryDto {
 }
 
 export class MatrixQueryDto {
-  @IsOptional() @IsString() @MaxLength(64)
+  @IsOptional() @IsUUID('all', { message: 'applicationId ma być poprawnym identyfikatorem (UUID).' })
   applicationId?: string;
 
-  @IsOptional() @IsString() @MaxLength(64)
+  @IsOptional() @IsUUID('all', { message: 'personId ma być poprawnym identyfikatorem (UUID).' })
   personId?: string;
 
   @IsOptional() @IsString() @MaxLength(150)
@@ -194,7 +197,7 @@ export class MatrixQueryDto {
 
 /** Filtry historii weryfikacji — zawężenie do aplikacji albo zakresu. */
 export class VerificationQueryDto {
-  @IsOptional() @IsString() @MaxLength(64)
+  @IsOptional() @IsUUID('all', { message: 'applicationId ma być poprawnym identyfikatorem (UUID).' })
   applicationId?: string;
 
   @IsOptional()
