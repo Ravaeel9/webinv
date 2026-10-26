@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "11.0.24",
+    "@tanstack/query-core": "^5.105.0",
     "@types/node": "22.15.30",
     "tsx": "4.23.15",
     "typescript": "5.8.3"
