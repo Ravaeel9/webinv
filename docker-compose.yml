@@ -12,7 +12,7 @@ x-logging: &default-logging
 services:
   # ─── Baza danych ────────────────────────────────────────────
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: webinv_db
     restart: unless-stopped
     environment:
@@ -22,7 +22,10 @@ services:
       # Przyspiesza initdb
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PG18+: obraz trzyma dane w podkatalogach per major pod
+      # /var/lib/postgresql (kompatybilne z pg_ctlcluster/pg_upgrade),
+      # więc mount musi obejmować ten katalog, nie .../data
+      - pgdata:/var/lib/postgresql
       # Rozszerzenia (citext) — wykonywane raz przy pierwszym initdb
       - ./docker/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
