@@ -5,7 +5,7 @@
 # ─────────────────────────────────────────────────────────────
 
 # ── Etap 1: zależności (dev) ──────────────────────────────────
-FROM node:22-bookworm-slim AS deps
+FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 
 # Limit sterty Node. `npm ci` w monorepo potrafi momentami zjeść
@@ -48,7 +48,7 @@ RUN npx prisma generate && npm run build
 # ── Etap 3: produkcyjne zależności ─────────────────────────────
 # Osobny etap, żeby warstwa z Prisma CLI i TypeScriptem nie trafiła
 # do obrazu końcowego.
-FROM node:22-bookworm-slim AS prod-deps
+FROM node:24-bookworm-slim AS prod-deps
 WORKDIR /app
 
 # Jak w etapie deps — to `npm ci --omit=dev` jest tu najcięższym krokiem.
@@ -85,7 +85,7 @@ WORKDIR /app
 RUN npm cache clean --force
 
 # ── Etap 4: obraz produkcyjny ─────────────────────────────────
-FROM node:22-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \

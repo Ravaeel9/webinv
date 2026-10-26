@@ -3,7 +3,7 @@
 # ─────────────────────────────────────────────────────────────
 
 # ── Etap 1: deps ──────────────────────────────────────────────
-FROM node:22-bookworm-slim AS deps
+FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 
 # Limit sterty Node — patrz komentarz w apps/api/Dockerfile.
@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund
 
 # ── Etap 2: build web ─────────────────────────────────────────
-FROM node:22-bookworm-slim AS build-web
+FROM node:24-bookworm-slim AS build-web
 WORKDIR /app
 ENV NODE_ENV=production
 
