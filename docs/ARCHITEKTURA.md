@@ -427,6 +427,7 @@ aplikację po wdrożeniu).
 | Import GLPI tworzy tylko nowe rekordy | rejestr ma odwzorowywać stan GLPI, nie zarządzać nim; zapis nie może nadpisać tego, co człowiek dopisał ręcznie | zmiany w GLPI wymagają ponownego importu albo ręcznej aktualizacji wpisów |
 | Sekrety GLPI szyfrowane kluczem z `SESSION_SECRET` | konfiguracja trafia do bazy razem z resztą ustawień, a sekrety nie mogą leżeć jawnie | obrót `SESSION_SECRET` unieważnia zapisane sekrety — trzeba je wpisać ponownie |
 | Podbicie do NestJS 12 (11.2026) i zdjęcie `overrides` | `@nestjs/platform-fastify@12` sam przypina `fastify@5.12.7` — ręczny override z czasów NestJS 11 przestał być potrzebny | deepmerge-ts przychodzi z `@prisma/config` (7.x) — wpisu w `overrides` nie odtwarzać |
+| TypeScript zostaje na 5.8 (11.2026) | TS 7 zabrania `require(ESM)` przy `moduleResolution: node16`, a `@nestjs/common@12` jest czystym ESM (`"type": "module"`) — kompilacja CJS-owego API pada na TS1479 w każdym pliku; runtime działa, bo Node 24 wspiera `require(esm)` | skok na TS 7 wymaga konwersji API na pełny ESM (extension `.js` w każdym importcie względny, `"type": "module"`) — osobny projekt |
 
 ## 11. Macierz uprawnień
 
